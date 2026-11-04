@@ -1,0 +1,31 @@
+name: AI quality
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: AI quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        working-directory: ai
+        run: uv sync --locked --group dev
+      - name: Validate pre-push configuration
+        run: uv run --project ai --no-sync pre-commit validate-config
+      - name: Check AI conventions
+        run: uv run --project ai --no-sync python scripts/check_ai.py
