@@ -1,0 +1,108 @@
+# Local Atlas provides Vector Search. Cloudflare R2 and Claude are external.
+# Required application files: ai/Dockerfile, app.main, app.worker.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: hanstep-mysql
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-hanstep}
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: hanstep-rabbitmq
+    hostname: hanstep-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?Set RABBITMQ_DEFAULT_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS in .env}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  mongodb:
+    image: mongodb/mongodb-atlas-local:8.0
+    container_name: hanstep-mongodb
+    hostname: mongodb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MONGODB_PORT:-27017}:27017"
+    environment:
+      MONGODB_INITDB_ROOT_USERNAME: ${MONGODB_USER:?Set MONGODB_USER in .env}
+      MONGODB_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:?Set MONGODB_PASSWORD in .env}
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+      - mongo-search:/data/mongot
+    # Keep the image's built-in healthcheck for mongod AND mongot.
+
+  ai-server:
+    build:
+      context: ./ai
+    image: hanstep-ai:local
+    restart: unless-stopped
+    init: true
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:${AI_PORT:-8000}:8000"
+    env_file:
+      - ./ai/.env
+    environment:
+      MONGO_URI: ${MONGO_URI:?Set local container MongoDB URI in .env}
+      RABBITMQ_URL: ${RABBITMQ_URL:?Set container RabbitMQ URL in .env}
+      SPRING_INTERNAL_API_URL: ${SPRING_INTERNAL_API_URL:-http://host.docker.internal:8080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  ai-worker:
+    build:
+      context: ./ai
+    image: hanstep-ai:local
+    restart: unless-stopped
+    init: true
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - ./ai/.env
+    environment:
+      MONGO_URI: ${MONGO_URI:?Set local container MongoDB URI in .env}
+      RABBITMQ_URL: ${RABBITMQ_URL:?Set container RabbitMQ URL in .env}
+      SPRING_INTERNAL_API_URL: ${SPRING_INTERNAL_API_URL:-http://host.docker.internal:8080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
+  rabbitmq-data:
+  mongo-data:
+  mongo-config:
+  mongo-search:
