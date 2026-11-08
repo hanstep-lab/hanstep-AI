@@ -12,6 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 AI_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = AI_ROOT.parent
 
+MIN_INTERNAL_TOKEN_LENGTH = 32
 PLACEHOLDER_MARKERS = ("your-", "CHANGE_ME", "example.", "username:password")
 
 
@@ -42,10 +43,13 @@ class Settings(BaseSettings):
     embedding_batch_size: int = Field(default=8, ge=1, le=256)
     load_model_on_startup: bool = False
 
+    # Outbound AI -> Spring calls.
     spring_internal_api_url: str = ""
     spring_internal_api_key: SecretStr = SecretStr("")
-    # Header name is not confirmed by the backend contract yet (see specs/rag/api_contracts.md).
-    internal_api_key_header: str = "X-Internal-Api-Key"
+    # Inbound BE -> AI calls under /internal/v1. Kept separate from the outbound key so one
+    # leaked secret does not open both directions.
+    ai_internal_api_token: SecretStr = SecretStr("")
+    internal_token_header: str = "X-Internal-Token"
 
     r2_endpoint_url: str = ""
     r2_access_key_id: SecretStr = SecretStr("")
@@ -76,6 +80,10 @@ class Settings(BaseSettings):
             self.r2_policy_bucket,
         )
         return not any(is_placeholder(value) for value in values)
+
+    def internal_token_configured(self) -> bool:
+        token = self.ai_internal_api_token.get_secret_value()
+        return not is_placeholder(token) and len(token) >= MIN_INTERNAL_TOKEN_LENGTH
 
     def spring_configured(self) -> bool:
         return not (

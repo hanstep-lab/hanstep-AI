@@ -14,15 +14,16 @@ from app.rag.errors import ValidationFailedError
 
 pytestmark = pytest.mark.unit
 
-KEY = "test-internal-key-123"
+TOKEN = "t" * 40
+SPRING_KEY = "s" * 40
 
 
-@pytest.fixture
-def client() -> TestClient:
+def _make_client(token: str = TOKEN) -> TestClient:
     settings = Settings(
         _env_file=None,  # type: ignore[call-arg]
         spring_internal_api_url="http://localhost:8080",
-        spring_internal_api_key=KEY,  # type: ignore[arg-type]
+        spring_internal_api_key=SPRING_KEY,  # type: ignore[arg-type]
+        ai_internal_api_token=token,  # type: ignore[arg-type]
     )
     app = create_app()
     # No lifespan: no MongoDB, no model download.
@@ -32,8 +33,13 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+@pytest.fixture
+def client() -> TestClient:
+    return _make_client()
+
+
 def _headers() -> dict[str, str]:
-    return {"X-Internal-Api-Key": KEY}
+    return {"X-Internal-Token": TOKEN}
 
 
 def test_live(client: TestClient) -> None:
@@ -45,15 +51,53 @@ def test_ready_is_503_without_dependencies(client: TestClient) -> None:
     assert response.status_code == 503
     body = response.json()
     assert body["checks"]["mongodb"] == "not_configured"
-    assert KEY not in response.text
+    assert TOKEN not in response.text
+    assert body["checks"]["internal_auth"] == "configured"
 
 
-def test_search_requires_auth(client: TestClient) -> None:
-    assert client.post("/internal/rag/search", json={"query": "E-7-4"}).status_code == 401
-    wrong = client.post(
-        "/internal/rag/search", json={"query": "q"}, headers={"X-Internal-Api-Key": "x"}
-    )
-    assert wrong.status_code == 401
+INTERNAL_ROUTES = [
+    ("post", "/internal/v1/rag/search", {"query": "E-7-4"}),
+    ("post", "/internal/v1/rag/ingestions", {"idempotency_key": "abcdefgh"}),
+    ("get", "/internal/v1/rag/ingestions/x", None),
+]
+
+
+@pytest.mark.parametrize(("method", "path", "body"), INTERNAL_ROUTES)
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {},
+        {"X-Internal-Token": "wrong"},
+        {"X-Internal-Token": ""},
+        # The outbound Spring key must not open the inbound API.
+        {"X-Internal-Token": SPRING_KEY},
+        # Right token in the wrong header.
+        {"X-Internal-Api-Key": TOKEN},
+    ],
+)
+def test_internal_routes_reject_bad_credentials(
+    client: TestClient, method: str, path: str, body: Any, headers: dict[str, str]
+) -> None:
+    response = client.request(method, path, json=body, headers=headers)
+    assert response.status_code == 401
+    assert TOKEN not in response.text
+
+
+@pytest.mark.parametrize("token", ["", "short-token", "CHANGE_ME_AI_INTERNAL_API_TOKEN" + "x" * 10])
+def test_unconfigured_or_weak_token_rejects_everything(token: str) -> None:
+    client = _make_client(token)
+    for method, path, body in INTERNAL_ROUTES:
+        response = client.request(method, path, json=body, headers={"X-Internal-Token": token})
+        assert response.status_code == 401
+
+
+def test_old_unversioned_paths_are_gone(client: TestClient) -> None:
+    response = client.post("/internal/rag/search", json={"query": "q"}, headers=_headers())
+    assert response.status_code == 404
+
+
+def test_health_needs_no_token(client: TestClient) -> None:
+    assert client.get("/health/live").status_code == 200
 
 
 @pytest.mark.parametrize(
@@ -70,12 +114,12 @@ def test_search_requires_auth(client: TestClient) -> None:
 def test_search_rejects_invalid_or_filter_override(
     client: TestClient, body: dict[str, Any]
 ) -> None:
-    assert client.post("/internal/rag/search", json=body, headers=_headers()).status_code == 422
+    assert client.post("/internal/v1/rag/search", json=body, headers=_headers()).status_code == 422
 
 
 def test_finance_search_not_supported(client: TestClient) -> None:
     response = client.post(
-        "/internal/rag/search",
+        "/internal/v1/rag/search",
         json={"query": "SOL Global savings", "domain": "finance"},
         headers=_headers(),
     )
@@ -83,17 +127,17 @@ def test_finance_search_not_supported(client: TestClient) -> None:
 
 
 def test_search_without_vector_store_is_unavailable(client: TestClient) -> None:
-    response = client.post("/internal/rag/search", json={"query": "q"}, headers=_headers())
+    response = client.post("/internal/v1/rag/search", json={"query": "q"}, headers=_headers())
     assert response.status_code == 503
 
 
 def test_ingestion_endpoints_closed_until_job_contract(client: TestClient) -> None:
     created = client.post(
-        "/internal/rag/ingestions", json={"idempotency_key": "abcdefgh"}, headers=_headers()
+        "/internal/v1/rag/ingestions", json={"idempotency_key": "abcdefgh"}, headers=_headers()
     )
     assert created.status_code == 503
     assert "ai_jobs" in created.json()["detail"]
-    assert client.get("/internal/rag/ingestions/x", headers=_headers()).status_code == 503
+    assert client.get("/internal/v1/rag/ingestions/x", headers=_headers()).status_code == 503
 
 
 def test_r2_key_is_content_addressed() -> None:

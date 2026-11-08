@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hmac
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -11,7 +10,7 @@ from typing import Any
 from fastapi import FastAPI
 from pymongo import MongoClient
 
-from app.api.routes import health, rag
+from app.api.routes import health, internal
 from app.core.config import Settings, configure_logging, get_settings
 from app.integrations.policy_gateway import PolicyDocumentGateway, UnconfiguredPolicyGateway
 from app.rag.embeddings import BgeM3Embedder
@@ -24,12 +23,6 @@ class AppState:
     embedder: BgeM3Embedder
     mongo: MongoClient[dict[str, Any]] | None = None
     errors: dict[str, str] = field(default_factory=dict)
-
-    def check_api_key(self, provided: str | None) -> bool:
-        expected = self.settings.spring_internal_api_key.get_secret_value()
-        if not self.settings.spring_configured() or not provided:
-            return False
-        return hmac.compare_digest(provided.encode(), expected.encode())
 
 
 def build_state(settings: Settings) -> AppState:
@@ -70,7 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     app = FastAPI(title="hanstep-ai", lifespan=lifespan)
     app.include_router(health.router)
-    app.include_router(rag.router)
+    app.include_router(internal.router)
     return app
 
 

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
@@ -18,7 +17,8 @@ from app.integrations.policy_gateway import MISSING_JOB_CONTRACT
 from app.rag.errors import ValidationFailedError
 from app.rag.retrieval import SearchService, SearchUnavailableError
 
-router = APIRouter(prefix="/internal/rag", tags=["rag"])
+# Mounted under /internal/v1 by app.api.routes.internal, which enforces the internal token.
+router = APIRouter(prefix="/rag", tags=["rag"])
 SEARCH_TIMEOUT_S = 20.0
 
 
@@ -49,17 +49,9 @@ class SearchResponse(BaseModel):
     results: list[SearchHitDto]
 
 
-def _authorize(request: Request) -> Any:
-    state = request.app.state.rag
-    header = state.settings.internal_api_key_header
-    if not state.check_api_key(request.headers.get(header)):
-        raise HTTPException(status_code=401, detail="unauthorized")
-    return state
-
-
 @router.post("/search", response_model=SearchResponse)
 async def search(body: SearchRequest, request: Request) -> SearchResponse:
-    state = _authorize(request)
+    state = request.app.state.rag
     if body.domain != "visa":
         raise HTTPException(status_code=501, detail="finance search contract not confirmed")
     if state.mongo is None:
@@ -100,7 +92,6 @@ class IngestionRequest(BaseModel):
 
 @router.post("/ingestions", status_code=202)
 async def create_ingestion(body: IngestionRequest, request: Request) -> dict[str, str]:
-    _authorize(request)
     # Accepting without a persisted ai_jobs row and guaranteed queue delivery would report
     # work that may never run, so this stays closed until the contract exists.
     raise HTTPException(status_code=503, detail=MISSING_JOB_CONTRACT)
@@ -108,5 +99,4 @@ async def create_ingestion(body: IngestionRequest, request: Request) -> dict[str
 
 @router.get("/ingestions/{job_id}")
 async def get_ingestion(job_id: str, request: Request) -> dict[str, str]:
-    _authorize(request)
     raise HTTPException(status_code=503, detail=MISSING_JOB_CONTRACT)

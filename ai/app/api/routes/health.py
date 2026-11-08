@@ -41,10 +41,14 @@ async def ready(request: Request) -> JSONResponse:
     checks = await run_in_threadpool(_check_mongo, state)
     checks["model"] = "loaded" if state.embedder.loaded else state.errors.get("model", "not_loaded")
     checks["policy_gateway"] = "configured" if state.settings.spring_configured() else "blocked"
+    checks["internal_auth"] = (
+        "configured" if state.settings.internal_token_configured() else "not_configured"
+    )
     ok = (
         checks["mongodb"] == "ok"
         and checks["vector_index"] == "match:queryable"
         and checks["model"] == "loaded"
         and checks["policy_gateway"] == "configured"
+        and checks["internal_auth"] == "configured"
     )
     return JSONResponse({"ready": ok, "checks": checks}, status_code=200 if ok else 503)
