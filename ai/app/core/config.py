@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlparse
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AI_ROOT = Path(__file__).resolve().parents[2]
@@ -93,6 +94,18 @@ class Settings(BaseSettings):
         if bucket == self.r2_arc_bucket:
             raise ValueError(f"{domain} bucket must not be the ARC bucket")
         return bucket
+
+    @field_validator("r2_endpoint_url")
+    @classmethod
+    def _endpoint_without_path(cls, value: str) -> str:
+        # The dashboard shows per-bucket URLs (".../<bucket>"); boto3 needs the account endpoint.
+        parsed = urlparse(value)
+        if value and parsed.path not in ("", "/"):
+            raise ValueError(
+                "R2_ENDPOINT_URL must be https://<account_id>.r2.cloudflarestorage.com "
+                "without a bucket name or path"
+            )
+        return value.rstrip("/")
 
     @model_validator(mode="after")
     def _distinct_buckets(self) -> Settings:

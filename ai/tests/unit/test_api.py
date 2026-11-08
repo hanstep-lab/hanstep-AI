@@ -218,3 +218,19 @@ def test_missing_credentials_block_every_domain() -> None:
     assert all(isinstance(s, UnconfiguredObjectStore) for s in stores.values())
     with pytest.raises(ContractBlockedError, match="R2_PRODUCT_BUCKET"):
         stores["finance"].put_if_absent("k", b"x", "0" * 64)
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    ["https://acc.r2.cloudflarestorage.com/hanstep", "https://acc.r2.cloudflarestorage.com/a/b"],
+)
+def test_r2_endpoint_with_bucket_path_is_rejected(endpoint: str) -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="without a bucket name or path"):
+        _r2_settings(r2_endpoint_url=endpoint)
+
+
+def test_r2_endpoint_trailing_slash_is_normalized() -> None:
+    settings = _r2_settings(r2_endpoint_url="https://acc.r2.cloudflarestorage.com/")
+    assert settings.r2_endpoint_url == "https://acc.r2.cloudflarestorage.com"
