@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from pymongo.collection import Collection
 
@@ -14,6 +16,7 @@ from app.rag.errors import ContractBlockedError, ValidationFailedError
 
 _VISA_TYPE = re.compile(r"^[A-Z]-\d{1,2}(?:-\d{1,2})?$")
 MAX_VISA_TYPES = 10
+SEOUL = ZoneInfo("Asia/Seoul")
 
 
 class SearchUnavailableError(Exception):
@@ -72,8 +75,20 @@ class SearchHit:
     source_org: str
     visa_types: list[str]
     score: float
+    chunk_id: str = ""
     page_number: int | None = None
     section_title: str | None = None
+    # Calendar days in Korea (stored as KST midnight in UTC).
+    effective_from: date | None = None
+    effective_to: date | None = None
+
+
+def _kst_date(value: datetime | None) -> date | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(SEOUL).date()
 
 
 def filter_current(
@@ -113,8 +128,11 @@ def to_hit(doc: dict[str, Any]) -> SearchHit:
         source_org=doc["source_org"],
         visa_types=list(doc["visa_types"]),
         score=float(doc["score"]),
+        chunk_id=str(doc["_id"]),
         page_number=doc.get("page_number"),
         section_title=doc.get("section_title"),
+        effective_from=_kst_date(doc.get("effective_from")),
+        effective_to=_kst_date(doc.get("effective_to")),
     )
 
 

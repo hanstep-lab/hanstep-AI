@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from bson import ObjectId
 
 from app.integrations.policy_gateway import (
     InMemoryPolicyGateway,
@@ -27,6 +28,7 @@ def _hit(
     pid: int, version: str, *, active: bool = True, status: str = "approved"
 ) -> dict[str, Any]:
     return {
+        "_id": ObjectId(),
         "policy_document_id": pid,
         "document_version": version,
         "chunk_index": 0,

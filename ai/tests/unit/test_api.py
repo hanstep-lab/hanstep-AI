@@ -55,11 +55,8 @@ def test_ready_is_503_without_dependencies(client: TestClient) -> None:
     assert body["checks"]["internal_auth"] == "configured"
 
 
-INTERNAL_ROUTES = [
-    ("post", "/internal/v1/rag/search", {"query": "E-7-4"}),
-    ("post", "/internal/v1/rag/ingestions", {"idempotency_key": "abcdefgh"}),
-    ("get", "/internal/v1/rag/ingestions/x", None),
-]
+SEARCH = "/internal/v1/visa/policies/search"
+INTERNAL_ROUTES = [("post", SEARCH, {"query": "E-7-4"})]
 
 
 @pytest.mark.parametrize(("method", "path", "body"), INTERNAL_ROUTES)
@@ -80,6 +77,7 @@ def test_internal_routes_reject_bad_credentials(
 ) -> None:
     response = client.request(method, path, json=body, headers=headers)
     assert response.status_code == 401
+    assert response.json()["code"] == "UNAUTHORIZED"
     assert TOKEN not in response.text
 
 
@@ -91,9 +89,13 @@ def test_unconfigured_or_weak_token_rejects_everything(token: str) -> None:
         assert response.status_code == 401
 
 
-def test_old_unversioned_paths_are_gone(client: TestClient) -> None:
-    response = client.post("/internal/rag/search", json={"query": "q"}, headers=_headers())
+@pytest.mark.parametrize(
+    "path", ["/internal/rag/search", "/internal/v1/rag/search", "/internal/v1/rag/ingestions"]
+)
+def test_old_paths_are_gone(client: TestClient, path: str) -> None:
+    response = client.post(path, json={"query": "q"}, headers=_headers())
     assert response.status_code == 404
+    assert response.json()["code"] == "RESOURCE_NOT_FOUND"
 
 
 def test_health_needs_no_token(client: TestClient) -> None:
@@ -104,40 +106,73 @@ def test_health_needs_no_token(client: TestClient) -> None:
     "body",
     [
         {"query": ""},
-        {"query": "q", "top_k": 0},
-        {"query": "q", "top_k": 21},
+        {"query": "q", "topK": 0},
+        {"query": "q", "topK": 21},
         {"query": "x" * 1001},
-        {"query": "q", "filter": {"is_active": False}},
+        {"query": "q", "top_k": 5},  # snake_case is rejected: JSON is camelCase
+        {"query": "q", "filter": {"isActive": False}},
         {"query": "q", "pipeline": []},
+        {"query": "q", "domain": "finance"},
     ],
 )
 def test_search_rejects_invalid_or_filter_override(
     client: TestClient, body: dict[str, Any]
 ) -> None:
-    assert client.post("/internal/v1/rag/search", json=body, headers=_headers()).status_code == 422
+    response = client.post(SEARCH, json=body, headers=_headers())
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "VALIDATION_ERROR"
+    assert payload["details"]["fields"]
+    assert payload["requestId"].startswith("req_")
+    assert "x" * 50 not in response.text  # submitted values are not echoed
 
 
-def test_finance_search_not_supported(client: TestClient) -> None:
+def test_error_envelope_reuses_caller_request_id(client: TestClient) -> None:
     response = client.post(
-        "/internal/v1/rag/search",
-        json={"query": "SOL Global savings", "domain": "finance"},
-        headers=_headers(),
+        SEARCH, json={"query": ""}, headers={**_headers(), "X-Request-Id": "req_spring_123"}
     )
-    assert response.status_code == 501
+    assert response.json()["requestId"] == "req_spring_123"
+    assert response.headers["X-Request-Id"] == "req_spring_123"
 
 
 def test_search_without_vector_store_is_unavailable(client: TestClient) -> None:
-    response = client.post("/internal/v1/rag/search", json={"query": "q"}, headers=_headers())
+    response = client.post(SEARCH, json={"query": "q", "topK": 3}, headers=_headers())
     assert response.status_code == 503
+    assert response.json()["code"] == "SERVICE_UNAVAILABLE"
 
 
-def test_ingestion_endpoints_closed_until_job_contract(client: TestClient) -> None:
-    created = client.post(
-        "/internal/v1/rag/ingestions", json={"idempotency_key": "abcdefgh"}, headers=_headers()
+def test_search_response_is_camel_case() -> None:
+    from datetime import UTC, date, datetime
+
+    from bson import ObjectId
+
+    from app.api.routes.visa_policies import PolicySearchResult
+    from app.rag.retrieval import to_hit
+
+    oid = ObjectId()
+    hit = to_hit(
+        {
+            "_id": oid,
+            "policy_document_id": 7,
+            "document_version": "E74-2026-v1",
+            "chunk_index": 2,
+            "chunk_text": "본문",
+            "title": "선발 계획",
+            "source_url": "https://www.moj.go.kr/x",
+            "source_org": "법무부",
+            "visa_types": ["E-7-4"],
+            "score": 0.8,
+            "page_number": 3,
+            "effective_from": datetime(2026, 5, 31, 15, 0, tzinfo=UTC),  # KST 2026-06-01
+        }
     )
-    assert created.status_code == 503
-    assert "ai_jobs" in created.json()["detail"]
-    assert client.get("/internal/v1/rag/ingestions/x", headers=_headers()).status_code == 503
+    body = PolicySearchResult.from_hit(hit).model_dump(mode="json", by_alias=True)
+    assert body["chunkId"] == str(oid)
+    assert body["policyDocumentId"] == 7
+    assert body["effectiveFrom"] == date(2026, 6, 1).isoformat()
+    assert body["effectiveTo"] is None
+    assert {"sourceUrl", "sourceOrg", "visaTypes", "pageNumber", "sectionTitle"} <= set(body)
+    assert not any("_" in key for key in body)
 
 
 def test_r2_key_is_content_addressed() -> None:

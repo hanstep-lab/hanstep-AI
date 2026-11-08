@@ -1,4 +1,4 @@
-"""FastAPI entry point: health checks, internal search, ingestion job endpoints."""
+"""FastAPI entry point: health checks and the /internal/v1 BE -> AI API."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI
 from pymongo import MongoClient
 
+from app.api.errors import install_error_handlers
 from app.api.routes import health, internal
 from app.core.config import Settings, configure_logging, get_settings
 from app.integrations.policy_gateway import PolicyDocumentGateway, UnconfiguredPolicyGateway
@@ -62,6 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="hanstep-ai", lifespan=lifespan)
+    install_error_handlers(app)
     app.include_router(health.router)
     app.include_router(internal.router)
     return app
