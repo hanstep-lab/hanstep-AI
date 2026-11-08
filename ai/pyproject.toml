@@ -27,6 +27,7 @@ dependencies = [
     "lxml>=5.0.0",
     "defusedxml>=0.7.1",
     "pypdf>=5.0.0",
+    "olefile>=0.47",
     # Utilities
     "python-dotenv>=1.0.1",
     "tenacity>=9.0.0",
@@ -81,3 +82,7 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = ["boto3", "boto3.*", "botocore", "botocore.*", "defusedxml", "defusedxml.*", "olefile", "olefile.*"]
+ignore_missing_imports = true

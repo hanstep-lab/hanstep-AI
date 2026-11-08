@@ -214,3 +214,5 @@ pyrightconfig.json
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
+# Generated RAG run reports, inventories and API captures
+ai/artifacts/
