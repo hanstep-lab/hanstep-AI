@@ -44,6 +44,10 @@ TARGET_LAWS = ("출입국관리법", "출입국관리법 시행령", "출입국�
 MAX_RESPONSE_BYTES = 20 * 1024 * 1024
 MAX_PAGES = 50
 DISPLAY = 100
+# 별표구분 values chunked by default. 서식 (application forms) are mostly field labels: in the
+# 시행규칙 they are 286 of 299 annex units and ~1.36M characters, which would swamp retrieval.
+# They stay in the raw response kept in R2 and are counted in the extraction report.
+DEFAULT_ANNEX_KINDS = ("별표", "부록")
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
@@ -75,6 +79,7 @@ class LawDocument:
     article_count: int = 0
     addenda_count: int = 0
     annex_count: int = 0
+    skipped_annexes: dict[str, int] = field(default_factory=dict)
 
     @property
     def raw_sha256(self) -> str:
@@ -164,7 +169,7 @@ def _join_items(unit: Element) -> list[str]:
     return lines
 
 
-def parse_law(data: bytes) -> LawDocument:
+def parse_law(data: bytes, annex_kinds: tuple[str, ...] = DEFAULT_ANNEX_KINDS) -> LawDocument:
     root = _parse_xml(data, "법령")
     info = root.find("기본정보")
     if info is None or not _text(info, "법령ID"):
@@ -184,7 +189,12 @@ def parse_law(data: bytes) -> LawDocument:
         if content:
             addenda += 1
             blocks.append(Block(content))
+    skipped: dict[str, int] = {}
     for unit in root.iter("별표단위"):
+        kind = _text(unit, "별표구분") or "별표"
+        if kind not in annex_kinds:
+            skipped[kind] = skipped.get(kind, 0) + 1
+            continue
         title = _text(unit, "별표제목")
         content = _text(unit, "별표내용")
         if title or content:
@@ -201,6 +211,7 @@ def parse_law(data: bytes) -> LawDocument:
         article_count=articles,
         addenda_count=addenda,
         annex_count=annexes,
+        skipped_annexes=skipped,
     )
 
 
@@ -208,8 +219,13 @@ def law_extraction_report(doc: LawDocument) -> ExtractionReport:
     report = ExtractionReport("ok", "law-api-xml", blocks=list(doc.blocks))
     report.paragraphs = len(doc.blocks)
     report.characters = sum(len(b.text) for b in doc.blocks)
+    notes = []
     if doc.addenda_count == 0:
-        report.reason = "no 부칙 parsed"
+        notes.append("no 부칙 parsed")
+    if doc.skipped_annexes:
+        skipped = ", ".join(f"{kind} {n}" for kind, n in sorted(doc.skipped_annexes.items()))
+        notes.append(f"annexes not chunked (kept in raw response): {skipped}")
+    report.reason = "; ".join(notes)
     if not doc.blocks:
         report.status, report.reason = "failed", "law body has no text"
     return report

@@ -97,6 +97,7 @@ def fetch_only(config: dict[str, Any], run_id: str) -> dict[str, Any]:
                         "articles": doc.article_count,
                         "addenda": doc.addenda_count,
                         "annexes": doc.annex_count,
+                        "annexes_skipped": doc.skipped_annexes,
                         "raw_sha256": doc.raw_sha256,
                         "content_sha256": doc.content_sha256(),
                         "saved": path.as_posix(),

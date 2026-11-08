@@ -167,3 +167,29 @@ def test_collect_targets_end_to_end_with_fixtures() -> None:
 
     docs = list(_client(httpx.MockTransport(handler)).collect_targets(("출입국관리법",)))
     assert [d.name for d in docs] == ["출입국관리법"]
+
+
+def test_real_response_excerpt_parses() -> None:
+    """Excerpt of a real 출입국관리법 시행규칙 response (fetched 2026-11-09)."""
+    doc = parse_law((LAW / "lawService_real_excerpt.xml").read_bytes())
+    assert doc.law_id == "008494"
+    assert doc.name == "출입국관리법 시행규칙"
+    assert doc.article_count == 2
+    assert doc.addenda_count == 1
+    text = "\n".join(b.text for b in doc.blocks)
+    assert "제1조의2(정보화기기를 이용한 출입국심사)" in text
+    assert "① 영 제1조의2에 따라" in text
+
+
+def test_forms_are_skipped_by_default_but_counted() -> None:
+    data = (LAW / "lawService_real_excerpt.xml").read_bytes()
+    doc = parse_law(data)
+    assert doc.annex_count == 1
+    assert doc.skipped_annexes == {"서식": 1}
+    report = law_extraction_report(doc)
+    assert report.status == "ok"
+    assert "서식 1" in report.reason
+
+    with_forms = parse_law(data, annex_kinds=("별표", "부록", "서식"))
+    assert with_forms.annex_count == 2
+    assert with_forms.skipped_annexes == {}
