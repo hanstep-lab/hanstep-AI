@@ -1,0 +1,10 @@
+{
+  "providers": [
+    {
+      "provider": "law_go_kr",
+      "description": "법제처 국가법령정보 공동활용 API, target=law (현행법령 공포일 기준), XML",
+      "laws": ["출입국관리법", "출입국관리법 시행령", "출입국관리법 시행규칙"],
+      "fixtures_dir": "tests/fixtures/law_api"
+    }
+  ]
+}
