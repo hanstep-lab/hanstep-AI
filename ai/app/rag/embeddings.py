@@ -79,7 +79,7 @@ class BgeM3Embedder:
                 device=self.device,
                 local_files_only=self.local_files_only,
             )
-            dim = model.get_sentence_embedding_dimension()
+            dim = model.get_embedding_dimension()
             if dim != EMBEDDING_DIMENSIONS:
                 raise RuntimeError(f"{self.model_name} outputs {dim} dims, expected 1024")
             self._model = model

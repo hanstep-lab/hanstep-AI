@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
@@ -94,6 +95,14 @@ class Settings(BaseSettings):
         if bucket == self.r2_arc_bucket:
             raise ValueError(f"{domain} bucket must not be the ARC bucket")
         return bucket
+
+    @field_validator("embedding_model_revision")
+    @classmethod
+    def _revision_is_commit_or_branch(cls, value: str) -> str:
+        # A pasted password or typo here would silently pull an unknown model revision.
+        if value and not re.fullmatch(r"[0-9a-f]{7,40}|main", value):
+            raise ValueError("EMBEDDING_MODEL_REVISION must be a commit hash, 'main' or empty")
+        return value
 
     @field_validator("r2_endpoint_url")
     @classmethod

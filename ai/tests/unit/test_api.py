@@ -269,3 +269,21 @@ def test_r2_endpoint_with_bucket_path_is_rejected(endpoint: str) -> None:
 def test_r2_endpoint_trailing_slash_is_normalized() -> None:
     settings = _r2_settings(r2_endpoint_url="https://acc.r2.cloudflarestorage.com/")
     assert settings.r2_endpoint_url == "https://acc.r2.cloudflarestorage.com"
+
+
+@pytest.mark.parametrize(
+    "revision", ["", "main", "5617a9f", "5617a9f61b028005a4858fdac845db406aefb181"]
+)
+def test_embedding_revision_accepts_commit_or_branch(revision: str) -> None:
+    assert (
+        Settings(_env_file=None, embedding_model_revision=revision).embedding_model_revision
+        == revision
+    )  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("revision", ["password123", "v1.0", "5617A9F", "../x"])
+def test_embedding_revision_rejects_other_values(revision: str) -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="commit hash"):
+        Settings(_env_file=None, embedding_model_revision=revision)  # type: ignore[call-arg]
