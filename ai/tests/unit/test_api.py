@@ -171,3 +171,50 @@ def test_r2_store_refuses_arc_bucket() -> None:
             bucket="shinhan-arc-private",
             forbidden_buckets=("shinhan-arc-private",),
         )
+
+
+def _r2_settings(**overrides: Any) -> Settings:
+    values: dict[str, Any] = {
+        "_env_file": None,
+        "r2_endpoint_url": "https://acc.r2.cloudflarestorage.com",
+        "r2_access_key_id": "key-id",
+        "r2_secret_access_key": "secret",
+        "r2_policy_bucket": "hanstep-visa-policies",
+        "r2_product_bucket": "hanstep-financial-products",
+        "r2_arc_bucket": "hanstep-arc-private",
+    }
+    values.update(overrides)
+    return Settings(**values)
+
+
+def test_buckets_are_split_by_domain() -> None:
+    from app.integrations.r2 import build_object_stores
+
+    settings = _r2_settings()
+    assert settings.r2_bucket_for("visa") == "hanstep-visa-policies"
+    assert settings.r2_bucket_for("finance") == "hanstep-financial-products"
+    assert settings.r2_bucket_for("arc") == ""
+    stores = build_object_stores(settings)
+    assert {d: getattr(s, "bucket", None) for d, s in stores.items()} == {
+        "visa": "hanstep-visa-policies",
+        "finance": "hanstep-financial-products",
+    }
+
+
+def test_same_bucket_for_two_purposes_is_rejected() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="different"):
+        _r2_settings(r2_product_bucket="hanstep-arc-private")
+    with pytest.raises(ValidationError, match="different"):
+        _r2_settings(r2_product_bucket="hanstep-visa-policies")
+
+
+def test_missing_credentials_block_every_domain() -> None:
+    from app.integrations.r2 import UnconfiguredObjectStore, build_object_stores
+    from app.rag.errors import ContractBlockedError
+
+    stores = build_object_stores(_r2_settings(r2_secret_access_key="your-r2-secret-key"))
+    assert all(isinstance(s, UnconfiguredObjectStore) for s in stores.values())
+    with pytest.raises(ContractBlockedError, match="R2_PRODUCT_BUCKET"):
+        stores["finance"].put_if_absent("k", b"x", "0" * 64)

@@ -11,6 +11,7 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from app.core.config import Settings
 from app.rag.errors import ContractBlockedError, ValidationFailedError
 
 MAX_OBJECT_BYTES = 50 * 1024 * 1024
@@ -42,14 +43,42 @@ class ObjectStore(Protocol):
 
 
 class UnconfiguredObjectStore:
+    def __init__(self, bucket_setting: str = "R2_POLICY_BUCKET") -> None:
+        self.bucket_setting = bucket_setting
+
     def put_if_absent(self, key: str, data: bytes, sha256: str) -> str:
         raise ContractBlockedError(
             "R2 not configured: set R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, "
-            "R2_POLICY_BUCKET and confirm bucket access and object key contract"
+            f"{self.bucket_setting} and confirm bucket access and object key contract"
         )
 
     def read_sha256(self, key: str) -> str:
         raise ContractBlockedError("R2 not configured")
+
+
+BUCKET_SETTINGS = {"visa": "R2_POLICY_BUCKET", "finance": "R2_PRODUCT_BUCKET"}
+
+
+def build_object_stores(settings: Settings) -> dict[str, ObjectStore]:
+    """One store per RAG domain: visa -> policy bucket, finance -> product bucket.
+
+    Missing credentials or bucket names yield an UnconfiguredObjectStore that blocks at use.
+    """
+    stores: dict[str, ObjectStore] = {}
+    for domain, setting in BUCKET_SETTINGS.items():
+        bucket = settings.r2_bucket_for(domain)
+        if not (settings.r2_credentials_configured() and bucket):
+            stores[domain] = UnconfiguredObjectStore(setting)
+            continue
+        stores[domain] = R2ObjectStore(
+            endpoint_url=settings.r2_endpoint_url,
+            access_key_id=settings.r2_access_key_id.get_secret_value(),
+            secret_access_key=settings.r2_secret_access_key.get_secret_value(),
+            bucket=bucket,
+            region=settings.r2_region,
+            forbidden_buckets=(settings.r2_arc_bucket,) if settings.r2_arc_bucket else (),
+        )
+    return stores
 
 
 class R2ObjectStore:

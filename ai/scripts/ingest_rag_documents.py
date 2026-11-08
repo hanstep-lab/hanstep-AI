@@ -21,7 +21,7 @@ import _bootstrap  # noqa: F401
 
 from app.core.config import configure_logging, get_settings
 from app.integrations.policy_gateway import UnconfiguredPolicyGateway
-from app.integrations.r2 import ObjectStore, R2ObjectStore, UnconfiguredObjectStore
+from app.integrations.r2 import BUCKET_SETTINGS, UnconfiguredObjectStore, build_object_stores
 from app.rag.chunking import approx_token_count
 from app.rag.cli import (
     EXIT_BLOCKED,
@@ -37,20 +37,6 @@ from app.rag.manifest import load_manifest
 from app.rag.repository import ChunkRepository
 
 SUCCESS = {"planned", "loaded", "skipped"}
-
-
-def build_object_store() -> ObjectStore:
-    settings = get_settings()
-    if not settings.r2_configured():
-        return UnconfiguredObjectStore()
-    return R2ObjectStore(
-        endpoint_url=settings.r2_endpoint_url,
-        access_key_id=settings.r2_access_key_id.get_secret_value(),
-        secret_access_key=settings.r2_secret_access_key.get_secret_value(),
-        bucket=settings.r2_policy_bucket,
-        region=settings.r2_region,
-        forbidden_buckets=(settings.r2_arc_bucket,) if settings.r2_arc_bucket else (),
-    )
 
 
 def main() -> int:
@@ -116,7 +102,9 @@ def main() -> int:
     deps = IngestionDeps(
         repository=repository,
         gateway=UnconfiguredPolicyGateway(),
-        object_store=build_object_store() if args.apply else UnconfiguredObjectStore(),
+        object_stores=build_object_stores(settings)
+        if args.apply
+        else {d: UnconfiguredObjectStore(b) for d, b in BUCKET_SETTINGS.items()},
         embedder=embedder,
         token_counter=counter,
         tokenizer_id=tokenizer_id,

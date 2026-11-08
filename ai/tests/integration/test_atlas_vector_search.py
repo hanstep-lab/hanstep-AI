@@ -288,7 +288,7 @@ def test_real_document_ingestion_is_idempotent(repo: ChunkRepository) -> None:
     deps = IngestionDeps(
         repository=repo,
         gateway=gateway,
-        object_store=InMemoryObjectStore(),
+        object_stores={"visa": InMemoryObjectStore()},
         embedder=embedder,
         token_counter=approx_token_count,
         tokenizer_id="approx",

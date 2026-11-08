@@ -62,7 +62,7 @@ def _deps(repo: FakeRepository, embedder: FakeEmbedder, gateway: Any, store: Any
     return IngestionDeps(
         repository=repo,  # type: ignore[arg-type]
         gateway=gateway,
-        object_store=store,
+        object_stores={"visa": store, "finance": store},
         embedder=embedder,
         token_counter=approx_token_count,
         tokenizer_id="approx",

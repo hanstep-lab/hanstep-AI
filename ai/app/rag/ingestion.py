@@ -7,7 +7,7 @@ New chunks are always written as ``pending``/inactive. Activation happens only i
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from pathlib import Path
@@ -56,7 +56,8 @@ class SourceResult:
 class IngestionDeps:
     repository: ChunkRepository | None
     gateway: PolicyDocumentGateway
-    object_store: ObjectStore
+    # Per domain: visa -> policy bucket, finance -> product bucket.
+    object_stores: Mapping[str, ObjectStore]
     embedder: Embedder | None
     token_counter: TokenCounter
     tokenizer_id: str
@@ -195,8 +196,11 @@ def _apply(
 
     # 2. Keep the original in private R2 and verify the round trip.
     key = object_key(deps.r2_prefix, entry.domain, entry.sha256, Path(entry.path).suffix)
-    result.r2 = deps.object_store.put_if_absent(key, original, entry.sha256)
-    if deps.object_store.read_sha256(key) != entry.sha256:
+    store = deps.object_stores.get(entry.domain)
+    if store is None:
+        raise ContractBlockedError(f"no R2 bucket configured for domain {entry.domain}")
+    result.r2 = store.put_if_absent(key, original, entry.sha256)
+    if store.read_sha256(key) != entry.sha256:
         raise ValidationFailedError("R2 round-trip hash mismatch")
     if record.r2_object_key != key:
         deps.gateway.record_r2_object(entry.policy_document_id, entry.document_version, key)

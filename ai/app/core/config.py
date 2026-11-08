@@ -6,7 +6,7 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AI_ROOT = Path(__file__).resolve().parents[2]
@@ -55,7 +55,9 @@ class Settings(BaseSettings):
     r2_access_key_id: SecretStr = SecretStr("")
     r2_secret_access_key: SecretStr = SecretStr("")
     r2_region: str = "auto"
+    # Visa policy originals / financial product descriptions & terms / ARC images (private).
     r2_policy_bucket: str = ""
+    r2_product_bucket: str = ""
     r2_arc_bucket: str = ""
     # Proposal only; confirm the object key contract before production use.
     r2_policy_prefix: str = "policy-sources"
@@ -72,14 +74,34 @@ class Settings(BaseSettings):
     def mongo_configured(self) -> bool:
         return not is_placeholder(self.mongo_uri.get_secret_value())
 
-    def r2_configured(self) -> bool:
+    def r2_credentials_configured(self) -> bool:
         values = (
             self.r2_endpoint_url,
             self.r2_access_key_id.get_secret_value(),
             self.r2_secret_access_key.get_secret_value(),
-            self.r2_policy_bucket,
         )
         return not any(is_placeholder(value) for value in values)
+
+    def r2_configured(self) -> bool:
+        return self.r2_credentials_configured() and not is_placeholder(self.r2_policy_bucket)
+
+    def r2_bucket_for(self, domain: str) -> str:
+        """Source bucket per RAG domain. The ARC bucket is never a RAG source."""
+        bucket = {"visa": self.r2_policy_bucket, "finance": self.r2_product_bucket}.get(domain, "")
+        if is_placeholder(bucket):
+            return ""
+        if bucket == self.r2_arc_bucket:
+            raise ValueError(f"{domain} bucket must not be the ARC bucket")
+        return bucket
+
+    @model_validator(mode="after")
+    def _distinct_buckets(self) -> Settings:
+        named = [
+            b for b in (self.r2_policy_bucket, self.r2_product_bucket, self.r2_arc_bucket) if b
+        ]
+        if len(named) != len(set(named)):
+            raise ValueError("R2 policy, product and ARC buckets must be different")
+        return self
 
     def internal_token_configured(self) -> bool:
         token = self.ai_internal_api_token.get_secret_value()
