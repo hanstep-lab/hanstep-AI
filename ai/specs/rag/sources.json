@@ -1,0 +1,256 @@
+{
+  "manifest_version": 1,
+  "data_root": "../../../data/rag_documents",
+  "sources": [
+    {
+      "path": "finance/shinhan/sol_global_account.pdf",
+      "domain": "finance",
+      "classification_hint": "finance/shinhan (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "f897f7be853b241751b21f0574f6a276acbb6ce0b084d41853322bf4aeda69c9",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": null
+      },
+      "derived_inputs": []
+    },
+    {
+      "path": "finance/shinhan/sol_global_savings.pdf",
+      "domain": "finance",
+      "classification_hint": "finance/shinhan (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "7b18bb95f41e3d9d197ab9080365b32ca1defeea1245a57e525979de215c0fac",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": null
+      },
+      "derived_inputs": []
+    },
+    {
+      "path": "finance/shinhan/thai_remittance_100baht.pdf",
+      "domain": "finance",
+      "classification_hint": "finance/shinhan (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "00002b53810b5adcd0b6b3902e4f29cddf2e3c575c37e0a0a95538cd1023d282",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": null
+      },
+      "derived_inputs": []
+    },
+    {
+      "path": "visa/guides/e74_central_agency_guide_2026.hwp",
+      "domain": "visa",
+      "classification_hint": "visa/guides (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "e38dee718554ae2fe1c24f6388a9eec373058ca4ddd6b9651b80e089fec963ac",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": null
+      },
+      "derived_inputs": []
+    },
+    {
+      "path": "visa/guides/e74_online_application_manual_2026.pdf",
+      "domain": "visa",
+      "classification_hint": "visa/guides (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "9f6bd0ec911cdc556e579c023227f20a495f13b7189af1f7d126d9c4da254444",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": null
+      },
+      "derived_inputs": []
+    },
+    {
+      "path": "visa/recommendations/central/common/e74_recommendation_application_2026.hwp",
+      "domain": "visa",
+      "classification_hint": "visa/recommendations/central/common (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "095b1ed91d247617a650d4c70513d892bae9ea2ed871c8e94fcb51a042ef7907",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": null
+      },
+      "derived_inputs": []
+    },
+    {
+      "path": "visa/recommendations/central/mafra/e74_mafra_2026_20260305.pdf",
+      "domain": "visa",
+      "classification_hint": "visa/recommendations/central/mafra (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "1c2fa2951038ff3ef1efb91fd8fcba4690ff0bb51429e5d18b7813f9b91e5021",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": null
+      },
+      "derived_inputs": []
+    },
+    {
+      "path": "visa/recommendations/local/gyeonggi/e74_gyeonggi_20260601.hwpx",
+      "domain": "visa",
+      "classification_hint": "visa/recommendations/local/gyeonggi (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "6657588aa0d37e744fc7997f2a7c0be420d20b27fcc70de9086e86f4c1a95a1a",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": null
+      },
+      "derived_inputs": []
+    },
+    {
+      "path": "visa/selection/e74_selection_20260601.pdf",
+      "domain": "visa",
+      "classification_hint": "visa/selection (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "5c6d0d26537ed48e815db5969294cc453fc10819af2ab6f887fc2c454676ca78",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": "selection 폴더의 PDF/HWP 두 파일의 원본-수정본 관계 미확인. 공식 내용과 승인 기록으로 판정 필요."
+      },
+      "derived_inputs": []
+    },
+    {
+      "path": "visa/selection/e74_selection_2026_original.hwp",
+      "domain": "visa",
+      "classification_hint": "visa/selection (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "sha256": "4c9c48a513fc34659ee3f4168bbf8dfe89d8f2c39e50d5c3840490f254945b69",
+      "title": null,
+      "source_url": null,
+      "source_org": null,
+      "visa_types": null,
+      "policy_document_id": null,
+      "document_version": null,
+      "effective_from": null,
+      "effective_to": null,
+      "review": {
+        "verified": false,
+        "verified_by": null,
+        "verified_at": null
+      },
+      "relations": {
+        "derived_from": null,
+        "supersedes": null,
+        "note": "selection 폴더의 PDF/HWP 두 파일의 원본-수정본 관계 미확인. 공식 내용과 승인 기록으로 판정 필요."
+      },
+      "derived_inputs": []
+    }
+  ]
+}
