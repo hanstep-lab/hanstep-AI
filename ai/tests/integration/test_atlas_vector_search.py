@@ -285,7 +285,7 @@ def test_stale_index_results_are_filtered_by_mysql_state(repo: ChunkRepository) 
 
 
 def test_real_document_ingestion_is_idempotent(repo: ChunkRepository) -> None:
-    path = "visa/recommendations/central/mafra/e74_mafra_2026_20260305.pdf"
+    path = "visa/recommendations/central/mafra/e74_mafra_20260305.pdf"
     sha = inspect_file(DATA_ROOT, path).sha256
     entry = SourceEntry.model_validate(
         {

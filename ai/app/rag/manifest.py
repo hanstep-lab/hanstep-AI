@@ -59,6 +59,8 @@ class SourceEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     path: str
+    # File name as published by the source, kept for tracing (the stored path is normalized).
+    original_filename: str | None = None
     domain: Domain
     classification_hint: str | None = None
     sha256: str

@@ -21,7 +21,7 @@ from tests.conftest import DATA_ROOT, FakeEmbedder, FakeRepository
 
 pytestmark = pytest.mark.unit
 
-PATH = "visa/recommendations/central/mafra/e74_mafra_2026_20260305.pdf"
+PATH = "visa/recommendations/central/mafra/e74_mafra_20260305.pdf"
 SHA = inspect_file(DATA_ROOT, PATH).sha256
 
 
@@ -167,7 +167,7 @@ def test_unconfigured_contracts_block_without_writes(
 def test_finance_is_blocked_and_never_written(
     fake_repository: FakeRepository, fake_embedder: FakeEmbedder, gateway: InMemoryPolicyGateway
 ) -> None:
-    path = "finance/shinhan/sol_global_savings.pdf"
+    path = "finance/shinhan/thai_remittance_100baht.pdf"
     entry = _entry(path=path, domain="finance", sha256=inspect_file(DATA_ROOT, path).sha256)
     store = InMemoryObjectStore()
     result = process_entry(

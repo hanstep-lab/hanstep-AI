@@ -21,7 +21,7 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). 금융 문서라 source_type 대신 BE product_documents.doc_kind=PRODUCT_DESCRIPTION 후보. 준법감시인 사전심사필 제2026-10266-1호(유효 2026-01-23~2027-01-22), 금리 기준일 2026-01-16 — 발행일 아님. 금융 저장 계약 확정 필요."
+        "note": "출처 정리(2026-11-09)의 최종 8개 목록에 없음 — 삭제 여부 확인 필요. 본문 추출 후보(2026-11-09). 금융 문서라 source_type 대신 BE product_documents.doc_kind=PRODUCT_DESCRIPTION 후보. 준법감시인 사전심사필 제2026-10266-1호(유효 2026-01-23~2027-01-22), 금리 기준일 2026-01-16 — 발행일 아님. 금융 저장 계약 확정 필요."
       },
       "relations": {
         "derived_from": null,
@@ -49,7 +49,7 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). doc_kind=PRODUCT_DESCRIPTION 후보. 준법감시인 사전심사필 제2025-14265-2호(유효 2025-10-31~2026-10-30, 2026-11-09 기준 만료 — 최신본 확인 필요), 금리 기준일 2025-10-31."
+        "note": "출처 정리(2026-11-09)의 최종 8개 목록에 없음 — 삭제 여부 확인 필요. 본문 추출 후보(2026-11-09). doc_kind=PRODUCT_DESCRIPTION 후보. 준법감시인 사전심사필 제2025-14265-2호(유효 2025-10-31~2026-10-30, 2026-11-09 기준 만료 — 최신본 확인 필요), 금리 기준일 2025-10-31."
       },
       "relations": {
         "derived_from": null,
@@ -60,6 +60,7 @@
     },
     {
       "path": "finance/shinhan/thai_remittance_100baht.pdf",
+      "original_filename": "100바트 해외송금서비스 상품설명서.pdf",
       "domain": "finance",
       "classification_hint": "finance/shinhan (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "00002b53810b5adcd0b6b3902e4f29cddf2e3c575c37e0a0a95538cd1023d282",
@@ -77,7 +78,7 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). doc_kind=PRODUCT_DESCRIPTION 후보. 기관은 본문의 www.shinhan.com·소비자보호부 안내 근거. 준법감시인 사전심사필 제2026-12244-1호(유효 2026-05-28~2027-05-27)."
+        "note": "출처 정리(2026-11-09): 신한은행 공식 PDF. 2026-05-28은 준법감시인 심의 기간 시작일(제2026-12244-1호, ~2027-05-27)이라 발행일로 쓰지 않음. 금융 문서라 source_type 대신 product_documents.doc_kind=PRODUCT_DESCRIPTION. source_url: 정리 표에서 링크 주소가 복사되지 않아 비움 — 게시 페이지 URL 필요. 금융 저장 계약 확정 필요."
       },
       "relations": {
         "derived_from": null,
@@ -88,6 +89,7 @@
     },
     {
       "path": "visa/guides/e74_central_agency_guide_2026.hwp",
+      "original_filename": "'26년도 숙련기능인력 (K-point E74) 설명자료 - 중앙부처용.hwp",
       "domain": "visa",
       "classification_hint": "visa/guides (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "e38dee718554ae2fe1c24f6388a9eec373058ca4ddd6b9651b80e089fec963ac",
@@ -107,7 +109,7 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 기관은 문서 첫머리 '법무부 체류관리과' 근거. 발행일 표기 없음."
+        "note": "출처 정리(2026-11-09): 농림축산식품부 공고 게시글(⑧과 같은 글)에 2026-03-05 첨부. 발행기관은 본문 첫머리 '법무부 체류관리과' 기준 — 농식품부는 게시처. 게시처 날짜라 issued_on 비움. source_url: 정리 표에서 링크 주소가 복사되지 않아 비움 — 게시 페이지 URL 필요.(⑧과 같은 페이지면 같은 URL) MySQL policy_document_id·document_version 등록 필요."
       },
       "relations": {
         "derived_from": null,
@@ -118,12 +120,13 @@
     },
     {
       "path": "visa/guides/e74_online_application_manual_2026.pdf",
+      "original_filename": "26년도 숙련기능인력(K-point E74) 전자민원 신청 매뉴얼.pdf",
       "domain": "visa",
       "classification_hint": "visa/guides (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "9f6bd0ec911cdc556e579c023227f20a495f13b7189af1f7d126d9c4da254444",
       "title": "K-point E74 숙련기능인력 혁신적 확대 방안 — 하이코리아 전자민원 신청 방법",
       "source_url": null,
-      "source_org": null,
+      "source_org": "법무부",
       "visa_types": [
         "E-7-4"
       ],
@@ -137,7 +140,7 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 본문에 발행기관 표기 없음(하이코리아 화면 안내) — source_org 확인 필요. 발행일 표기 없음."
+        "note": "출처 정리(2026-11-09): 법무부 자료, 한국산업인력공단 인천지사 배포(⑤와 같은 게시글). 발행일 정보 없음. source_url: 정리 표에서 링크 주소가 복사되지 않아 비움 — 게시 페이지 URL 필요. MySQL policy_document_id·document_version 등록 필요."
       },
       "relations": {
         "derived_from": null,
@@ -147,9 +150,10 @@
       "derived_inputs": []
     },
     {
-      "path": "visa/recommendations/central/common/e74_recommendation_application_2026.hwp",
+      "path": "visa/recommendations/central/moel/e74_moel_2026.hwp",
+      "original_filename": "'26년 숙련기능인력(E-7-4) 전환 추천서 발급 신청 안내.hwp",
       "domain": "visa",
-      "classification_hint": "visa/recommendations/central/common (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
+      "classification_hint": "visa/recommendations/central/moel (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "095b1ed91d247617a650d4c70513d892bae9ea2ed871c8e94fcb51a042ef7907",
       "title": "’26년 숙련기능인력 전환 추천서 발급 신청 안내",
       "source_url": null,
@@ -158,7 +162,7 @@
         "E-7-4"
       ],
       "source_type": "guide",
-      "issued_on": null,
+      "issued_on": "2026-03-10",
       "policy_document_id": null,
       "document_version": null,
       "effective_from": null,
@@ -167,7 +171,7 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 기관은 본문의 '고용부는 … 추천서 발급', '우리부 추천 쿼터(제조업 2,000명)' 근거. 폴더명 central/common과 달리 고용노동부 제조업 분야 문서. 발행일 표기 없음."
+        "note": "출처 정리(2026-11-09): 고용노동부 서울서부지청 게시 2026-03-10. 발행기관 직접 게시라 게시일을 발행일로 사용. source_url: 정리 표에서 링크 주소가 복사되지 않아 비움 — 게시 페이지 URL 필요. MySQL policy_document_id·document_version 등록 필요."
       },
       "relations": {
         "derived_from": null,
@@ -177,12 +181,13 @@
       "derived_inputs": []
     },
     {
-      "path": "visa/recommendations/central/mafra/e74_mafra_2026_20260305.pdf",
+      "path": "visa/recommendations/central/mafra/e74_mafra_20260305.pdf",
+      "original_filename": "2026년 농축산분야 숙련기능인력(E-7-4) 고용추천 운영방안.pdf",
       "domain": "visa",
       "classification_hint": "visa/recommendations/central/mafra (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "1c2fa2951038ff3ef1efb91fd8fcba4690ff0bb51429e5d18b7813f9b91e5021",
-      "title": "2026년 농축산분야 숙련기능인력(E-7-4) 고용추천 운영방안 공고",
-      "source_url": null,
+      "title": "2026년 농축산분야 숙련기능인력(E-7-4) 고용추천 운영방안",
+      "source_url": "https://www.mafra.go.kr/home/5108/subview.do?enc=Zm5jdDF8QEB8JTJGYmJzJTJGaG9tZSUyRjc5MSUyRjU3NzIxNSUyRmFydGNsVmlldy5kbyUzRg%3D%3D",
       "source_org": "농림축산식품부",
       "visa_types": [
         "E-7-4"
@@ -197,7 +202,7 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 농림축산식품부 공고 제2026-163호, 공고일 2026년 3월 5일(본문). 시행일 별도 표기 없음."
+        "note": "출처 정리(2026-11-09): 농림축산식품부 공고 제2026-163호, 2026-03-05 게시. source_url 확인됨. 실제 다운로드 페이지가 이 글인지는 수집자 확인 필요. MySQL policy_document_id·document_version 등록 필요."
       },
       "relations": {
         "derived_from": null,
@@ -208,6 +213,7 @@
     },
     {
       "path": "visa/recommendations/local/gyeonggi/e74_gyeonggi_20260601.hwpx",
+      "original_filename": "2026-5708_2026년 외국인숙련기능인력 경기도 추천계획(수정)_260601.hwpx",
       "domain": "visa",
       "classification_hint": "visa/recommendations/local/gyeonggi (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "6657588aa0d37e744fc7997f2a7c0be420d20b27fcc70de9086e86f4c1a95a1a",
@@ -218,7 +224,7 @@
         "E-7-4"
       ],
       "source_type": "notice",
-      "issued_on": "2026-03-16",
+      "issued_on": "2026-06-04",
       "policy_document_id": null,
       "document_version": null,
       "effective_from": null,
@@ -227,7 +233,7 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 경기도 공고 제2026-5708호, 공고일 2026년 3월 16일(본문). 파일명 날짜(20260601)와 다름 — 수정 공고 여부 확인 필요. HWPX 메타데이터 제목(충청남도 공고 제2019)은 사용하지 않음."
+        "note": "출처 정리(2026-11-09): 경기도청 고시공고 2026-06-04 게시, 경기도 공고 제2026-5708호 수정본. 본문 날짜 2026-03-16은 최초 공고일. HWPX 메타데이터 제목(충청남도 공고 제2019)은 사용하지 않음. source_url: 정리 표에서 링크 주소가 복사되지 않아 비움 — 게시 페이지 URL 필요. MySQL policy_document_id·document_version 등록 필요."
       },
       "relations": {
         "derived_from": null,
@@ -238,17 +244,18 @@
     },
     {
       "path": "visa/selection/e74_selection_20260601.pdf",
+      "original_filename": "26년도 숙련기능인력(K-point E74) 선발계획 및 질의응답(260601 개선사항 반영).pdf",
       "domain": "visa",
       "classification_hint": "visa/selection (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "5c6d0d26537ed48e815db5969294cc453fc10819af2ab6f887fc2c454676ca78",
       "title": "2026년 숙련기능인력(E-7-4) 선발 계획",
       "source_url": null,
-      "source_org": null,
+      "source_org": "법무부",
       "visa_types": [
         "E-7-4"
       ],
       "source_type": "notice",
-      "issued_on": null,
+      "issued_on": "2026-06-01",
       "policy_document_id": null,
       "document_version": null,
       "effective_from": null,
@@ -257,23 +264,24 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 본문에 발행기관 명시 없음('법무부(체류관리과)로 공문 송부'는 수신처) — source_org 확인 필요. 발행·시행일 표기 없음. 파일명 날짜(20260601)는 근거로 쓰지 않음."
+        "note": "출처 정리(2026-11-09): 법무부 자료, 2026-06-01 개선사항 반영본. 한국산업인력공단 인천지사 배포(⑥과 같은 게시글). issued_on은 개정 반영일(파일명·출처 정리 기준, 본문 표기 없음). ③을 대체 — 최신 유효 버전. source_url: 정리 표에서 링크 주소가 복사되지 않아 비움 — 게시 페이지 URL 필요. MySQL policy_document_id·document_version 등록 필요."
       },
       "relations": {
         "derived_from": null,
-        "supersedes": null,
+        "supersedes": "visa/selection/e74_selection_2026_original.hwp",
         "note": "selection 폴더의 PDF/HWP 두 파일의 원본-수정본 관계 미확인. 공식 내용과 승인 기록으로 판정 필요."
       },
       "derived_inputs": []
     },
     {
       "path": "visa/selection/e74_selection_2026_original.hwp",
+      "original_filename": "26년도 숙련기능인력(K-point E74) 선발계획 및 질의응답.hwp",
       "domain": "visa",
       "classification_hint": "visa/selection (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "4c9c48a513fc34659ee3f4168bbf8dfe89d8f2c39e50d5c3840490f254945b69",
       "title": "2026년 숙련기능인력(E-7-4) 선발 계획",
       "source_url": null,
-      "source_org": null,
+      "source_org": "법무부",
       "visa_types": [
         "E-7-4"
       ],
@@ -287,7 +295,7 @@
         "verified": false,
         "verified_by": null,
         "verified_at": null,
-        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 같은 폴더 PDF와 제목·첫 장 내용이 같음(청크 37 vs 41). 원본·수정본 관계는 공식 게시물로 판정 필요 — 같은 문서면 한쪽만 등록. source_org 확인 필요."
+        "note": "출처 정리(2026-11-09): 법무부 자료, 인천외국인근로자지원센터 2026-03-09 배포(재게시). 게시처 날짜라 issued_on 비움. ⑤(2026-06-01 개선사항 반영)로 대체된 이전 버전 — 등록 시 RETIRED 대상. source_url: 정리 표에서 링크 주소가 복사되지 않아 비움 — 게시 페이지 URL 필요. MySQL policy_document_id·document_version 등록 필요."
       },
       "relations": {
         "derived_from": null,

@@ -215,7 +215,7 @@ def test_official_url_rules() -> None:
 
 
 def test_source_type_is_required_only_for_visa_documents() -> None:
-    path = "finance/shinhan/sol_global_savings.pdf"
+    path = "finance/shinhan/thai_remittance_100baht.pdf"
     finance = _entry(
         path=path, domain="finance", sha256=inspect_file(DATA_ROOT, path).sha256, source_type=None
     )
