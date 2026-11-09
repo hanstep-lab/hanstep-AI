@@ -195,7 +195,7 @@ def _apply(
 
     # 1. MySQL is the source of truth: the version must already be registered with this hash.
     record = deps.gateway.get_version(entry.policy_document_id, entry.document_version)
-    if record.source_sha256 != entry.sha256:
+    if record.content_hash != entry.sha256:
         raise ValidationFailedError("MySQL source_sha256 differs from the file on disk")
 
     # 2. Keep the original in private R2 and verify the round trip.
@@ -206,7 +206,7 @@ def _apply(
     result.r2 = store.put_if_absent(key, original, entry.sha256)
     if store.read_sha256(key) != entry.sha256:
         raise ValidationFailedError("R2 round-trip hash mismatch")
-    if record.r2_object_key != key:
+    if record.object_key != key:
         deps.gateway.record_r2_object(entry.policy_document_id, entry.document_version, key)
 
     # 3. Decide noop/resume/insert before spending any embedding calls.

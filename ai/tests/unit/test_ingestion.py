@@ -54,7 +54,7 @@ class Clock:
 @pytest.fixture
 def gateway() -> InMemoryPolicyGateway:
     gw = InMemoryPolicyGateway()
-    gw.add(PolicyDocumentRecord(11, "2026-163", SHA, "pending", is_current=False))
+    gw.add(PolicyDocumentRecord(11, "2026-163", SHA, "DRAFT"))
     return gw
 
 
@@ -136,7 +136,7 @@ def test_mysql_hash_mismatch_fails(
     fake_repository: FakeRepository, fake_embedder: FakeEmbedder
 ) -> None:
     gw = InMemoryPolicyGateway()
-    gw.add(PolicyDocumentRecord(11, "2026-163", "b" * 64, "pending", is_current=False))
+    gw.add(PolicyDocumentRecord(11, "2026-163", "b" * 64, "DRAFT"))
     result = process_entry(
         _entry(),
         DATA_ROOT,
@@ -178,7 +178,7 @@ def test_hwp_is_extracted_directly_without_page_numbers(
 ) -> None:
     path = "visa/guides/e74_central_agency_guide_2026.hwp"
     sha = inspect_file(DATA_ROOT, path).sha256
-    gateway.add(PolicyDocumentRecord(12, "v1", sha, "pending", is_current=False))
+    gateway.add(PolicyDocumentRecord(12, "v1", sha, "DRAFT"))
     entry = _entry(path=path, sha256=sha, policy_document_id=12, document_version="v1")
     result = process_entry(
         entry,

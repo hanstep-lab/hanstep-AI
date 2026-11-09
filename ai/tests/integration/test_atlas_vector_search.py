@@ -35,7 +35,7 @@ from app.rag.indexes import (
 )
 from app.rag.ingestion import IngestionDeps, process_entry
 from app.rag.manifest import SourceEntry
-from app.rag.publication import activate_version, deactivate_version
+from app.rag.publication import sync_policy_state
 from app.rag.repository import ChunkRepository
 from app.rag.retrieval import SearchService
 from app.rag.schemas import ChunkRecord
@@ -184,69 +184,86 @@ def test_insert_only_upsert_never_overwrites(repo: ChunkRepository) -> None:
     assert (stored[0].review_status, stored[0].is_active) == ("approved", True)
 
 
-def test_pending_hidden_then_activation_switches_versions(repo: ChunkRepository) -> None:
-    client = repo.database.client
-    pid, text_v1, text_v2 = 910, "E-7-4 추천서 제출 서류 v1", "E-7-4 추천서 제출 서류 v2"
+def _sync(repo: ChunkRepository, record: PolicyDocumentRecord, **kw: Any) -> Any:
+    return sync_policy_state(repo.database.client, repo, record, embedding_model=MODEL, **kw)
+
+
+def test_row_state_sync_controls_visibility(repo: ChunkRepository) -> None:
+    """BE model: each version is its own policy_documents row (new id)."""
+    old_id, new_id = 910, 911
+    text_old, text_new = "E-7-4 추천서 제출 서류 구판", "E-7-4 추천서 제출 서류 신판"
     gateway = InMemoryPolicyGateway()
-    repo.insert_chunks([_record(pid, "v1", 0, text_v1, sha="1" * 64)])
+    repo.insert_chunks([_record(old_id, "v1", 0, text_old, sha="1" * 64)])
+    repo.insert_chunks([_record(new_id, "v2", 0, text_new, sha="2" * 64)])
 
-    # Pending chunks never appear, even after mongot catches up.
+    # DRAFT: nothing searchable even after mongot catches up.
+    draft = PolicyDocumentRecord(old_id, "v1", "1" * 64, "DRAFT")
+    assert _sync(repo, draft).action == "unchanged"
     time.sleep(3)
-    assert _raw_vector_hits(repo, text_v1, pid) == []
+    assert _raw_vector_hits(repo, text_old, old_id) == []
 
-    gateway.add(PolicyDocumentRecord(pid, "v1", "1" * 64, "approved", is_current=True))
-    activate_version(
-        client,
-        repo,
-        gateway,
-        policy_document_id=pid,
-        document_version="v1",
-        embedding_model=MODEL,
-        expected_chunks=1,
-        expected_sha256="1" * 64,
-    )
-    assert eventually(lambda: _ids(repo, text_v1, gateway) == [(pid, "v1")])
+    # APPROVED + searchable: activated, and a repeated sync is a no-op.
+    approved_old = PolicyDocumentRecord(old_id, "v1", "1" * 64, "APPROVED", searchable=True)
+    gateway.add(approved_old)
+    first = _sync(repo, approved_old, expected_chunks=1)
+    assert (first.action, first.modified, first.is_active) == ("activated", 1, True)
+    assert _sync(repo, approved_old, expected_chunks=1).action == "unchanged"
+    assert eventually(lambda: _ids(repo, text_old, gateway) == [(old_id, "v1")])
 
-    # New version arrives pending: v1 stays the only searchable version.
-    repo.insert_chunks([_record(pid, "v2", 0, text_v2, sha="2" * 64)])
-    gateway.add(PolicyDocumentRecord(pid, "v2", "2" * 64, "pending", is_current=False))
+    # Approved but not yet in force (searchable=false): stays hidden.
+    not_in_force = PolicyDocumentRecord(new_id, "v2", "2" * 64, "APPROVED", searchable=False)
+    # Review status moves pending -> approved, but nothing is switched on.
+    assert _sync(repo, not_in_force).action == "updated"
+    assert _sync(repo, not_in_force).action == "unchanged"
+    new_chunk = repo.load_version(new_id, "v2", MODEL)[0]
+    assert (new_chunk.review_status, new_chunk.is_active) == ("approved", False)
+
+    # Switch-over is two row syncs: old row RETIRED, new row searchable.
+    retired_old = PolicyDocumentRecord(old_id, "v1", "1" * 64, "RETIRED")
+    live_new = PolicyDocumentRecord(new_id, "v2", "2" * 64, "APPROVED", searchable=True)
+    gateway.add(retired_old)
+    gateway.add(live_new)
+    assert _sync(repo, retired_old).action == "deactivated"
+    assert _sync(repo, live_new, expected_chunks=1).action == "activated"
+    old_chunk = repo.load_version(old_id, "v1", MODEL)[0]
+    assert (old_chunk.review_status, old_chunk.is_active) == ("approved", False)
+    assert eventually(lambda: _ids(repo, text_new, gateway) == [(new_id, "v2")])
+    assert eventually(lambda: _raw_vector_hits(repo, text_old, old_id) == [])
+
+    # Back to NEEDS_REVIEW: hidden again.
+    review = PolicyDocumentRecord(new_id, "v2", "2" * 64, "NEEDS_REVIEW")
+    assert _sync(repo, review).action == "deactivated"
+    assert eventually(lambda: _raw_vector_hits(repo, text_new, new_id) == [])
+
+
+def test_failed_precondition_leaves_state_untouched(repo: ChunkRepository) -> None:
+    pid = 912
+    repo.insert_chunks([_record(pid, "v1", 0, "해시 불일치 문서", sha="3" * 64)])
+    wrong_hash = PolicyDocumentRecord(pid, "v1", "4" * 64, "APPROVED", searchable=True)
     with pytest.raises(ValidationFailedError):
-        activate_version(
-            client,
-            repo,
-            gateway,
-            policy_document_id=pid,
-            document_version="v2",
-            embedding_model=MODEL,
-            expected_chunks=1,
-            expected_sha256="2" * 64,
-        )
-    time.sleep(3)
-    assert {(h["document_version"]) for h in _raw_vector_hits(repo, text_v2, pid)} == {"v1"}
+        _sync(repo, wrong_hash)
+    chunk = repo.load_version(pid, "v1", MODEL)[0]
+    assert (chunk.review_status, chunk.is_active) == ("pending", False)
 
-    # MySQL approves v2 and marks it current; switch-over deactivates v1 atomically.
-    gateway.add(PolicyDocumentRecord(pid, "v1", "1" * 64, "approved", is_current=False))
-    gateway.add(PolicyDocumentRecord(pid, "v2", "2" * 64, "approved", is_current=True))
-    result = activate_version(
-        client,
-        repo,
-        gateway,
-        policy_document_id=pid,
-        document_version="v2",
-        embedding_model=MODEL,
-        expected_chunks=1,
-        expected_sha256="2" * 64,
-    )
-    assert (result.activated, result.deactivated) == (1, 1)
-    v1 = repo.load_version(pid, "v1", MODEL)[0]
-    assert (v1.review_status, v1.is_active) == ("approved", False)
-    assert eventually(lambda: _ids(repo, text_v2, gateway) == [(pid, "v2")])
 
-    # Revocation hides the version again.
-    deactivate_version(
-        client, repo, policy_document_id=pid, document_version="v2", review_status="rejected"
+def test_other_versions_under_same_id_are_deactivated(repo: ChunkRepository) -> None:
+    pid = 913
+    repo.insert_chunks([_record(pid, "stale", 0, "MySQL에 없는 버전", sha="5" * 64)])
+    repo.collection.update_many(
+        {"policy_document_id": Int64(pid)},
+        {"$set": {"review_status": "approved", "is_active": True}},
     )
-    assert eventually(lambda: _raw_vector_hits(repo, text_v2, pid) == [])
+    repo.insert_chunks([_record(pid, "current", 0, "MySQL의 현재 버전", sha="6" * 64)])
+    result = _sync(
+        repo, PolicyDocumentRecord(pid, "current", "6" * 64, "APPROVED", searchable=True)
+    )
+    assert (result.action, result.stale_deactivated) == ("activated", 1)
+    assert repo.load_version(pid, "stale", MODEL)[0].is_active is False
+
+
+def test_approved_row_without_chunks_reports_not_ingested(repo: ChunkRepository) -> None:
+    result = _sync(repo, PolicyDocumentRecord(914, "v1", "7" * 64, "APPROVED", searchable=True))
+    assert (result.action, result.is_active) == ("not_ingested", False)
 
 
 def test_stale_index_results_are_filtered_by_mysql_state(repo: ChunkRepository) -> None:
@@ -261,7 +278,7 @@ def test_stale_index_results_are_filtered_by_mysql_state(repo: ChunkRepository) 
     )
     # MySQL says another version is current: the search service must drop the hit.
     gateway = InMemoryPolicyGateway()
-    gateway.add(PolicyDocumentRecord(pid, "new", "a" * 64, "approved", is_current=True))
+    gateway.add(PolicyDocumentRecord(pid, "new", "a" * 64, "APPROVED", searchable=True))
     assert (pid, "old") not in _ids(repo, text, gateway)
 
 
@@ -283,7 +300,7 @@ def test_real_document_ingestion_is_idempotent(repo: ChunkRepository) -> None:
         }
     )
     gateway = InMemoryPolicyGateway()
-    gateway.add(PolicyDocumentRecord(930, "it-1", sha, "pending", is_current=False))
+    gateway.add(PolicyDocumentRecord(930, "it-1", sha, "DRAFT"))
     embedder = FakeEmbedder()
     deps = IngestionDeps(
         repository=repo,
