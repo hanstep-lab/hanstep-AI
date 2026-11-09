@@ -18,6 +18,11 @@ htmlcov/
 # Local AI instructions and reference documents
 AGENTS.md
 /docs/*
+RAG_RUNBOOK.md
+ai/specs/rag/README.md
+ai/specs/rag/decisions.md
+ai/specs/rag/api_contracts.md
+ai/specs/rag/evaluation.json
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,visualstudiocode
@@ -214,3 +219,5 @@ pyrightconfig.json
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
+# Generated RAG run reports, inventories and API captures
+ai/artifacts/

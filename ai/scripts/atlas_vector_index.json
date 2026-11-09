@@ -1,0 +1,8 @@
+{
+  "fields": [
+    {"type": "vector", "path": "embedding", "numDimensions": 1024, "similarity": "cosine"},
+    {"type": "filter", "path": "is_active"},
+    {"type": "filter", "path": "review_status"},
+    {"type": "filter", "path": "visa_types"}
+  ]
+}
