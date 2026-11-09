@@ -66,6 +66,8 @@ class SourceEntry(BaseModel):
     sha256: str
     title: str | None = None
     source_url: str | None = None
+    # Direct file URL whose bytes were hash-checked against this file (provenance, re-checks).
+    download_url: str | None = None
     source_org: str | None = None
     visa_types: list[str] | None = None
     # MySQL policy_documents.source_type, lower-cased (law/admin_rule/notice/guide/score_table).
