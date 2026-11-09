@@ -82,6 +82,9 @@ class BgeM3Embedder:
             dim = model.get_embedding_dimension()
             if dim != EMBEDDING_DIMENSIONS:
                 raise RuntimeError(f"{self.model_name} outputs {dim} dims, expected 1024")
+            # Warm-up: the first encode is ~10x slower (measured 1.8 s vs ~0.15 s on CPU), so pay
+            # it at load time instead of on the first user query.
+            model.encode(["warm-up"], normalize_embeddings=True, show_progress_bar=False)
             self._model = model
         return self._model
 
