@@ -176,6 +176,7 @@ def _entry(**overrides: object) -> SourceEntry:
         "source_url": "https://www.moj.go.kr/example",
         "source_org": "법무부",
         "visa_types": ["E-7-4"],
+        "source_type": "notice",
         "policy_document_id": 1,
         "document_version": "v1",
         "review": {"verified": True},
@@ -199,6 +200,7 @@ def test_preflight_passes_complete_visa_entry() -> None:
         ({"sha256": "0" * 64}, "sha256"),
         ({"domain": "finance"}, "finance"),
         ({"visa_types": None}, "visa_types"),
+        ({"source_type": None}, "source_type"),
     ],
 )
 def test_preflight_blocks_unconfirmed_values(overrides: dict[str, object], expected: str) -> None:

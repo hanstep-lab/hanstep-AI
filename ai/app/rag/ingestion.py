@@ -95,8 +95,9 @@ def build_records(
     embedding_model: str,
     now: datetime,
 ) -> list[ChunkRecord]:
-    if entry.policy_document_id is None or not entry.document_version:
-        raise ValidationFailedError("policy_document_id/document_version unconfirmed")
+    source_type = entry.source_type
+    if entry.policy_document_id is None or not entry.document_version or source_type is None:
+        raise ValidationFailedError("policy_document_id/document_version/source_type unconfirmed")
     records: list[ChunkRecord] = []
     for draft in drafts:
         if draft.chunk_index not in vectors:
@@ -114,6 +115,7 @@ def build_records(
                 source_url=entry.source_url or "",
                 source_org=entry.source_org or "",
                 visa_types=list(entry.visa_types or []),
+                source_type=source_type,
                 language="ko",
                 review_status="pending",
                 is_active=False,
@@ -121,6 +123,7 @@ def build_records(
                 updated_at=now,
                 page_number=draft.page_number,
                 section_title=draft.section_title,
+                issued_at=seoul_midnight_utc(entry.issued_on) if entry.issued_on else None,
                 effective_from=seoul_midnight_utc(entry.effective_from)
                 if entry.effective_from
                 else None,

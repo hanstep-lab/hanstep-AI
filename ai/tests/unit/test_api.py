@@ -167,6 +167,8 @@ def test_search_response_is_camel_case() -> None:
             "source_url": "https://www.moj.go.kr/x",
             "source_org": "법무부",
             "visa_types": ["E-7-4"],
+            "source_type": "notice",
+            "issued_at": datetime(2026, 5, 31, 15, 0, tzinfo=UTC),
             "score": 0.8,
             "page_number": 3,
             "effective_from": datetime(2026, 5, 31, 15, 0, tzinfo=UTC),  # KST 2026-06-01
@@ -177,6 +179,7 @@ def test_search_response_is_camel_case() -> None:
     assert body["policyDocumentId"] == 7
     assert body["effectiveFrom"] == date(2026, 6, 1).isoformat()
     assert body["effectiveTo"] is None
+    assert (body["sourceType"], body["issuedOn"]) == ("notice", "2026-06-01")
     assert {"sourceUrl", "sourceOrg", "visaTypes", "pageNumber", "sectionTitle"} <= set(body)
     assert not any("_" in key for key in body)
 

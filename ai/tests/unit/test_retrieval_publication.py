@@ -37,6 +37,7 @@ def _hit(
         "source_url": "https://www.moj.go.kr/x",
         "source_org": "법무부",
         "visa_types": ["E-7-4"],
+        "source_type": "notice",
         "is_active": active,
         "review_status": status,
         "score": 0.9,

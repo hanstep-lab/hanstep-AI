@@ -34,6 +34,8 @@ def _entry(**overrides: Any) -> SourceEntry:
         "source_url": "https://www.mafra.go.kr/example",
         "source_org": "농림축산식품부",
         "visa_types": ["E-7-4"],
+        "source_type": "notice",
+        "issued_on": "2026-03-05",
         "policy_document_id": 11,
         "document_version": "2026-163",
         "review": {"verified": True},
@@ -97,6 +99,9 @@ def test_apply_loads_pending_then_rerun_is_noop_and_preserves_approval(
     assert first.inserted == first.chunks == first.embedded
     stored = fake_repository.load_version(11, "2026-163", "BAAI/bge-m3")
     assert all(r.review_status == "pending" and not r.is_active for r in stored)
+    assert all(r.source_type == "notice" for r in stored)
+    # issued_on 2026-03-05 is stored as KST midnight.
+    assert stored[0].issued_at == datetime(2026, 3, 4, 15, 0, tzinfo=UTC)
     assert all(r.page_number is not None for r in stored)
     key = object_key("policy-sources", "visa", SHA, ".pdf")
     assert store.objects[key] == (DATA_ROOT / PATH).read_bytes()

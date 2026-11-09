@@ -35,7 +35,14 @@ def test_bson_round_trip_keeps_explicit_types() -> None:
 
 def test_optional_fields_are_omitted_not_null() -> None:
     doc = ChunkRecord(**record_kwargs()).to_bson()
-    for name in ("page_number", "section_title", "effective_from", "effective_to", "_id"):
+    for name in (
+        "page_number",
+        "section_title",
+        "effective_from",
+        "effective_to",
+        "issued_at",
+        "_id",
+    ):
         assert name not in doc
 
 
@@ -68,6 +75,8 @@ def test_invalid_embeddings_rejected(vector: object) -> None:
         {"source_sha256": "abc"},
         {"visa_types": []},
         {"review_status": "APPROVED"},
+        {"source_type": "NOTICE"},  # stored lower-case
+        {"source_type": "faq"},
         {"policy_document_id": 0},
         {"policy_document_id": True},
         {"chunk_index": 2**31},
@@ -103,5 +112,9 @@ def test_validator_mirrors_contract() -> None:
     assert props["chunk_index"]["bsonType"] == "int"
     assert props["embedding"]["minItems"] == props["embedding"]["maxItems"] == 1024
     assert props["review_status"]["enum"] == ["pending", "approved", "rejected"]
+    assert props["source_type"]["enum"] == ["law", "admin_rule", "notice", "guide", "score_table"]
+    assert props["issued_at"]["bsonType"] == "date"
+    assert "source_type" in schema["required"]
+    assert "issued_at" not in schema["required"]
     assert "page_number" not in schema["required"]
     assert {"_id", "created_at", "updated_at", "embedding"} <= set(schema["required"])

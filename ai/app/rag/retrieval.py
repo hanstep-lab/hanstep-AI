@@ -85,6 +85,8 @@ class SearchHit:
     visa_types: list[str]
     score: float
     chunk_id: str = ""
+    source_type: str = ""
+    issued_on: date | None = None
     page_number: int | None = None
     section_title: str | None = None
     # Calendar days in Korea (stored as KST midnight in UTC).
@@ -138,6 +140,8 @@ def to_hit(doc: dict[str, Any]) -> SearchHit:
         visa_types=list(doc["visa_types"]),
         score=float(doc["score"]),
         chunk_id=str(doc["_id"]),
+        source_type=doc["source_type"],
+        issued_on=_kst_date(doc.get("issued_at")),
         page_number=doc.get("page_number"),
         section_title=doc.get("section_title"),
         effective_from=_kst_date(doc.get("effective_from")),

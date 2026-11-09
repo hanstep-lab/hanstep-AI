@@ -149,6 +149,8 @@ def test_index_definition_matches_and_smoke_query_runs(repo: ChunkRepository) ->
         lambda d: d.update(review_status="APPROVED"),
         lambda d: d.pop("source_url"),
         lambda d: d.update(page_number=None),  # optional field must be omitted, not null
+        lambda d: d.pop("source_type"),
+        lambda d: d.update(source_type="NOTICE"),
     ],
 )
 def test_validator_rejects_contract_violations(
@@ -294,6 +296,7 @@ def test_real_document_ingestion_is_idempotent(repo: ChunkRepository) -> None:
             "source_url": "https://www.mafra.go.kr/it",
             "source_org": "농림축산식품부",
             "visa_types": ["E-7-4"],
+            "source_type": "notice",
             "policy_document_id": 930,
             "document_version": "it-1",
             "review": {"verified": True},
