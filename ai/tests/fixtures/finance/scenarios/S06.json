@@ -1,0 +1,87 @@
+{
+  "id": "S06",
+  "title": "NEUTRAL 카테고리",
+  "status": "draft",
+  "trap": "categoryCode NEUTRAL은 kind가 NORMAL이어도 제외",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-09-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-09-25",
+        "direction": "INCOME",
+        "amount": 2000000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 3,
+        "bookedDate": "2026-09-18",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "NEUTRAL",
+        "transactionKind": "NORMAL"
+      }
+    ]
+  },
+  "expected": {
+    "avgMonthlyIncome": {
+      "amount": 2000000,
+      "currency": "KRW"
+    },
+    "fixedLiving": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "remittance": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "variableExpense": {
+      "avg": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "min": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "max": {
+        "amount": 400000,
+        "currency": "KRW"
+      }
+    },
+    "spare": {
+      "amount": 1600000,
+      "currency": "KRW"
+    },
+    "dataQuality": {
+      "observedMonthCount": 1,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": []
+    },
+    "excluded": [
+      {
+        "transactionId": 3,
+        "reason": "NEUTRAL"
+      }
+    ]
+  },
+  "naive_expected": 1400000,
+  "calc": [
+    "id 3 NEUTRAL 제외",
+    "spare = 2,000,000 - 400,000 = 1,600,000",
+    "naive: 지출 400,000+200,000 = 600,000 / spare 1,400,000"
+  ]
+}

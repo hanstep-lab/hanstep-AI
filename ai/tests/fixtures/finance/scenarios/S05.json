@@ -1,0 +1,87 @@
+{
+  "id": "S05",
+  "title": "대출 실행 입금",
+  "status": "draft",
+  "trap": "LOAN_DISBURSEMENT 입금은 소득이 아님",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-09-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-09-25",
+        "direction": "INCOME",
+        "amount": 2000000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2026-09-03",
+        "direction": "INCOME",
+        "amount": 1000000,
+        "categoryCode": "LOAN",
+        "transactionKind": "LOAN_DISBURSEMENT"
+      },
+      {
+        "id": 3,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      }
+    ]
+  },
+  "expected": {
+    "avgMonthlyIncome": {
+      "amount": 2000000,
+      "currency": "KRW"
+    },
+    "fixedLiving": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "remittance": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "variableExpense": {
+      "avg": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "min": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "max": {
+        "amount": 400000,
+        "currency": "KRW"
+      }
+    },
+    "spare": {
+      "amount": 1600000,
+      "currency": "KRW"
+    },
+    "dataQuality": {
+      "observedMonthCount": 1,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": []
+    },
+    "excluded": [
+      {
+        "transactionId": 2,
+        "reason": "LOAN_DISBURSEMENT"
+      }
+    ]
+  },
+  "naive_expected": 2600000,
+  "calc": [
+    "id 2 LOAN_DISBURSEMENT 제외",
+    "spare = 2,000,000 - 400,000 = 1,600,000",
+    "naive: 소득 2,000,000+1,000,000 = 3,000,000 / 지출 400,000 / spare 2,600,000"
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "id": "S16",
+  "title": "수입 0원, 송금만 있음",
+  "status": "draft",
+  "trap": "spare가 음수(-500,000)로 그대로 나옴",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-09-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-09-26",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      }
+    ]
+  },
+  "expected": {
+    "avgMonthlyIncome": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "fixedLiving": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "remittance": {
+      "amount": 500000,
+      "currency": "KRW"
+    },
+    "variableExpense": {
+      "avg": {
+        "amount": 0,
+        "currency": "KRW"
+      },
+      "min": {
+        "amount": 0,
+        "currency": "KRW"
+      },
+      "max": {
+        "amount": 0,
+        "currency": "KRW"
+      }
+    },
+    "spare": {
+      "amount": -500000,
+      "currency": "KRW"
+    },
+    "dataQuality": {
+      "observedMonthCount": 1,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": []
+    },
+    "excluded": []
+  },
+  "naive_expected": -500000,
+  "calc": [
+    "소득 0 / 고정 0 / 송금 500,000 / 변동 0",
+    "spare = 0 - 0 - 500,000 - 0 = -500,000",
+    "naive: 소득 0 / 지출 500,000 / spare -500,000"
+  ]
+}

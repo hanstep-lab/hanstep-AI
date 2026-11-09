@@ -1,0 +1,87 @@
+{
+  "id": "S14",
+  "title": "같은 id 같은 내용 두 번",
+  "status": "draft",
+  "trap": "중복 수신된 id 2는 한 번만 집계하고 나머지는 DUPLICATE_ID",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-09-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-09-25",
+        "direction": "INCOME",
+        "amount": 2000000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      }
+    ]
+  },
+  "expected": {
+    "avgMonthlyIncome": {
+      "amount": 2000000,
+      "currency": "KRW"
+    },
+    "fixedLiving": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "remittance": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "variableExpense": {
+      "avg": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "min": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "max": {
+        "amount": 400000,
+        "currency": "KRW"
+      }
+    },
+    "spare": {
+      "amount": 1600000,
+      "currency": "KRW"
+    },
+    "dataQuality": {
+      "observedMonthCount": 1,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": []
+    },
+    "excluded": [
+      {
+        "transactionId": 2,
+        "reason": "DUPLICATE_ID"
+      }
+    ]
+  },
+  "naive_expected": 1200000,
+  "calc": [
+    "id 2 한 번만 집계 -> 변동 400,000",
+    "spare = 2,000,000 - 400,000 = 1,600,000",
+    "naive: 지출 400,000+400,000 = 800,000 / spare 1,200,000"
+  ]
+}

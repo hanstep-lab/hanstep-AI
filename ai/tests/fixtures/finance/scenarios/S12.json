@@ -1,0 +1,93 @@
+{
+  "id": "S12",
+  "title": "모르는 카테고리",
+  "status": "draft",
+  "trap": "EDUCATION 출금은 변동지출로 넣고 경고는 코드당 한 번 (2건이어도 1개)",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-09-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-09-25",
+        "direction": "INCOME",
+        "amount": 2000000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 300000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 3,
+        "bookedDate": "2026-09-12",
+        "direction": "EXPENSE",
+        "amount": 50000,
+        "categoryCode": "EDUCATION",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 4,
+        "bookedDate": "2026-09-19",
+        "direction": "EXPENSE",
+        "amount": 50000,
+        "categoryCode": "EDUCATION",
+        "transactionKind": "NORMAL"
+      }
+    ]
+  },
+  "expected": {
+    "avgMonthlyIncome": {
+      "amount": 2000000,
+      "currency": "KRW"
+    },
+    "fixedLiving": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "remittance": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "variableExpense": {
+      "avg": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "min": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "max": {
+        "amount": 400000,
+        "currency": "KRW"
+      }
+    },
+    "spare": {
+      "amount": 1600000,
+      "currency": "KRW"
+    },
+    "dataQuality": {
+      "observedMonthCount": 1,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": [
+        "UNKNOWN_CATEGORY:EDUCATION"
+      ]
+    },
+    "excluded": []
+  },
+  "naive_expected": 1600000,
+  "calc": [
+    "변동 = 300,000 + 50,000 + 50,000 = 400,000",
+    "spare = 2,000,000 - 400,000 = 1,600,000",
+    "warnings: UNKNOWN_CATEGORY:EDUCATION 1개",
+    "naive: 지출 400,000 / spare 1,600,000"
+  ]
+}

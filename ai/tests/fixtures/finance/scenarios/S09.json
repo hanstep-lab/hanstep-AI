@@ -1,0 +1,76 @@
+{
+  "id": "S09",
+  "title": "거래 0건인 꽉 찬 달",
+  "status": "draft",
+  "trap": "2026-09에 거래가 없어도 0원 달로 평균에 포함",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-08-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-08-25",
+        "direction": "INCOME",
+        "amount": 2000000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2026-08-10",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      }
+    ]
+  },
+  "expected": {
+    "avgMonthlyIncome": {
+      "amount": 1000000,
+      "currency": "KRW"
+    },
+    "fixedLiving": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "remittance": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "variableExpense": {
+      "avg": {
+        "amount": 200000,
+        "currency": "KRW"
+      },
+      "min": {
+        "amount": 0,
+        "currency": "KRW"
+      },
+      "max": {
+        "amount": 400000,
+        "currency": "KRW"
+      }
+    },
+    "spare": {
+      "amount": 800000,
+      "currency": "KRW"
+    },
+    "dataQuality": {
+      "observedMonthCount": 2,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": []
+    },
+    "excluded": []
+  },
+  "naive_expected": 800000,
+  "calc": [
+    "꽉 찬 달: 2026-08, 2026-09 (2개)",
+    "소득 월합 [2,000,000, 0] -> 2,000,000/2 = 1,000,000",
+    "변동 월합 [400,000, 0] -> avg 200,000 / min 0 / max 400,000",
+    "spare = 1,000,000 - 0 - 0 - 200,000 = 800,000",
+    "naive: 걸친 달 2 / 소득 1,000,000 / 지출 200,000 / spare 800,000"
+  ]
+}

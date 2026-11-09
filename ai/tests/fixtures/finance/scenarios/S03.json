@@ -1,0 +1,101 @@
+{
+  "id": "S03",
+  "title": "본인 계좌 간 이체",
+  "status": "draft",
+  "trap": "OWN_TRANSFER 입금·출금 쌍을 소득·지출 어느 쪽에도 넣지 않음",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-09-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-09-25",
+        "direction": "INCOME",
+        "amount": 2000000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 3,
+        "bookedDate": "2026-09-12",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "TRANSFER",
+        "transactionKind": "OWN_TRANSFER"
+      },
+      {
+        "id": 4,
+        "bookedDate": "2026-09-12",
+        "direction": "INCOME",
+        "amount": 500000,
+        "categoryCode": "TRANSFER",
+        "transactionKind": "OWN_TRANSFER"
+      }
+    ]
+  },
+  "expected": {
+    "avgMonthlyIncome": {
+      "amount": 2000000,
+      "currency": "KRW"
+    },
+    "fixedLiving": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "remittance": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "variableExpense": {
+      "avg": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "min": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "max": {
+        "amount": 400000,
+        "currency": "KRW"
+      }
+    },
+    "spare": {
+      "amount": 1600000,
+      "currency": "KRW"
+    },
+    "dataQuality": {
+      "observedMonthCount": 1,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": []
+    },
+    "excluded": [
+      {
+        "transactionId": 3,
+        "reason": "OWN_TRANSFER"
+      },
+      {
+        "transactionId": 4,
+        "reason": "OWN_TRANSFER"
+      }
+    ]
+  },
+  "naive_expected": 1600000,
+  "calc": [
+    "id 3, 4 OWN_TRANSFER 제외",
+    "소득 2,000,000 / 변동 400,000",
+    "spare = 2,000,000 - 400,000 = 1,600,000",
+    "naive: 소득 2,000,000+500,000 = 2,500,000 / 지출 400,000+500,000 = 900,000 / spare 1,600,000",
+    "(쌍이 상쇄되어 naive spare는 같지만 naive 소득은 500,000 부풀려짐)"
+  ]
+}
