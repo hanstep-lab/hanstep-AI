@@ -56,7 +56,7 @@ def _transactions_supported(client: MongoClient[dict[str, Any]]) -> bool:
     return bool(hello.get("setName") or hello.get("msg") == "isdbgrid")
 
 
-def _verify_ready(
+def verify_ready(
     repo: ChunkRepository,
     record: PolicyDocumentRecord,
     embedding_model: str,
@@ -93,7 +93,7 @@ def sync_policy_state(
     - Activation runs in a MongoDB transaction and is refused without transaction support.
     """
     review_status, active = target_state(record)
-    count = _verify_ready(repo, record, embedding_model, expected_chunks) if active else 0
+    count = verify_ready(repo, record, embedding_model, expected_chunks) if active else 0
     pid = Int64(record.policy_document_id)
 
     target: dict[str, Any] = {"policy_document_id": pid, "document_version": record.policy_version}

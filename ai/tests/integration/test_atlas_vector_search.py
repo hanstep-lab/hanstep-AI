@@ -329,3 +329,65 @@ def test_real_document_ingestion_is_idempotent(repo: ChunkRepository) -> None:
     assert embedder.embedded_texts == calls
     assert repo.collection.count_documents({"policy_document_id": Int64(930)}) == first.chunks
     assert repo.find_duplicates() == []
+
+
+def test_reconcile_plans_then_fixes_drift(repo: ChunkRepository, tmp_path: Any) -> None:
+    import json
+
+    from app.rag.reconcile import apply_plan, build_plan, load_snapshot
+
+    live, retired, orphan = 940, 941, 942
+    repo.insert_chunks(
+        [_record(live, "v1", i, f"정합성 활성 대상 {i}", sha="8" * 64) for i in range(2)]
+    )
+    repo.insert_chunks([_record(retired, "v1", 0, "정합성 은퇴 대상", sha="9" * 64)])
+    repo.insert_chunks([_record(orphan, "v1", 0, "MySQL에 없는 문서", sha="a" * 64)])
+    # Drift: retired and orphan are still active in MongoDB.
+    repo.collection.update_many(
+        {"policy_document_id": {"$in": [Int64(retired), Int64(orphan)]}},
+        {"$set": {"review_status": "approved", "is_active": True}},
+    )
+    path = tmp_path / "snapshot.json"
+    path.write_text(
+        json.dumps(
+            {
+                "documents": [
+                    {
+                        "policyDocumentId": live,
+                        "policyVersion": "v1",
+                        "contentHash": "8" * 64,
+                        "reviewStatus": "APPROVED",
+                        "searchable": True,
+                        "chunkCount": 2,
+                    },
+                    {
+                        "policyDocumentId": retired,
+                        "policyVersion": "v1",
+                        "contentHash": "9" * 64,
+                        "reviewStatus": "RETIRED",
+                        "searchable": False,
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    snapshot = load_snapshot(path)
+
+    plan = build_plan(repo, snapshot, embedding_model=MODEL, complete=True)
+    actions = {(i.policy_document_id, i.action) for i in plan.items}
+    assert (live, "activate") in actions
+    assert (retired, "deactivate") in actions
+    assert (orphan, "deactivate_orphan") in actions
+    # Planning wrote nothing.
+    assert repo.load_version(live, "v1", MODEL)[0].is_active is False
+
+    apply_plan(repo.database.client, repo, snapshot, plan, embedding_model=MODEL)
+    assert all(c.is_active for c in repo.load_version(live, "v1", MODEL))
+    assert not repo.load_version(retired, "v1", MODEL)[0].is_active
+    assert not repo.load_version(orphan, "v1", MODEL)[0].is_active
+
+    # A second pass finds nothing to change (other tests' documents are not in this snapshot,
+    # so judge only the rows this test owns).
+    again = build_plan(repo, snapshot, embedding_model=MODEL, complete=False)
+    assert {i.action for i in again.items} == {"ok"}
