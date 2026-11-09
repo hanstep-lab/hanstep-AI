@@ -30,7 +30,8 @@ UNIQUE_INDEX_KEYS: list[tuple[str, int]] = [
     ("chunk_index", 1),
     ("embedding_model", 1),
 ]
-UNIQUE_INDEX_NAME = "uniq_document_version_chunk_model"
+# Name from the RAG design spec v1.0; ensure_unique_index matches existing indexes by keys.
+UNIQUE_INDEX_NAME = "ux_policy_version_chunk_model"
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 

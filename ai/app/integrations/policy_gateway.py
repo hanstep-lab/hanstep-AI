@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from app.rag.errors import ContractBlockedError
 
@@ -70,6 +70,47 @@ class UnconfiguredPolicyGateway:
         self, policy_document_id: int, document_version: str, object_key: str
     ) -> None:
         raise ContractBlockedError(MISSING_POLICY_CONTRACT)
+
+
+class ManifestPolicyGateway:
+    """Phase-1 gateway for script loading (BE spec INT-13 note: "1차는 스크립트로 직접 적재").
+
+    Trusts ``policy_document_id`` / ``document_version`` / ``sha256`` that a person copied from
+    MySQL into the manifest (``review.verified=true``). It cannot answer search-time approval
+    checks, so ``current_versions`` stays blocked and search keeps failing closed.
+    """
+
+    def __init__(self, entries: Iterable[Any]) -> None:
+        self._records: dict[tuple[int, str], PolicyDocumentRecord] = {}
+        self.r2_keys: dict[tuple[int, str], str] = {}
+        for entry in entries:
+            if entry.policy_document_id is None or not entry.document_version:
+                continue
+            if not entry.review.verified:
+                continue
+            record = PolicyDocumentRecord(
+                entry.policy_document_id, entry.document_version, entry.sha256, "DRAFT"
+            )
+            self._records[(record.policy_document_id, record.policy_version)] = record
+
+    def get_version(self, policy_document_id: int, document_version: str) -> PolicyDocumentRecord:
+        try:
+            return self._records[(policy_document_id, document_version)]
+        except KeyError as exc:
+            raise LookupError(
+                f"{policy_document_id}/{document_version} not in verified manifest entries"
+            ) from exc
+
+    def current_versions(self, policy_document_ids: Iterable[int]) -> dict[int, str]:
+        raise ContractBlockedError(
+            "search-time approval check needs the Spring search-eligibility API (R1)"
+        )
+
+    def record_r2_object(
+        self, policy_document_id: int, document_version: str, object_key: str
+    ) -> None:
+        # Reported to Spring with INT-13 after the chunks are stored.
+        self.r2_keys[(policy_document_id, document_version)] = object_key
 
 
 class UnconfiguredJobReporter:

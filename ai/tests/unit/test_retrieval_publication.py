@@ -123,6 +123,10 @@ def test_english_query_uses_same_embedder_and_server_filter() -> None:
     assert len(hits) == 1
     assert collection.pipelines[0][0]["$vectorSearch"]["filter"]["review_status"] == "approved"
     assert collection.pipelines[0][1] == {"$match": {"embedding_model": "BAAI/bge-m3"}}
+    # numCandidates = max(topK * 20, configured floor)
+    assert collection.pipelines[0][0]["$vectorSearch"]["numCandidates"] == 100
+    service.search("q", 8, None)
+    assert collection.pipelines[1][0]["$vectorSearch"]["numCandidates"] == 160
 
 
 class UntouchableClient:

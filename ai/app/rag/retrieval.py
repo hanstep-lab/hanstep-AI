@@ -16,6 +16,7 @@ from app.rag.errors import ContractBlockedError, ValidationFailedError
 
 _VISA_TYPE = re.compile(r"^[A-Z]-\d{1,2}(?:-\d{1,2})?$")
 MAX_VISA_TYPES = 10
+CANDIDATES_PER_RESULT = 20
 SEOUL = ZoneInfo("Asia/Seoul")
 
 
@@ -167,7 +168,8 @@ class SearchService:
             index_name=self.index_name,
             query_vector=vector,
             top_k=top_k,
-            num_candidates=max(self.num_candidates, top_k),
+            # Design spec v1.0: max(topK * 20, 100); the floor comes from settings.
+            num_candidates=max(self.num_candidates, top_k * CANDIDATES_PER_RESULT),
             visa_types=validate_visa_types(visa_types),
             embedding_model=self.embedder.model_name,
         )

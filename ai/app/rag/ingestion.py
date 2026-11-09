@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 from app.integrations.policy_gateway import PolicyDocumentGateway
 from app.integrations.r2 import ObjectStore, object_key
+from app.integrations.spring_client import PolicyIngestedReport
 from app.rag.chunking import ChunkDraft, ChunkerConfig, TokenCounter, chunk_blocks, fingerprint
 from app.rag.embeddings import Embedder
 from app.rag.errors import ContractBlockedError, RagError, ValidationFailedError
@@ -50,6 +51,8 @@ class SourceResult:
     r2: str = ""
     chunk_fingerprint: str = ""
     sample_chunks: list[dict[str, object]] = field(default_factory=list)
+    # INT-13 delivery: "", "reported" or "error: ..."
+    spring_report: str = ""
 
 
 @dataclass
@@ -251,3 +254,28 @@ def _apply(
             raise ValidationFailedError("stored source_sha256 mismatch")
     result.status = "loaded"
     return result
+
+
+def ingested_report(
+    entry: SourceEntry,
+    result: SourceResult,
+    *,
+    object_key: str | None,
+    mongo_collection: str,
+    embedding_model: str,
+    embedding_revision: str,
+    now: datetime,
+) -> PolicyIngestedReport:
+    """INT-13 body for a document whose chunks are fully stored (loaded or already present)."""
+    if result.status not in ("loaded", "skipped") or entry.document_version is None:
+        raise ValidationFailedError(f"{entry.path} is not fully ingested ({result.status})")
+    return PolicyIngestedReport(
+        document_version=entry.document_version,
+        content_hash=entry.sha256,
+        chunk_count=result.chunks,
+        mongo_collection=mongo_collection,
+        embedding_model=embedding_model,
+        embedding_revision=embedding_revision,
+        object_key=object_key,
+        ingested_at=now,
+    )
