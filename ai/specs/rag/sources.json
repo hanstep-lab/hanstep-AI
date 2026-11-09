@@ -20,9 +20,9 @@
       "effective_from": null,
       "effective_to": null,
       "review": {
-        "verified": false,
-        "verified_by": null,
-        "verified_at": null,
+        "verified": true,
+        "verified_by": "오지수",
+        "verified_at": "2026-11-09",
         "note": "출처 정리(2026-11-09): 신한은행 공식 PDF(공식 서버에서 원문 확인), 문서 종류 상품설명서. 준법감시인 사전심사필 제2026-10266-1호, 심의기간 2026-01-23~2027-01-22(유효). 문서 버전 후보: 심사필 번호 — 실제 document_version은 BE product_documents에서 발급. 금리 기준일 2026-01-16. doc_kind=PRODUCT_DESCRIPTION. 금융 저장 계약 확정 필요. 다운로드 URL 원본 SHA-256 일치 확인(2026-11-09)."
       },
       "relations": {
@@ -80,9 +80,9 @@
       "effective_from": null,
       "effective_to": null,
       "review": {
-        "verified": false,
-        "verified_by": null,
-        "verified_at": null,
+        "verified": true,
+        "verified_by": "오지수",
+        "verified_at": "2026-11-09",
         "note": "출처 정리(2026-11-09): 신한은행 공식 PDF. 2026-05-28은 준법감시인 심의 기간 시작일(제2026-12244-1호, ~2027-05-27)이라 발행일로 쓰지 않음. 금융 문서라 source_type 대신 product_documents.doc_kind=PRODUCT_DESCRIPTION. 금융 저장 계약 확정 필요. 다운로드 URL 원본 SHA-256 일치 확인(2026-11-09)."
       },
       "relations": {
@@ -112,9 +112,9 @@
       "effective_from": null,
       "effective_to": null,
       "review": {
-        "verified": false,
-        "verified_by": null,
-        "verified_at": null,
+        "verified": true,
+        "verified_by": "오지수",
+        "verified_at": "2026-11-09",
         "note": "출처 정리(2026-11-09): 농림축산식품부 공고 게시글(⑧과 같은 글)에 2026-03-05 첨부. 발행기관은 본문 첫머리 '법무부 체류관리과' 기준 — 농식품부는 게시처. 게시처 날짜라 issued_on 비움. MySQL policy_document_id·document_version 등록 필요. 다운로드 URL 원본 SHA-256 일치 확인(2026-11-09)."
       },
       "relations": {
@@ -144,9 +144,9 @@
       "effective_from": null,
       "effective_to": null,
       "review": {
-        "verified": false,
-        "verified_by": null,
-        "verified_at": null,
+        "verified": true,
+        "verified_by": "오지수",
+        "verified_at": "2026-11-09",
         "note": "출처 정리(2026-11-09): 법무부 자료, 한국산업인력공단 인천지사 배포(⑤와 같은 게시글). 발행일 정보 없음. MySQL policy_document_id·document_version 등록 필요. 다운로드 URL 원본 SHA-256 일치 확인(2026-11-09)."
       },
       "relations": {
@@ -161,7 +161,7 @@
       "original_filename": "'26년 숙련기능인력(E-7-4) 전환 추천서 발급 신청 안내.hwp",
       "domain": "visa",
       "classification_hint": "visa/recommendations/central/moel (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
-      "sha256": "095b1ed91d247617a650d4c70513d892bae9ea2ed871c8e94fcb51a042ef7907",
+      "sha256": "1ecc901473109ed7c52f4f90e34d31f4119a09f06272547bb09713c07e7ecad1",
       "title": "’26년 숙련기능인력 전환 추천서 발급 신청 안내",
       "source_url": "https://www.moel.go.kr/local/pyeongtaek/news/notice/noticeView.do?bbs_seq=20260300430",
       "download_url": "https://www.moel.go.kr/local/pyeongtaek/common/downloadFile.do?bbs_id=LOCAL1&bbs_seq=20260300430&file_seq=20260300765",
@@ -176,10 +176,10 @@
       "effective_from": null,
       "effective_to": null,
       "review": {
-        "verified": false,
-        "verified_by": null,
-        "verified_at": null,
-        "note": "출처 정리(2026-11-09): 고용노동부 게시 2026-03-10(앞선 정리는 서울서부지청, 이번 URL은 평택지청 게시판). 발행기관 직접 게시라 게시일을 발행일로 사용. MySQL policy_document_id·document_version 등록 필요. 다운로드 URL(고용노동부 평택지청 게시) 파일은 저장소 파일과 바이트가 다름(166,400 vs 83,968바이트) — 추출 본문은 완전히 같음. 앞선 정리의 서울서부지청 게시본일 수 있음. 저장소 파일을 이 URL 원본으로 교체할지 결정 필요(source_sha256 기준)."
+        "verified": true,
+        "verified_by": "오지수",
+        "verified_at": "2026-11-09",
+        "note": "출처 정리(2026-11-09): 고용노동부 게시 2026-03-10(앞선 정리는 서울서부지청, 이번 URL은 평택지청 게시판). 발행기관 직접 게시라 게시일을 발행일로 사용. MySQL policy_document_id·document_version 등록 필요. 2026-11-09 저장소 파일을 평택지청 다운로드 URL 원본으로 교체(이전 파일과 추출 본문 동일, 바이트만 달랐음). 다운로드 URL 원본 SHA-256 일치 확인(2026-11-09)."
       },
       "relations": {
         "derived_from": null,
@@ -208,9 +208,9 @@
       "effective_from": null,
       "effective_to": null,
       "review": {
-        "verified": false,
-        "verified_by": null,
-        "verified_at": null,
+        "verified": true,
+        "verified_by": "오지수",
+        "verified_at": "2026-11-09",
         "note": "출처 정리(2026-11-09): 농림축산식품부 공고 제2026-163호, 2026-03-05 게시. MySQL policy_document_id·document_version 등록 필요. 다운로드 URL 원본 SHA-256 일치 확인(2026-11-09)."
       },
       "relations": {
@@ -240,9 +240,9 @@
       "effective_from": null,
       "effective_to": null,
       "review": {
-        "verified": false,
-        "verified_by": null,
-        "verified_at": null,
+        "verified": true,
+        "verified_by": "오지수",
+        "verified_at": "2026-11-09",
         "note": "출처 정리(2026-11-09): 경기도청 고시공고 2026-06-04 게시, 경기도 공고 제2026-5708호 수정본. 본문 날짜 2026-03-16은 최초 공고일. HWPX 메타데이터 제목(충청남도 공고 제2019)은 사용하지 않음. MySQL policy_document_id·document_version 등록 필요. 다운로드 URL 원본 SHA-256 일치 확인(2026-11-09)."
       },
       "relations": {
@@ -272,9 +272,9 @@
       "effective_from": null,
       "effective_to": null,
       "review": {
-        "verified": false,
-        "verified_by": null,
-        "verified_at": null,
+        "verified": true,
+        "verified_by": "오지수",
+        "verified_at": "2026-11-09",
         "note": "출처 정리(2026-11-09): 법무부 자료, 2026-06-01 개선사항 반영본. 한국산업인력공단 인천지사 배포(⑥과 같은 게시글). issued_on은 개정 반영일(파일명·출처 정리 기준, 본문 표기 없음). ③을 대체 — 최신 유효 버전. MySQL policy_document_id·document_version 등록 필요. 다운로드 URL 원본 SHA-256 일치 확인(2026-11-09)."
       },
       "relations": {
@@ -304,9 +304,9 @@
       "effective_from": null,
       "effective_to": null,
       "review": {
-        "verified": false,
-        "verified_by": null,
-        "verified_at": null,
+        "verified": true,
+        "verified_by": "오지수",
+        "verified_at": "2026-11-09",
         "note": "출처 정리(2026-11-09): 법무부 자료, 인천외국인근로자지원센터 2026-03-09 배포(재게시). 게시처 날짜라 issued_on 비움. ⑤(2026-06-01 개선사항 반영)로 대체된 이전 버전 — 등록 시 RETIRED 대상. MySQL policy_document_id·document_version 등록 필요. 다운로드 URL 원본 SHA-256 일치 확인(2026-11-09)."
       },
       "relations": {
