@@ -212,3 +212,13 @@ def test_official_url_rules() -> None:
     assert is_official_url("https://www.law.go.kr/x")
     assert not is_official_url("https://abc.r2.cloudflarestorage.com/x")
     assert not is_official_url("ftp://www.law.go.kr/x")
+
+
+def test_source_type_is_required_only_for_visa_documents() -> None:
+    path = "finance/shinhan/sol_global_savings.pdf"
+    finance = _entry(
+        path=path, domain="finance", sha256=inspect_file(DATA_ROOT, path).sha256, source_type=None
+    )
+    _, blockers = preflight(finance, DATA_ROOT)
+    assert not any("source_type" in b for b in blockers)
+    assert any("finance" in b for b in blockers)

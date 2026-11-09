@@ -7,9 +7,9 @@
       "domain": "finance",
       "classification_hint": "finance/shinhan (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "f897f7be853b241751b21f0574f6a276acbb6ce0b084d41853322bf4aeda69c9",
-      "title": null,
+      "title": "SOL글로벌 통장 상품설명서",
       "source_url": null,
-      "source_org": null,
+      "source_org": "신한은행",
       "visa_types": null,
       "source_type": null,
       "issued_on": null,
@@ -20,7 +20,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). 금융 문서라 source_type 대신 BE product_documents.doc_kind=PRODUCT_DESCRIPTION 후보. 준법감시인 사전심사필 제2026-10266-1호(유효 2026-01-23~2027-01-22), 금리 기준일 2026-01-16 — 발행일 아님. 금융 저장 계약 확정 필요."
       },
       "relations": {
         "derived_from": null,
@@ -34,9 +35,9 @@
       "domain": "finance",
       "classification_hint": "finance/shinhan (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "7b18bb95f41e3d9d197ab9080365b32ca1defeea1245a57e525979de215c0fac",
-      "title": null,
+      "title": "SOL글로벌 적금 상품설명서",
       "source_url": null,
-      "source_org": null,
+      "source_org": "신한은행",
       "visa_types": null,
       "source_type": null,
       "issued_on": null,
@@ -47,7 +48,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). doc_kind=PRODUCT_DESCRIPTION 후보. 준법감시인 사전심사필 제2025-14265-2호(유효 2025-10-31~2026-10-30, 2026-11-09 기준 만료 — 최신본 확인 필요), 금리 기준일 2025-10-31."
       },
       "relations": {
         "derived_from": null,
@@ -61,9 +63,9 @@
       "domain": "finance",
       "classification_hint": "finance/shinhan (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "00002b53810b5adcd0b6b3902e4f29cddf2e3c575c37e0a0a95538cd1023d282",
-      "title": null,
+      "title": "100바트 해외송금서비스 상품설명서",
       "source_url": null,
-      "source_org": null,
+      "source_org": "신한은행",
       "visa_types": null,
       "source_type": null,
       "issued_on": null,
@@ -74,7 +76,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). doc_kind=PRODUCT_DESCRIPTION 후보. 기관은 본문의 www.shinhan.com·소비자보호부 안내 근거. 준법감시인 사전심사필 제2026-12244-1호(유효 2026-05-28~2027-05-27)."
       },
       "relations": {
         "derived_from": null,
@@ -88,11 +91,13 @@
       "domain": "visa",
       "classification_hint": "visa/guides (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "e38dee718554ae2fe1c24f6388a9eec373058ca4ddd6b9651b80e089fec963ac",
-      "title": null,
+      "title": "K-point E74 설명자료(중앙부처용)",
       "source_url": null,
-      "source_org": null,
-      "visa_types": null,
-      "source_type": null,
+      "source_org": "법무부",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "source_type": "guide",
       "issued_on": null,
       "policy_document_id": null,
       "document_version": null,
@@ -101,7 +106,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 기관은 문서 첫머리 '법무부 체류관리과' 근거. 발행일 표기 없음."
       },
       "relations": {
         "derived_from": null,
@@ -115,11 +121,13 @@
       "domain": "visa",
       "classification_hint": "visa/guides (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "9f6bd0ec911cdc556e579c023227f20a495f13b7189af1f7d126d9c4da254444",
-      "title": null,
+      "title": "K-point E74 숙련기능인력 혁신적 확대 방안 — 하이코리아 전자민원 신청 방법",
       "source_url": null,
       "source_org": null,
-      "visa_types": null,
-      "source_type": null,
+      "visa_types": [
+        "E-7-4"
+      ],
+      "source_type": "guide",
       "issued_on": null,
       "policy_document_id": null,
       "document_version": null,
@@ -128,7 +136,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 본문에 발행기관 표기 없음(하이코리아 화면 안내) — source_org 확인 필요. 발행일 표기 없음."
       },
       "relations": {
         "derived_from": null,
@@ -142,11 +151,13 @@
       "domain": "visa",
       "classification_hint": "visa/recommendations/central/common (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "095b1ed91d247617a650d4c70513d892bae9ea2ed871c8e94fcb51a042ef7907",
-      "title": null,
+      "title": "’26년 숙련기능인력 전환 추천서 발급 신청 안내",
       "source_url": null,
-      "source_org": null,
-      "visa_types": null,
-      "source_type": null,
+      "source_org": "고용노동부",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "source_type": "guide",
       "issued_on": null,
       "policy_document_id": null,
       "document_version": null,
@@ -155,7 +166,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 기관은 본문의 '고용부는 … 추천서 발급', '우리부 추천 쿼터(제조업 2,000명)' 근거. 폴더명 central/common과 달리 고용노동부 제조업 분야 문서. 발행일 표기 없음."
       },
       "relations": {
         "derived_from": null,
@@ -169,12 +181,14 @@
       "domain": "visa",
       "classification_hint": "visa/recommendations/central/mafra (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "1c2fa2951038ff3ef1efb91fd8fcba4690ff0bb51429e5d18b7813f9b91e5021",
-      "title": null,
+      "title": "2026년 농축산분야 숙련기능인력(E-7-4) 고용추천 운영방안 공고",
       "source_url": null,
-      "source_org": null,
-      "visa_types": null,
-      "source_type": null,
-      "issued_on": null,
+      "source_org": "농림축산식품부",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "source_type": "notice",
+      "issued_on": "2026-03-05",
       "policy_document_id": null,
       "document_version": null,
       "effective_from": null,
@@ -182,7 +196,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 농림축산식품부 공고 제2026-163호, 공고일 2026년 3월 5일(본문). 시행일 별도 표기 없음."
       },
       "relations": {
         "derived_from": null,
@@ -196,12 +211,14 @@
       "domain": "visa",
       "classification_hint": "visa/recommendations/local/gyeonggi (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "6657588aa0d37e744fc7997f2a7c0be420d20b27fcc70de9086e86f4c1a95a1a",
-      "title": null,
+      "title": "2026년 외국인 숙련기능인력(E-7-4) 경기도 추천계획 공고",
       "source_url": null,
-      "source_org": null,
-      "visa_types": null,
-      "source_type": null,
-      "issued_on": null,
+      "source_org": "경기도",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "source_type": "notice",
+      "issued_on": "2026-03-16",
       "policy_document_id": null,
       "document_version": null,
       "effective_from": null,
@@ -209,7 +226,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 경기도 공고 제2026-5708호, 공고일 2026년 3월 16일(본문). 파일명 날짜(20260601)와 다름 — 수정 공고 여부 확인 필요. HWPX 메타데이터 제목(충청남도 공고 제2019)은 사용하지 않음."
       },
       "relations": {
         "derived_from": null,
@@ -223,11 +241,13 @@
       "domain": "visa",
       "classification_hint": "visa/selection (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "5c6d0d26537ed48e815db5969294cc453fc10819af2ab6f887fc2c454676ca78",
-      "title": null,
+      "title": "2026년 숙련기능인력(E-7-4) 선발 계획",
       "source_url": null,
       "source_org": null,
-      "visa_types": null,
-      "source_type": null,
+      "visa_types": [
+        "E-7-4"
+      ],
+      "source_type": "notice",
       "issued_on": null,
       "policy_document_id": null,
       "document_version": null,
@@ -236,7 +256,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 본문에 발행기관 명시 없음('법무부(체류관리과)로 공문 송부'는 수신처) — source_org 확인 필요. 발행·시행일 표기 없음. 파일명 날짜(20260601)는 근거로 쓰지 않음."
       },
       "relations": {
         "derived_from": null,
@@ -250,11 +271,13 @@
       "domain": "visa",
       "classification_hint": "visa/selection (폴더명 기반 힌트, 기관·비자 종류 근거 아님)",
       "sha256": "4c9c48a513fc34659ee3f4168bbf8dfe89d8f2c39e50d5c3840490f254945b69",
-      "title": null,
+      "title": "2026년 숙련기능인력(E-7-4) 선발 계획",
       "source_url": null,
       "source_org": null,
-      "visa_types": null,
-      "source_type": null,
+      "visa_types": [
+        "E-7-4"
+      ],
+      "source_type": "notice",
       "issued_on": null,
       "policy_document_id": null,
       "document_version": null,
@@ -263,7 +286,8 @@
       "review": {
         "verified": false,
         "verified_by": null,
-        "verified_at": null
+        "verified_at": null,
+        "note": "본문 추출 후보(2026-11-09). 공식 source_url, MySQL policy_document_id·document_version 확인 필요. 같은 폴더 PDF와 제목·첫 장 내용이 같음(청크 37 vs 41). 원본·수정본 관계는 공식 게시물로 판정 필요 — 같은 문서면 한쪽만 등록. source_org 확인 필요."
       },
       "relations": {
         "derived_from": null,

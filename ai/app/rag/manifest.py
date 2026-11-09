@@ -42,6 +42,8 @@ class Review(BaseModel):
     verified: bool = False
     verified_by: str | None = None
     verified_at: date | None = None
+    # Where unverified values came from and what still needs checking.
+    note: str | None = None
 
 
 class Relations(BaseModel):
@@ -119,7 +121,11 @@ def preflight(entry: SourceEntry, root: Path) -> tuple[DiscoveredFile, list[str]
         )
     if not entry.review.verified:
         blockers.append("official source not reviewed (review.verified=false)")
-    for name in ("title", "source_org", "document_version", "source_type"):
+    required = ["title", "source_org", "document_version"]
+    if entry.domain == "visa":
+        # policy_documents.source_type; finance uses product_documents.doc_kind instead.
+        required.append("source_type")
+    for name in required:
         if not getattr(entry, name):
             blockers.append(f"{name} unconfirmed")
     if entry.policy_document_id is None:
