@@ -98,6 +98,12 @@ def test_old_paths_are_gone(client: TestClient, path: str) -> None:
     assert response.json()["code"] == "RESOURCE_NOT_FOUND"
 
 
+def test_ready_reports_unconfigured_gateway_even_with_spring_env(client: TestClient) -> None:
+    # Spring URL/key are set in the fixture, but the gateway is still the unconfigured one.
+    checks = client.get("/health/ready").json()["checks"]
+    assert checks["policy_gateway"] == "blocked"
+
+
 def test_health_needs_no_token(client: TestClient) -> None:
     assert client.get("/health/live").status_code == 200
 

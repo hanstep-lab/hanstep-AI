@@ -8,6 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
+from app.integrations.policy_gateway import UnconfiguredPolicyGateway
 from app.rag.indexes import inspect_vector_index, load_definition
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -40,7 +41,9 @@ async def ready(request: Request) -> JSONResponse:
     state = request.app.state.rag
     checks = await run_in_threadpool(_check_mongo, state)
     checks["model"] = "loaded" if state.embedder.loaded else state.errors.get("model", "not_loaded")
-    checks["policy_gateway"] = "configured" if state.settings.spring_configured() else "blocked"
+    # Search verifies approval through the gateway; an unconfigured one makes every search 503.
+    unconfigured = isinstance(state.gateway, UnconfiguredPolicyGateway)
+    checks["policy_gateway"] = "blocked" if unconfigured else "configured"
     checks["internal_auth"] = (
         "configured" if state.settings.internal_token_configured() else "not_configured"
     )

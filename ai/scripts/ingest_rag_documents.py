@@ -32,8 +32,8 @@ from app.rag.cli import (
     write_json,
 )
 from app.rag.embeddings import BgeM3Embedder, local_tokenizer_counter
-from app.rag.ingestion import IngestionDeps, process_entry
-from app.rag.manifest import load_manifest
+from app.rag.ingestion import IngestionDeps, SourceResult, process_entry
+from app.rag.manifest import SourceEntry, load_manifest
 from app.rag.repository import ChunkRepository
 
 SUCCESS = {"planned", "loaded", "skipped"}
@@ -111,8 +111,18 @@ def main() -> int:
         r2_prefix=settings.r2_policy_prefix,
         embedding_model=settings.embedding_model,
     )
+
+    def run_one(entry: SourceEntry) -> SourceResult:
+        # One broken document must not abort the batch or the run report.
+        try:
+            return process_entry(entry, root, deps, apply=args.apply)
+        except Exception as exc:  # noqa: BLE001
+            return SourceResult(
+                entry.path, entry.domain, "failed", [f"unexpected {type(exc).__name__}: {exc}"]
+            )
+
     try:
-        results = [process_entry(e, root, deps, apply=args.apply) for e in entries]
+        results = [run_one(e) for e in entries]
     finally:
         if mongo_client is not None:
             mongo_client.close()

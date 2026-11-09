@@ -143,7 +143,11 @@ def process_entry(
         result.reasons = [report.reason, report.remedy, *blockers]
         return result
 
-    drafts = chunk_blocks(report.blocks, deps.token_counter, deps.chunker)
+    try:
+        drafts = chunk_blocks(report.blocks, deps.token_counter, deps.chunker)
+    except RagError as exc:
+        result.status, result.reasons = "failed", [f"chunking failed: {exc}", *blockers]
+        return result
     result.chunks = len(drafts)
     result.max_chunk_tokens = max((d.token_count for d in drafts), default=0)
     result.chunks_with_page = sum(1 for d in drafts if d.page_number is not None)

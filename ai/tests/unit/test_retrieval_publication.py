@@ -50,6 +50,7 @@ def test_pipeline_always_enforces_approval_filter() -> None:
         top_k=5,
         num_candidates=100,
         visa_types=["E-7-4"],
+        embedding_model="BAAI/bge-m3",
     )
     stage = pipeline[0]["$vectorSearch"]
     assert stage["filter"] == {
@@ -57,8 +58,10 @@ def test_pipeline_always_enforces_approval_filter() -> None:
         "review_status": "approved",
         "visa_types": {"$in": ["E-7-4"]},
     }
-    assert pipeline[1] == {"$project": {"embedding": 0}}
-    assert pipeline[2] == {"$set": {"score": {"$meta": "vectorSearchScore"}}}
+    # Other embedding models are dropped before projection and scoring.
+    assert pipeline[1] == {"$match": {"embedding_model": "BAAI/bge-m3"}}
+    assert pipeline[2] == {"$project": {"embedding": 0}}
+    assert pipeline[3] == {"$set": {"score": {"$meta": "vectorSearchScore"}}}
 
 
 @pytest.mark.parametrize("bad", [["E-7-4", {"$ne": 1}], ["e74"], ["E-7-4; drop"], ["X"] * 11])
@@ -70,7 +73,12 @@ def test_visa_types_are_validated(bad: list[Any]) -> None:
 def test_invalid_top_k_rejected() -> None:
     with pytest.raises(ValidationFailedError):
         build_pipeline(
-            index_name="i", query_vector=[1.0], top_k=0, num_candidates=10, visa_types=[]
+            index_name="i",
+            query_vector=[1.0],
+            top_k=0,
+            num_candidates=10,
+            visa_types=[],
+            embedding_model="BAAI/bge-m3",
         )
 
 
@@ -114,6 +122,7 @@ def test_english_query_uses_same_embedder_and_server_filter() -> None:
     hits = service.search("Which documents are required for the E-7-4 recommendation?", 5, None)
     assert len(hits) == 1
     assert collection.pipelines[0][0]["$vectorSearch"]["filter"]["review_status"] == "approved"
+    assert collection.pipelines[0][1] == {"$match": {"embedding_model": "BAAI/bge-m3"}}
 
 
 class UntouchableClient:

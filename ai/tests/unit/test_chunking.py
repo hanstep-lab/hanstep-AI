@@ -107,3 +107,17 @@ def test_invalid_config_rejected() -> None:
         ChunkerConfig(target_tokens=1000, max_tokens=900)
     with pytest.raises(ValueError):
         ChunkerConfig(target_tokens=100, overlap_tokens=100)
+
+
+def test_oversized_table_header_is_not_repeated_and_never_raises() -> None:
+    config = ChunkerConfig(target_tokens=60, max_tokens=90, overlap_tokens=10)
+    header = "머" * 120
+    rows = [header] + [f"행{i} " + "가" * 36 for i in range(6)]
+    block = Block("\n".join(rows), kind="table", table_header=header)
+    chunks = chunk_blocks([block], approx_token_count, config)
+    assert all(c.token_count <= config.max_tokens for c in chunks)
+    assert not any(c.repeated_table_header for c in chunks)
+    # Every original row still appears exactly once.
+    body = "\n".join(c.text for c in chunks)
+    for row in rows[1:]:
+        assert body.count(row) == 1

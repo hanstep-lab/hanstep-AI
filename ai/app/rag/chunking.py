@@ -13,6 +13,7 @@ import re
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 
+from app.rag.errors import RagError
 from app.rag.extractors.base import Block
 
 CHUNKER_VERSION = "1"
@@ -25,6 +26,10 @@ _HEADING = re.compile(
     r"|□|■|<\s*[^<>|]{2,40}>)"
 )
 _SENTENCE_END = re.compile(r"(?<=[.?!다요])\s+")
+
+
+class ChunkingError(RagError):
+    """A chunk could not be kept within max_tokens."""
 
 
 def approx_token_count(text: str) -> int:
@@ -106,7 +111,9 @@ class _Builder:
         text = "\n".join(line.text for line in self.lines)
         tokens = self.count(text)
         if tokens > self.config.max_tokens:
-            raise AssertionError("chunk exceeded max_tokens; splitting logic is broken")
+            raise ChunkingError(
+                f"chunk of {tokens} tokens exceeds max_tokens={self.config.max_tokens}"
+            )
         self.drafts.append(
             ChunkDraft(
                 chunk_index=len(self.drafts),
@@ -241,7 +248,8 @@ def chunk_blocks(
             )
             if would_flush:
                 builder.flush(carry_overlap=False)
-            if not builder.lines and previous_header == line.table_header:
+            header_fits = count(f"{line.table_header}\n{line.text}") <= config.max_tokens
+            if not builder.lines and previous_header == line.table_header and header_fits:
                 builder.lines.append(_Line(line.table_header, line.page, "table"))
                 builder.repeated_header = True
                 builder.chunk_section = builder.section

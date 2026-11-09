@@ -41,8 +41,15 @@ def build_pipeline(
     top_k: int,
     num_candidates: int,
     visa_types: list[str],
+    embedding_model: str,
 ) -> list[dict[str, Any]]:
-    """The approval filter is always applied server-side; callers cannot pass a filter."""
+    """The approval filter is always applied server-side; callers cannot pass a filter.
+
+    ``embedding_model`` is enforced right after ``$vectorSearch`` so vectors from another
+    model (same 1024 dims, different space) never mix into ranking or duplicate a chunk.
+    It is a post-filter because the confirmed index definition has no ``embedding_model``
+    filter field; add one together with any future model change (see decisions.md).
+    """
     if top_k < 1 or num_candidates < top_k or num_candidates > 10000:
         raise ValidationFailedError("invalid top_k/numCandidates")
     filter_doc: dict[str, Any] = {"is_active": True, "review_status": "approved"}
@@ -59,6 +66,7 @@ def build_pipeline(
                 "filter": filter_doc,
             }
         },
+        {"$match": {"embedding_model": embedding_model}},
         {"$project": {"embedding": 0}},
         {"$set": {"score": {"$meta": "vectorSearchScore"}}},
     ]
@@ -161,6 +169,7 @@ class SearchService:
             top_k=top_k,
             num_candidates=max(self.num_candidates, top_k),
             visa_types=validate_visa_types(visa_types),
+            embedding_model=self.embedder.model_name,
         )
         raw = list(self.collection.aggregate(pipeline))
         return [to_hit(doc) for doc in filter_current(raw, self.gateway)]

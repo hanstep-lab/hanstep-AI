@@ -224,3 +224,26 @@ def test_effective_dates_are_kst_midnight() -> None:
     from datetime import date
 
     assert seoul_midnight_utc(date(2026, 6, 1)) == datetime(2026, 5, 31, 15, 0, tzinfo=UTC)
+
+
+def test_chunking_error_fails_only_that_document(
+    fake_repository: FakeRepository,
+    fake_embedder: FakeEmbedder,
+    gateway: InMemoryPolicyGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.rag import ingestion
+    from app.rag.chunking import ChunkingError
+
+    def boom(*args: Any, **kwargs: Any) -> Any:
+        raise ChunkingError("too long")
+
+    monkeypatch.setattr(ingestion, "chunk_blocks", boom)
+    result = process_entry(
+        _entry(),
+        DATA_ROOT,
+        _deps(fake_repository, fake_embedder, gateway, InMemoryObjectStore()),
+        apply=False,
+    )
+    assert result.status == "failed"
+    assert "chunking failed" in result.reasons[0]
