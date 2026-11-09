@@ -1,7 +1,7 @@
 {
   "id": "S14",
   "title": "같은 id 같은 내용 두 번",
-  "status": "draft",
+  "status": "ready",
   "trap": "중복 수신된 id 2는 한 번만 집계하고 나머지는 DUPLICATE_ID",
   "request": {
     "userId": 1,
@@ -78,10 +78,14 @@
       }
     ]
   },
-  "naive_expected": 1200000,
+  "naive_expected": {
+    "income": 2000000,
+    "expense": 800000,
+    "spare": 1200000
+  },
   "calc": [
     "id 2 한 번만 집계 -> 변동 400,000",
     "spare = 2,000,000 - 400,000 = 1,600,000",
-    "naive: 지출 400,000+400,000 = 800,000 / spare 1,200,000"
+    "naive: 걸친 달 1 / 소득 2,000,000 / 지출 400,000+400,000 = 800,000 / spare 1,200,000"
   ]
 }

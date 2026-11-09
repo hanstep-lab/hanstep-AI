@@ -1,7 +1,7 @@
 {
   "id": "S17",
   "title": "같은 id 다른 금액",
-  "status": "draft",
+  "status": "ready",
   "trap": "같은 id인데 amount가 다르면 400 VALIDATION_ERROR",
   "request": {
     "userId": 1,

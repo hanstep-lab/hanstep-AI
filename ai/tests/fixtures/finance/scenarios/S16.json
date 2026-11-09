@@ -1,7 +1,7 @@
 {
   "id": "S16",
   "title": "수입 0원, 송금만 있음",
-  "status": "draft",
+  "status": "ready",
   "trap": "spare가 음수(-500,000)로 그대로 나옴",
   "request": {
     "userId": 1,
@@ -57,10 +57,14 @@
     },
     "excluded": []
   },
-  "naive_expected": -500000,
+  "naive_expected": {
+    "income": 0,
+    "expense": 500000,
+    "spare": -500000
+  },
   "calc": [
     "소득 0 / 고정 0 / 송금 500,000 / 변동 0",
     "spare = 0 - 0 - 500,000 - 0 = -500,000",
-    "naive: 소득 0 / 지출 500,000 / spare -500,000"
+    "naive: 걸친 달 1 / 소득 0 / 지출 500,000 / spare -500,000"
   ]
 }

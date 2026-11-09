@@ -1,7 +1,7 @@
 {
   "id": "S08",
   "title": "부분월 (periodFrom이 달 중간)",
-  "status": "draft",
+  "status": "ready",
   "trap": "8/15~8/31만 덮는 2026-08은 partialMonths로 빠지고 평균에서 제외",
   "request": {
     "userId": 1,
@@ -83,7 +83,11 @@
     },
     "excluded": []
   },
-  "naive_expected": 1650000,
+  "naive_expected": {
+    "income": 2000000,
+    "expense": 350000,
+    "spare": 1650000
+  },
   "calc": [
     "꽉 찬 달: 2026-09 (1개), 부분월: 2026-08",
     "09월: 소득 2,000,000 / 변동 400,000 -> spare 1,600,000",

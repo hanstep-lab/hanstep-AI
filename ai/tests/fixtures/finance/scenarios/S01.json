@@ -1,7 +1,7 @@
 {
   "id": "S01",
   "title": "원래 설계 샘플 (2026-09 한 달)",
-  "status": "draft",
+  "status": "ready",
   "trap": "기본 분류: 소득/고정(HOUSING)/송금/변동(LIVING)이 각자 자리에 들어가는지",
   "request": {
     "userId": 1,
@@ -81,7 +81,11 @@
     },
     "excluded": []
   },
-  "naive_expected": 650000,
+  "naive_expected": {
+    "income": 2400000,
+    "expense": 1750000,
+    "spare": 650000
+  },
   "calc": [
     "꽉 찬 달: 2026-09 (1개)",
     "소득 = 2,400,000 / 고정 = 600,000 / 송금 = 500,000 / 변동 = 650,000 (min=max=avg)",

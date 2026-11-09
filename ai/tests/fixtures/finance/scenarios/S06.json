@@ -1,7 +1,7 @@
 {
   "id": "S06",
   "title": "NEUTRAL 카테고리",
-  "status": "draft",
+  "status": "ready",
   "trap": "categoryCode NEUTRAL은 kind가 NORMAL이어도 제외",
   "request": {
     "userId": 1,
@@ -78,10 +78,14 @@
       }
     ]
   },
-  "naive_expected": 1400000,
+  "naive_expected": {
+    "income": 2000000,
+    "expense": 600000,
+    "spare": 1400000
+  },
   "calc": [
     "id 3 NEUTRAL 제외",
     "spare = 2,000,000 - 400,000 = 1,600,000",
-    "naive: 지출 400,000+200,000 = 600,000 / spare 1,400,000"
+    "naive: 걸친 달 1 / 소득 2,000,000 / 지출 400,000+200,000 = 600,000 / spare 1,400,000"
   ]
 }

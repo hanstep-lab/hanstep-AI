@@ -1,7 +1,7 @@
 {
   "id": "S13",
   "title": "꽉 찬 달 0개",
-  "status": "draft",
+  "status": "ready",
   "trap": "9/10~9/30만 덮으면 금액 필드 전부 null + NO_FULL_MONTH (200 응답)",
   "request": {
     "userId": 1,
@@ -44,7 +44,11 @@
     },
     "excluded": []
   },
-  "naive_expected": 1600000,
+  "naive_expected": {
+    "income": 2000000,
+    "expense": 400000,
+    "spare": 1600000
+  },
   "calc": [
     "꽉 찬 달 없음, 2026-09 부분월 -> 금액 null, NO_FULL_MONTH",
     "naive: 걸친 달 1 / 소득 2,000,000 / 지출 400,000 / spare 1,600,000"
