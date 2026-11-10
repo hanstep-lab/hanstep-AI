@@ -3,8 +3,7 @@
 
 ## 개발 준비
 
-Python 서버의 기준 경로는 `ai/`입니다. 현재 의존성·품질 검사·인프라 설정이 준비되어 있으며,
-`ai/app/`, `ai/Dockerfile`, 앱 테스트는 아직 구현되지 않았습니다.
+Python 서버의 기준 경로는 `ai/`입니다. 앱(`ai/app/`), 테스트(`ai/tests/`), Docker 이미지(`ai/Dockerfile`)가 있습니다.
 
 Git과 [uv](https://docs.astral.sh/uv/getting-started/installation/)를 설치한 뒤 저장소 루트에서 실행합니다.
 로컬 DB와 큐를 실행하려면 Docker Desktop도 설치하고 실행해야 합니다.
@@ -34,7 +33,7 @@ if (!(Test-Path ai/.env)) { Copy-Item ai/.env.example ai/.env }
 
 | 파일 | 설정 |
 | --- | --- |
-| `.env` | MySQL·MongoDB·RabbitMQ의 로컬 계정, 비밀번호, 포트와 컨테이너용 연결 URI |
+| `.env` | AI compose 설정: 컨테이너용 MongoDB·RabbitMQ URI, AI 포트. `compose.full.yml` 사용 시 인프라 계정(백엔드 `.env`와 같은 값) |
 | `ai/.env` | 호스트용 MongoDB·RabbitMQ URI, Spring 주소, Anthropic·R2 설정 |
 
 DB·큐 비밀번호는 충분히 긴 임의 값으로 정하고 연결 URI의 자격 증명과 일치시킵니다.
@@ -87,30 +86,44 @@ git commit
 제목을 작성하지 않으면 빈 메시지로 판단되어 커밋이 취소됩니다.
 `git commit -m "메시지"`를 사용하면 템플릿 편집 없이 바로 메시지를 지정합니다.
 
-## 로컬 인프라
+## 로컬 인프라와 AI 서버
 
-환경 파일 설정과 Docker Desktop 실행 후 인프라 서비스만 시작합니다.
-`db/init`은 MySQL 초기화 파일을 위한 디렉터리이며 비어 있어도 됩니다.
+인프라(MySQL·RabbitMQ·MongoDB Atlas Local)는 **백엔드 저장소의 `docker-compose.yml` 하나에만** 정의합니다.
+백엔드 compose가 공유 네트워크 `hanstep-net`을 만들고, 이 저장소의 compose는 그 네트워크에 붙어 AI 서버만 띄웁니다.
 
-```powershell
-New-Item -ItemType Directory -Force db/init | Out-Null
-docker compose config --quiet
-docker compose up -d mysql rabbitmq mongodb
-docker compose ps
+**방법 A — 나눠서 시작**
+
+```bash
+# 백엔드 저장소에서 인프라 시작
+cd ../hanstep-backend && docker compose up -d
+# 이 저장소에서 AI 서버 시작
+cd ../hanstep-AI && docker compose up -d
 ```
 
-기본 호스트 포트는 MySQL 3307, RabbitMQ 5672, RabbitMQ 관리 화면 15672, MongoDB 27017입니다.
-기동 전에 포트 충돌을 확인하고, 시작 후 각 서비스의 health 상태를 확인합니다.
-AI 서버·워커는 소스와 Dockerfile 구현 후 실행할 수 있으므로 현재는 전체 Compose를 시작하지 않습니다.
-Spring Boot는 호스트에서 별도로 실행하고, 벡터 인덱스 생성과 임베딩 적재도 별도 작업입니다.
+**방법 B — 한 번에 시작** (`../hanstep-backend`에 백엔드 저장소를 클론해 둔 경우)
 
-데이터를 유지하면서 중지하려면 다음 명령을 사용합니다.
-
-```powershell
-docker compose stop mysql rabbitmq mongodb
+```bash
+gh repo clone hanstep-lab/hanstep-backend ../hanstep-backend   # 최초 1회
+docker compose -f compose.full.yml up -d
+docker compose -f compose.full.yml ps
 ```
 
-`docker compose down -v`는 저장된 DB 데이터를 삭제하므로 일반 중지 용도로 사용하지 않습니다.
+`compose.full.yml`은 백엔드 compose를 그대로 불러오므로 인프라 정의는 여전히 한 곳에만 있습니다.
+B에서는 두 compose의 변수를 모두 이 저장소 루트 `.env`에서 읽으므로, `.env.example` 아래쪽의 인프라 계정 값을 백엔드 `.env`와 같게 맞춥니다.
+
+- 루트 `.env`의 `MONGO_URI`·`RABBITMQ_URL`은 컨테이너 주소(`mongodb:27017`, `rabbitmq:5672`)이고,
+  `ai/.env`의 같은 키는 호스트에서 직접 실행할 때 쓰는 `localhost` 주소입니다. 비밀번호는 백엔드 `.env`와 같아야 합니다.
+- AI 서버 이미지는 CPU 전용 PyTorch를 써서 약 1.6GB입니다. BGE-M3 가중치(약 2.3GB)는 이미지에 넣지 않고
+  `hf-cache` 볼륨에 처음 기동 때 한 번 내려받습니다. 받지 않고 띄우려면 `LOAD_MODEL_ON_STARTUP=false`.
+- `ai-worker`는 RabbitMQ 작업 규격이 정해질 때까지 기본으로 뜨지 않습니다(`--profile worker`).
+- 기동 전에 호스트 포트 충돌을 확인합니다: MySQL 3307, RabbitMQ 5672·15672, MongoDB 27017, AI 8000.
+  이미 쓰는 포트가 있으면 `.env`의 `MONGODB_PORT`·`MYSQL_PORT`·`AI_PORT`를 바꿉니다
+  (RabbitMQ 포트는 현재 백엔드 compose에 고정돼 있습니다).
+- Spring Boot는 호스트에서 실행하며 컨테이너에서는 `host.docker.internal:8080`으로 접근합니다.
+- 이미지 빌드 전 디스크 여유 공간을 확인합니다(빌드 중 약 5GB 이상 필요).
+
+중지할 때는 `docker compose stop`(B는 `-f compose.full.yml`)을 씁니다.
+`docker compose down -v`는 저장된 DB 데이터와 모델 캐시를 삭제하므로 일반 중지 용도로 쓰지 않습니다.
 
 ## CI와 저장소 관리
 
