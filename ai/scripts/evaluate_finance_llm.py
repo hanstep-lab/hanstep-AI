@@ -6,13 +6,19 @@ must answer a JSON object of integers. The API key is never printed or written.
 
     uv run python scripts/evaluate_finance_llm.py --repeats 3 \
         --output artifacts/finance/llm_comparison.json
+    uv run python scripts/evaluate_finance_llm.py --repeats 1 --cases S02,S08
+
+Prints one progress line per call and rewrites --output after every call ("status":
+running -> completed, or interrupted on Ctrl+C), so a stopped run keeps what it paid for.
 """
 
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,6 +35,7 @@ AI_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = AI_ROOT / "tests" / "fixtures" / "finance"
 FIELDS = ["avgMonthlyIncome", "fixedLiving", "remittance", "variableAvg", "spare"]
 MAX_TOKENS = 16000
+EXIT_INTERRUPTED = 130
 
 # Rules 2-7 verbatim from the INT-01 spec. A trailing backslash only splits a long source
 # line for the linter; it does not change the prompt text.
@@ -131,6 +138,41 @@ def parse_answer(text: str) -> dict[str, int | None] | None:
     return answer
 
 
+def select_cases(
+    cases: list[dict[str, Any]], selection: str | None, parser: argparse.ArgumentParser
+) -> list[dict[str, Any]]:
+    """--cases S02,S08 keeps only those ids (in fixture order); no option keeps all."""
+    if selection is None:
+        return cases
+    wanted = {part.strip() for part in selection.split(",") if part.strip()}
+    known = [c["id"] for c in cases]
+    unknown = sorted(wanted - set(known))
+    if not wanted or unknown:
+        parser.error(f"unknown or empty --cases: {unknown}; known ids: {', '.join(known)}")
+    return [c for c in cases if c["id"] in wanted]
+
+
+def save_report(path: Path, report: dict[str, Any]) -> None:
+    # Write then rename, so Ctrl+C during a save never leaves a half-written file.
+    tmp = path.with_name(path.name + ".tmp")
+    write_json(tmp, report)
+    tmp.replace(path)
+
+
+def progress_line(done: int, total: int, row: dict[str, Any], elapsed: float) -> str:
+    if row.get("error"):
+        status = f"error:{row['error']}"
+    elif row.get("parse_failed"):
+        status = "parse_failed"
+    else:
+        status = "ok"
+    return (
+        f"[{done}/{total}] {row['case']} #{row['repeat']} done {elapsed:.1f}s "
+        f"stop={row.get('stop_reason', '-')} in={row.get('input_tokens', '-')} "
+        f"out={row.get('output_tokens', '-')} {status}"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repeats", type=int, default=3)
@@ -144,7 +186,11 @@ def main() -> int:
         default="adaptive",
         help="adaptive thinking gives the LLM its best shot at the arithmetic",
     )
+    parser.add_argument(
+        "--cases", default=None, help="comma-separated case ids, e.g. minh_12m or S02,S08"
+    )
     args = parser.parse_args()
+    cases = select_cases(load_cases(), args.cases, parser)
 
     settings = get_settings()
     if not settings.anthropic_configured():
@@ -156,7 +202,6 @@ def main() -> int:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
     model = args.model or settings.agent_model
     started_at = datetime.now(UTC).isoformat()
-    cases = load_cases()
     conditions = {
         "model": model,
         # The SDK sends API version 2026-10-21, which rejects sampling parameters, so
@@ -172,61 +217,89 @@ def main() -> int:
     }
 
     rows: list[dict[str, Any]] = []
-    prompts: dict[str, str] = {}
-    engine: dict[str, dict[str, int | None]] = {}
-    for case in cases:
-        engine[case["id"]] = engine_answer(case["request"])
-        prompt = build_prompt(case["request"])
-        prompts[case["id"]] = prompt
-        for repeat in range(1, args.repeats + 1):
-            row: dict[str, Any] = {
-                "case": case["id"],
-                "repeat": repeat,
-                "model": model,
-                "at": datetime.now(UTC).isoformat(),
-            }
-            request_kwargs: dict[str, Any] = {
-                "model": model,
-                "max_tokens": MAX_TOKENS,
-                "messages": [{"role": "user", "content": prompt}],
-            }
-            if args.thinking == "adaptive":
-                request_kwargs["thinking"] = {"type": "adaptive"}
-            start = time.perf_counter()
-            try:
-                response = client.messages.create(**request_kwargs)
-            except anthropic.AuthenticationError:
-                print("BLOCKED: Anthropic API rejected the configured key")
-                return EXIT_BLOCKED
-            except anthropic.APIStatusError as exc:
-                row.update(error=f"{type(exc).__name__}:{exc.status_code}", parse_failed=True)
-                rows.append(row)
-                continue
-            except anthropic.APIConnectionError as exc:
-                row.update(error=type(exc).__name__, parse_failed=True)
-                rows.append(row)
-                continue
-            row["latency_ms"] = round((time.perf_counter() - start) * 1000)
-            row["input_tokens"] = response.usage.input_tokens
-            row["output_tokens"] = response.usage.output_tokens
-            row["stop_reason"] = response.stop_reason
-            text = "".join(block.text for block in response.content if block.type == "text")
-            row["raw_text"] = text
-            answer = parse_answer(text)
-            row["parse_failed"] = answer is None
-            row["answer"] = answer
-            if answer is not None:
-                expected = engine[case["id"]]
-                row["field_match"] = {k: answer[k] == expected[k] for k in FIELDS}
-                got, want = answer["spare"], expected["spare"]
-                row["spare_abs_error"] = (
-                    abs(got - want) if got is not None and want is not None else None
-                )
-            rows.append(row)
+    # Computed up front so a partial save can summarize every selected case.
+    prompts = {case["id"]: build_prompt(case["request"]) for case in cases}
+    engine = {case["id"]: engine_answer(case["request"]) for case in cases}
+    total_calls = len(cases) * args.repeats
 
-    summary = summarize(rows, engine, cases)
-    report = {"conditions": conditions, "summary": summary, "prompts": prompts, "rows": rows}
-    write_json(args.output, report)
+    def save(status: str) -> dict[str, Any]:
+        summary = summarize(rows, engine, cases)
+        report = {
+            "status": status,
+            "conditions": conditions,
+            "summary": summary,
+            "prompts": prompts,
+            "rows": rows,
+        }
+        save_report(args.output, report)
+        return summary
+
+    # Piped or redirected stdout on Windows defaults to cp1252, which cannot print Korean.
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8")
+    print(
+        f"총 {total_calls}회 호출 예정(케이스 {len(cases)}개 × 반복 {args.repeats}회), "
+        f"thinking={args.thinking}, max_tokens={MAX_TOKENS}",
+        flush=True,
+    )
+    try:
+        for case in cases:
+            prompt = prompts[case["id"]]
+            for repeat in range(1, args.repeats + 1):
+                row: dict[str, Any] = {
+                    "case": case["id"],
+                    "repeat": repeat,
+                    "model": model,
+                    "at": datetime.now(UTC).isoformat(),
+                }
+                request_kwargs: dict[str, Any] = {
+                    "model": model,
+                    "max_tokens": MAX_TOKENS,
+                    "messages": [{"role": "user", "content": prompt}],
+                }
+                if args.thinking == "adaptive":
+                    request_kwargs["thinking"] = {"type": "adaptive"}
+                start = time.perf_counter()
+                try:
+                    response = client.messages.create(**request_kwargs)
+                except anthropic.AuthenticationError:
+                    print("BLOCKED: Anthropic API rejected the configured key")
+                    return EXIT_BLOCKED
+                except anthropic.APIStatusError as exc:
+                    row.update(error=f"{type(exc).__name__}:{exc.status_code}", parse_failed=True)
+                except anthropic.APIConnectionError as exc:
+                    row.update(error=type(exc).__name__, parse_failed=True)
+                else:
+                    row["latency_ms"] = round((time.perf_counter() - start) * 1000)
+                    row["input_tokens"] = response.usage.input_tokens
+                    row["output_tokens"] = response.usage.output_tokens
+                    row["stop_reason"] = response.stop_reason
+                    text = "".join(block.text for block in response.content if block.type == "text")
+                    row["raw_text"] = text
+                    answer = parse_answer(text)
+                    row["parse_failed"] = answer is None
+                    row["answer"] = answer
+                    if answer is not None:
+                        expected = engine[case["id"]]
+                        row["field_match"] = {k: answer[k] == expected[k] for k in FIELDS}
+                        got, want = answer["spare"], expected["spare"]
+                        row["spare_abs_error"] = (
+                            abs(got - want) if got is not None and want is not None else None
+                        )
+                rows.append(row)
+                save("running")
+                print(
+                    progress_line(len(rows), total_calls, row, time.perf_counter() - start),
+                    flush=True,
+                )
+    except KeyboardInterrupt:
+        summary = save("interrupted")
+        print(f"interrupted after {len(rows)}/{total_calls} calls", flush=True)
+        print_table(summary, conditions)
+        print_json({"output": str(args.output), "status": "interrupted"})
+        return EXIT_INTERRUPTED
+
+    summary = save("completed")
     print_table(summary, conditions)
     print_json({"output": str(args.output)})
     return EXIT_OK
@@ -242,6 +315,16 @@ def summarize(
     }
     all_fields = sum(all(r["field_match"].values()) for r in parsed) / total if total else 0.0
     errors = [r["spare_abs_error"] for r in parsed if r.get("spare_abs_error") is not None]
+    # Calls with no usable answer, split into disjoint causes that add up to the total.
+    failed = [r for r in rows if r.get("parse_failed")]
+    api_errors = sum(1 for r in failed if r.get("error"))
+    cut_off = sum(1 for r in failed if not r.get("error") and r.get("stop_reason") == "max_tokens")
+    unanswered = {
+        "total": len(failed),
+        "max_tokens": cut_off,
+        "parse_failed": len(failed) - api_errors - cut_off,
+        "api_error": api_errors,
+    }
     per_case = {}
     for case in cases:
         case_rows = [r for r in rows if r["case"] == case["id"]]
@@ -259,6 +342,7 @@ def summarize(
     return {
         "calls": total,
         "parse_failures": total - len(parsed),
+        "unanswered": unanswered,
         "field_exact_rate": field_rate,
         "all_fields_exact_rate": all_fields,
         "spare_exact_rate": field_rate["spare"],
@@ -291,6 +375,11 @@ def print_table(summary: dict[str, Any], conditions: dict[str, Any]) -> None:
         f"{summary['parse_failures']}/{summary['calls']}; consistent cases: "
         f"{summary['consistent_cases']}/{len(summary['per_case'])}; tokens in/out: "
         f"{summary['input_tokens']}/{summary['output_tokens']}"
+    )
+    u = summary["unanswered"]
+    print(
+        f"no answer: {u['total']}/{summary['calls']} (max_tokens={u['max_tokens']}, "
+        f"parse_failed={u['parse_failed']}, api_error={u['api_error']})"
     )
 
 
