@@ -23,6 +23,19 @@ logger = logging.getLogger(__name__)
 
 # BGE-M3 accepts up to 8192 tokens; the chunker caps far lower, so hitting this is a bug.
 MODEL_MAX_TOKENS = 8192
+# Files sentence-transformers needs for dense BGE-M3 (~2.3 GB instead of ~4.6 GB for the repo).
+MODEL_FILE_PATTERNS = [
+    "config.json",
+    "config_sentence_transformers.json",
+    "modules.json",
+    "sentence_bert_config.json",
+    "1_Pooling/config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "sentencepiece.bpe.model",
+    "pytorch_model.bin",
+]
 
 
 class Embedder(Protocol):
@@ -73,11 +86,17 @@ class BgeM3Embedder:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
+            # Fetch only what dense embedding needs, then always load from local files.
+            # Loading online makes transformers start a non-daemon "auto_conversion" thread
+            # that downloads a ~2.3 GB safetensors copy from a Hub PR (the pinned revision
+            # ships pytorch_model.bin only) and blocks process exit until it finishes.
+            self._ensure_local_files()
             model = SentenceTransformer(
                 self.model_name,
                 revision=self.revision,
                 device=self.device,
-                local_files_only=self.local_files_only,
+                local_files_only=True,
+                model_kwargs={"use_safetensors": False},
             )
             dim = model.get_embedding_dimension()
             if dim != EMBEDDING_DIMENSIONS:
@@ -87,6 +106,17 @@ class BgeM3Embedder:
             model.encode(["warm-up"], normalize_embeddings=True, show_progress_bar=False)
             self._model = model
         return self._model
+
+    def _ensure_local_files(self) -> None:
+        """Download the dense-model files (skips ONNX, ColBERT/sparse heads, images)."""
+        from huggingface_hub import snapshot_download
+
+        snapshot_download(
+            self.model_name,
+            revision=self.revision,
+            allow_patterns=MODEL_FILE_PATTERNS,
+            local_files_only=self.local_files_only,
+        )
 
     @property
     def loaded(self) -> bool:
