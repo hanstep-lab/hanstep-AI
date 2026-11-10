@@ -296,3 +296,60 @@ def test_embedding_revision_rejects_other_values(revision: str) -> None:
 
     with pytest.raises(ValidationError, match="commit hash"):
         Settings(_env_file=None, embedding_model_revision=revision)  # type: ignore[call-arg]
+
+
+def test_model_loads_in_background_and_live_answers_meanwhile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+
+    import app.main as main_module
+
+    release = threading.Event()
+    calls: list[str] = []
+
+    def slow_load(self: BgeM3Embedder) -> None:
+        calls.append("load")
+        release.wait(timeout=5)
+        self._model = object()  # type: ignore[assignment]
+
+    monkeypatch.setattr(BgeM3Embedder, "load", slow_load)
+    monkeypatch.setattr(
+        main_module,
+        "get_settings",
+        lambda: Settings(_env_file=None, load_model_on_startup=True),  # type: ignore[call-arg]
+    )
+    with TestClient(main_module.create_app()) as client:
+        assert client.get("/health/live").status_code == 200
+        assert client.get("/health/ready").json()["checks"]["model"] == "loading"
+        release.set()
+        for _ in range(50):
+            if client.get("/health/ready").json()["checks"]["model"] == "loaded":
+                break
+            threading.Event().wait(0.05)
+        assert client.get("/health/ready").json()["checks"]["model"] == "loaded"
+    assert calls == ["load"]
+
+
+def test_model_load_failure_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    import app.main as main_module
+
+    def broken(self: BgeM3Embedder) -> None:
+        raise OSError("hub unreachable")
+
+    monkeypatch.setattr(BgeM3Embedder, "load", broken)
+    monkeypatch.setattr(
+        main_module,
+        "get_settings",
+        lambda: Settings(_env_file=None, load_model_on_startup=True),  # type: ignore[call-arg]
+    )
+    with TestClient(main_module.create_app()) as client:
+        for _ in range(50):
+            model = client.get("/health/ready").json()["checks"]["model"]
+            if model.startswith("error"):
+                break
+            threading.Event().wait(0.05)
+        assert model == "error:OSError"
+        assert "hub unreachable" not in client.get("/health/ready").text
