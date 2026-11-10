@@ -99,9 +99,25 @@ def test_old_paths_are_gone(client: TestClient, path: str) -> None:
 
 
 def test_ready_reports_unconfigured_gateway_even_with_spring_env(client: TestClient) -> None:
-    # Spring URL/key are set in the fixture, but the gateway is still the unconfigured one.
+    # The fixture state wires the unconfigured gateway explicitly.
     checks = client.get("/health/ready").json()["checks"]
     assert checks["policy_gateway"] == "blocked"
+
+
+def test_build_state_uses_spring_gateway_when_configured() -> None:
+    from app.integrations.spring_policy_gateway import SpringPolicyGateway
+    from app.main import build_state
+
+    configured = Settings(
+        _env_file=None,  # type: ignore[call-arg]
+        spring_internal_api_url="http://localhost:8080",
+        spring_internal_api_key=SPRING_KEY,  # type: ignore[arg-type]
+    )
+    assert isinstance(build_state(configured).gateway, SpringPolicyGateway)
+    assert isinstance(
+        build_state(Settings(_env_file=None)).gateway,  # type: ignore[call-arg]
+        UnconfiguredPolicyGateway,
+    )
 
 
 def test_health_needs_no_token(client: TestClient) -> None:
