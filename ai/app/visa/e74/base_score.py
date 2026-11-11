@@ -15,7 +15,14 @@ from datetime import date
 from typing import Any
 
 from app.visa.e74.dates import add_months, age_on
-from app.visa.e74.results import ItemResult, ItemStatus, MissingInput
+from app.visa.e74.results import (
+    ItemResult,
+    ItemStatus,
+    MissingInput,
+    missing_result,
+    not_met_result,
+    scored_result,
+)
 from app.visa.e74.rules import (
     AgeRange,
     IncomeRange,
@@ -46,71 +53,6 @@ SOURCE_PRIORITY = {
 TOPIK_MAX_LEVEL = 6
 KIIP_MAX_STAGE = 5
 PRE_TEST_MAX_SCORE = 100
-
-
-def scored_result(
-    category: RuleCategory,
-    best: Rule,
-    verified: Rule | None,
-    *,
-    message_code: str,
-    evidence: dict[str, Any],
-    review_note: str | None = None,
-) -> ItemResult:
-    """점수 항목 결과. best는 신고 포함 최고 규칙, verified는 증빙 확인된 최고 규칙."""
-    potential = best.points
-    earned = verified.points if verified is not None else 0
-    note = best.review_note or review_note
-    if note is not None:
-        status, earned = ItemStatus.NEEDS_REVIEW, 0
-    elif verified is not None and earned == potential:
-        status = ItemStatus.MET
-    else:
-        status = ItemStatus.NEEDS_EVIDENCE
-    if verified is not None and verified is not best:
-        evidence = {**evidence, "verifiedRuleCode": verified.rule_code}
-    return ItemResult(
-        rule_code=best.rule_code,
-        category=category,
-        status=status,
-        earned_points=earned,
-        potential_points=potential,
-        message_code=message_code,
-        evidence=evidence,
-        review_note=note,
-    )
-
-
-def missing_result(
-    category: RuleCategory,
-    message_code: str,
-    missing: list[MissingInput],
-    evidence: dict[str, Any] | None = None,
-) -> ItemResult:
-    return ItemResult(
-        rule_code=None,
-        category=category,
-        status=ItemStatus.NEEDS_EVIDENCE,
-        earned_points=None,
-        potential_points=None,
-        message_code=message_code,
-        evidence=evidence or {},
-        missing_inputs=tuple(missing),
-    )
-
-
-def not_met_result(
-    category: RuleCategory, message_code: str, evidence: dict[str, Any]
-) -> ItemResult:
-    return ItemResult(
-        rule_code=None,
-        category=category,
-        status=ItemStatus.NOT_MET,
-        earned_points=0,
-        potential_points=0,
-        message_code=message_code,
-        evidence=evidence,
-    )
 
 
 # --- 나이 --------------------------------------------------------------------

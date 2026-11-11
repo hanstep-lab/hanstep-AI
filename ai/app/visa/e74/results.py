@@ -13,7 +13,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from app.visa.e74.rules import RuleCategory
+from app.visa.e74.rules import Rule, RuleCategory
 
 
 class CamelResponse(BaseModel):
@@ -47,3 +47,84 @@ class ItemResult(CamelResponse):
     evidence: dict[str, Any] = Field(default_factory=dict, description="판정에 쓴 값과 증빙 ID")
     missing_inputs: tuple[MissingInput, ...] = ()
     review_note: str | None = None
+
+
+# --- 결과 생성 도우미 -------------------------------------------------------------
+
+
+def scored_result(
+    category: RuleCategory,
+    best: Rule,
+    verified: Rule | None,
+    *,
+    message_code: str,
+    evidence: dict[str, Any],
+    review_note: str | None = None,
+    missing: tuple[MissingInput, ...] = (),
+) -> ItemResult:
+    """점수 항목 결과. best는 신고 포함 최고 규칙, verified는 증빙 확인된 최고 규칙.
+
+    reviewNote가 있으면 NEEDS_REVIEW(확정 0), 확정 점수가 가능 점수와 같으면 MET,
+    아니면 NEEDS_EVIDENCE(증빙을 더 내면 점수가 오른다).
+    """
+    potential = best.points
+    earned = verified.points if verified is not None else 0
+    note = best.review_note or review_note
+    if note is not None:
+        status, earned = ItemStatus.NEEDS_REVIEW, 0
+    elif verified is not None and earned == potential:
+        status = ItemStatus.MET
+    else:
+        status = ItemStatus.NEEDS_EVIDENCE
+    if verified is not None and verified is not best:
+        evidence = {**evidence, "verifiedRuleCode": verified.rule_code}
+    return ItemResult(
+        rule_code=best.rule_code,
+        category=category,
+        status=status,
+        earned_points=earned,
+        potential_points=potential,
+        message_code=message_code,
+        evidence=evidence,
+        missing_inputs=missing,
+        review_note=note,
+    )
+
+
+def missing_result(
+    category: RuleCategory,
+    message_code: str,
+    missing: list[MissingInput],
+    evidence: dict[str, Any] | None = None,
+    *,
+    rule_code: str | None = None,
+) -> ItemResult:
+    """판정에 필요한 값이 없다: 점수를 확정하지 않고 재질의 목록을 돌려준다."""
+    return ItemResult(
+        rule_code=rule_code,
+        category=category,
+        status=ItemStatus.NEEDS_EVIDENCE,
+        earned_points=None,
+        potential_points=None,
+        message_code=message_code,
+        evidence=evidence or {},
+        missing_inputs=tuple(missing),
+    )
+
+
+def not_met_result(
+    category: RuleCategory,
+    message_code: str,
+    evidence: dict[str, Any],
+    *,
+    rule_code: str | None = None,
+) -> ItemResult:
+    return ItemResult(
+        rule_code=rule_code,
+        category=category,
+        status=ItemStatus.NOT_MET,
+        earned_points=0,
+        potential_points=0,
+        message_code=message_code,
+        evidence=evidence,
+    )
