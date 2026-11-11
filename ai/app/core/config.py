@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     r2_policy_prefix: str = "policy-sources"
 
     anthropic_api_key: SecretStr = SecretStr("")
-    agent_model: str = "claude-sonnet-5-5"
+    agent_model: str = "claude-haiku-5-5"
 
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")
