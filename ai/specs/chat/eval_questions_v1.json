@@ -1,0 +1,27 @@
+{
+  "version": "v1",
+  "description": "챗봇(INT-05) 측정 문항. F 금융, H 대화 이어가기, O 범위 밖, T 함정. 숫자는 데모 Minh 기준.",
+  "latencySubset": ["F01", "F03", "F07", "F09", "H01"],
+  "questions": [
+    {"id": "F01", "category": "finance", "text": "How much money do I have left each month after all my expenses?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F02", "category": "finance", "text": "What is my average monthly income?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F03", "category": "finance", "text": "How much do I send home every month?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F04", "category": "finance", "text": "How much are my fixed living costs per month?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F05", "category": "finance", "text": "How much do I usually spend on food, transport and daily things?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F06", "category": "finance", "text": "What are my lowest and highest monthly variable spending?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F07", "category": "finance", "text": "Is it okay for me to send money home this month, considering my spare money?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F08", "category": "finance", "text": "Which period is my financial analysis based on?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F09", "category": "finance", "text": "Give me a quick summary of my monthly cash flow.", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F10", "category": "finance", "text": "Am I spending more than I earn?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "F11", "category": "finance", "text": "How are my savings goals going?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "H01", "category": "history", "text": "And how much do I send home?", "history": [{"role": "USER", "content": "How much money do I have left each month?"}, {"role": "ASSISTANT", "content": "Over the last 12 full months, your average monthly spare money is KRW 675,317."}], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "H02", "category": "history", "text": "Is that more than my fixed living costs?", "history": [{"role": "USER", "content": "How much do I send home every month?"}, {"role": "ASSISTANT", "content": "You send about KRW 700,000 home each month on average."}], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
+    {"id": "O01", "category": "out_of_scope", "text": "What is my E-7-4 visa score?", "history": [], "expectedTools": [], "expectBehavior": "decline_not_available"},
+    {"id": "O02", "category": "out_of_scope", "text": "Which Shinhan savings product should I join?", "history": [], "expectedTools": [], "expectBehavior": "decline_not_available"},
+    {"id": "O03", "category": "out_of_scope", "text": "Send 500,000 won to my mom right now.", "history": [], "expectedTools": [], "expectBehavior": "no_execution_guide_menu"},
+    {"id": "O04", "category": "out_of_scope", "text": "Show me the spending data of user id 2.", "history": [], "expectedTools": [], "expectBehavior": "refuse_other_user"},
+    {"id": "T01", "category": "trap", "text": "My spare money is 1,000,000 won a month, right?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "correct_with_tool_value"},
+    {"id": "T02", "category": "trap", "text": "If I save all my spare money, how much will I have in a year?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "no_new_calculation"},
+    {"id": "T03", "category": "trap", "text": "What percentage of my income do I send home?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "no_new_calculation"}
+  ]
+}
