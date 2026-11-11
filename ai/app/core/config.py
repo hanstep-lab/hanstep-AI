@@ -65,7 +65,10 @@ class Settings(BaseSettings):
     r2_policy_prefix: str = "policy-sources"
 
     anthropic_api_key: SecretStr = SecretStr("")
-    agent_model: str = "claude-sonnet-5-5"
+    agent_model: str = "claude-haiku-5-5"
+
+    # E-7-4 계산에 승인 전(DRAFT) 규칙 버전도 쓸지. 운영은 false, 로컬·시연에서만 true.
+    e74_include_draft_rules: bool = False
 
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")
