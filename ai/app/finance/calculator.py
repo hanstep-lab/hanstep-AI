@@ -1,7 +1,7 @@
-"""Rules 5-7: monthly totals with pandas, integer averages and spare money.
+"""규칙 5-7: pandas로 월별 합계를 내고, 정수 평균과 여유 자금을 계산한다.
 
-All money stays integer (int64 in pandas, int in Python). Averages divide the summed monthly
-totals once and round HALF_UP with integer arithmetic; no float mean is ever taken.
+금액은 끝까지 정수다(pandas에서는 int64, Python에서는 int). 평균은 월별 합계의 총합을
+한 번만 나누고 정수 연산으로 HALF_UP 반올림한다. float 평균은 절대 쓰지 않는다.
 """
 
 from __future__ import annotations
@@ -30,12 +30,14 @@ BUCKETS = [b.value for b in Bucket]
 
 @dataclass(frozen=True)
 class MonthSplit:
+    """분석 기간의 달 구분: 꽉 찬 달과 일부만 덮인 달(YYYY-MM)."""
+
     full: list[str]
     partial: list[str]
 
 
 def half_up_div(numerator: int, denominator: int) -> int:
-    """Integer division rounded HALF_UP (away from zero on .5)."""
+    """HALF_UP으로 반올림하는 정수 나눗셈(.5는 0에서 먼 쪽으로)."""
     if denominator <= 0:
         raise ValueError("denominator must be positive")
     quotient, remainder = divmod(abs(numerator), denominator)
@@ -49,7 +51,7 @@ def month_key(day: date) -> str:
 
 
 def split_months(period_from: date, period_to: date) -> MonthSplit:
-    """Months fully covered by the period (1st through last day) versus partially covered."""
+    """기간이 다 덮는 달(1일~말일)과 일부만 덮는 달을 나눈다."""
     full: list[str] = []
     partial: list[str] = []
     year, month = period_from.year, period_from.month
@@ -65,7 +67,7 @@ def split_months(period_from: date, period_to: date) -> MonthSplit:
 def monthly_totals(
     transactions: list[tuple[TransactionIn, Bucket]], months: list[str]
 ) -> pd.DataFrame:
-    """Rows: the given months (zero-filled), columns: buckets, values: int64 sums."""
+    """행: 주어진 달(없으면 0으로 채움), 열: 분류(bucket), 값: int64 합계."""
     frame = pd.DataFrame(
         {
             "month": [month_key(tx.booked_date) for tx, _ in transactions],
@@ -85,7 +87,7 @@ def _money(amount: int) -> Money:
 
 
 def analyze(request: FinanceAnalyzeRequest) -> FinanceAnalyzeResponse:
-    """INT-01 analysis. Raises ``FinanceValidationError`` on rule 1 violations."""
+    """INT-01 분석. 규칙 1을 어기면 ``FinanceValidationError``를 던진다."""
     normalized = normalize(request)
     classified: list[tuple[TransactionIn, Bucket]] = []
     unknown: set[str] = set()

@@ -1,4 +1,4 @@
-"""Format-specific extractors, chosen by sniffed content (HWP never goes to the PDF parser)."""
+"""내용 스니핑으로 고르는 형식별 추출기(HWP는 절대 PDF 파서로 보내지 않는다)."""
 
 from __future__ import annotations
 
@@ -20,8 +20,8 @@ def extract(kind: FileKind, data: bytes) -> ExtractionReport:
 
 
 def extract_derived(kind: FileKind, data: bytes) -> ExtractionReport:
-    """Extract a human-made derivative. Page numbers of a conversion are not trusted as the
-    original's pages, so they are dropped."""
+    """사람이 만든 파생본에서 추출한다. 변환본의 페이지 번호는 원본의 페이지로 신뢰하지
+    않으므로 버린다."""
     if kind == "pdf":
         report = extract_pdf(data, page_numbers_reliable=False)
     elif kind == "hwpx":

@@ -1,7 +1,7 @@
-"""BGE-M3 dense embeddings via sentence-transformers.
+"""sentence-transformers로 만드는 BGE-M3 dense 임베딩.
 
-The model is never loaded at import time. Documents and queries share one model instance,
-revision and normalization so their vectors are comparable.
+모델은 import 시점에 로드하지 않는다. 문서와 질의는 같은 모델 인스턴스, revision,
+정규화를 공유하므로 두 벡터를 서로 비교할 수 있다.
 """
 
 from __future__ import annotations
@@ -21,9 +21,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# BGE-M3 accepts up to 8192 tokens; the chunker caps far lower, so hitting this is a bug.
+# BGE-M3는 최대 8192 토큰을 받는다. 청커 상한이 훨씬 낮으므로 여기에 닿으면 버그다.
 MODEL_MAX_TOKENS = 8192
-# Files sentence-transformers needs for dense BGE-M3 (~2.3 GB instead of ~4.6 GB for the repo).
+# dense BGE-M3에 sentence-transformers가 필요로 하는 파일
+# (저장소 전체 ~4.6 GB 대신 ~2.3 GB).
 MODEL_FILE_PATTERNS = [
     "config.json",
     "config_sentence_transformers.json",
@@ -39,6 +40,8 @@ MODEL_FILE_PATTERNS = [
 
 
 class Embedder(Protocol):
+    """문서·질의 임베딩과 토큰 수 계산을 제공하는 임베더 인터페이스."""
+
     model_name: str
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]: ...
@@ -50,6 +53,8 @@ class Embedder(Protocol):
 
 @dataclass(frozen=True)
 class EmbedderInfo:
+    """실행 보고서에 기록하는 임베더 모델과 실행 환경 정보."""
+
     model_name: str
     revision: str
     device: str
@@ -64,7 +69,7 @@ class EmbedderInfo:
 
 
 class BgeM3Embedder:
-    """Dense-only BGE-M3. Sparse/ColBERT outputs are not produced or stored."""
+    """dense 전용 BGE-M3. Sparse/ColBERT 출력은 만들지도 저장하지도 않는다."""
 
     def __init__(
         self,
@@ -86,10 +91,11 @@ class BgeM3Embedder:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
-            # Fetch only what dense embedding needs, then always load from local files.
-            # Loading online makes transformers start a non-daemon "auto_conversion" thread
-            # that downloads a ~2.3 GB safetensors copy from a Hub PR (the pinned revision
-            # ships pytorch_model.bin only) and blocks process exit until it finishes.
+            # dense 임베딩에 필요한 파일만 받고, 로드는 항상 로컬 파일에서 한다.
+            # 온라인으로 로드하면 transformers가 non-daemon "auto_conversion" 스레드를
+            # 띄운다. 이 스레드는 Hub PR에서 ~2.3 GB safetensors 사본을 내려받고
+            # (고정한 revision에는 pytorch_model.bin만 있다) 끝날 때까지 프로세스
+            # 종료를 막는다.
             self._ensure_local_files()
             model = SentenceTransformer(
                 self.model_name,
@@ -101,14 +107,14 @@ class BgeM3Embedder:
             dim = model.get_embedding_dimension()
             if dim != EMBEDDING_DIMENSIONS:
                 raise RuntimeError(f"{self.model_name} outputs {dim} dims, expected 1024")
-            # Warm-up: the first encode is ~10x slower (measured 1.8 s vs ~0.15 s on CPU), so pay
-            # it at load time instead of on the first user query.
+            # 워밍업: 첫 encode는 ~10배 느리다(CPU 실측 1.8 s 대 ~0.15 s). 그래서 이
+            # 비용을 첫 사용자 질의 대신 로드 시점에 치른다.
             model.encode(["warm-up"], normalize_embeddings=True, show_progress_bar=False)
             self._model = model
         return self._model
 
     def _ensure_local_files(self) -> None:
-        """Download the dense-model files (skips ONNX, ColBERT/sparse heads, images)."""
+        """dense 모델 파일을 내려받는다(ONNX, ColBERT/sparse 헤드, 이미지는 건너뛴다)."""
         from huggingface_hub import snapshot_download
 
         snapshot_download(
@@ -161,7 +167,7 @@ class BgeM3Embedder:
                 )
                 break
             except RuntimeError as exc:
-                # Bounded back-off on GPU OOM: halve the batch until 1.
+                # GPU OOM 시 제한된 백오프: 배치가 1이 될 때까지 절반으로 줄인다.
                 if "out of memory" not in str(exc).lower() or batch == 1:
                     raise
                 batch = max(1, batch // 2)
@@ -189,12 +195,12 @@ def _empty_cuda_cache() -> None:
 
 
 def local_tokenizer_counter(model_name: str, revision: str = "") -> Any:
-    """Token counter from a locally cached tokenizer, or ``None`` if not cached.
+    """로컬에 캐시된 토크나이저로 만든 토큰 카운터. 캐시가 없으면 ``None``.
 
-    Used by dry runs, which must not download model files or make any network request.
+    모델 파일을 내려받거나 네트워크 요청을 하면 안 되는 dry run에서 쓴다.
     """
-    # local_files_only alone still lets huggingface_hub call the hub API; these are read at
-    # import time, so set them before transformers is imported.
+    # local_files_only만으로는 huggingface_hub가 여전히 hub API를 호출한다. 아래 값은
+    # import 시점에 읽히므로 transformers를 import하기 전에 설정한다.
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"

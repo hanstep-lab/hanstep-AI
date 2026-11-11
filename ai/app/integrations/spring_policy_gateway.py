@@ -1,8 +1,9 @@
-"""Search-time approval check against Spring (AI-R1 search-eligibility).
+"""Spring을 통한 검색 시점 승인 확인(AI-R1 search-eligibility).
 
-``GET /internal/v1/ai-context/policy-documents/search-eligibility?ids=...`` returns, per
-existing document, the MySQL ``policyVersion`` and the BE-decided ``searchable`` flag. Missing
-ids are simply absent. Any failure raises so retrieval fails closed (no unverified results).
+``GET /internal/v1/ai-context/policy-documents/search-eligibility?ids=...``는 존재하는
+문서마다 MySQL ``policyVersion``과 BE가 정한 ``searchable`` 값을 돌려준다. 없는 id는
+응답에서 빠질 뿐이다. 어떤 실패든 예외를 던져 검색이 차단되게 한다(fail-closed, 검증되지
+않은 결과 없음).
 """
 
 from __future__ import annotations
@@ -21,10 +22,12 @@ REVIEW_STATUSES = {"DRAFT", "APPROVED", "NEEDS_REVIEW", "RETIRED"}
 
 
 class SpringGatewayError(Exception):
-    """Spring did not give a usable answer; callers must fail closed."""
+    """Spring에서 쓸 수 있는 응답을 받지 못했다. 호출자는 차단해야 한다(fail-closed)."""
 
 
 class SpringPolicyGateway:
+    """Spring search-eligibility API(AI-R1)로 검색 결과의 승인 상태를 확인한다."""
+
     def __init__(
         self,
         *,
@@ -39,7 +42,7 @@ class SpringPolicyGateway:
                 "SPRING_INTERNAL_API_URL / SPRING_INTERNAL_API_KEY not configured"
             )
         self._headers = {header: api_key}
-        # Short timeout: this runs inside every search request.
+        # 타임아웃을 짧게 둔다. 모든 검색 요청 안에서 실행되기 때문이다.
         self._client = client or httpx.Client(
             base_url=base_url, timeout=httpx.Timeout(timeout_s), follow_redirects=False
         )
@@ -83,7 +86,7 @@ class SpringPolicyGateway:
     # --- PolicyDocumentGateway --------------------------------------------------------
 
     def current_versions(self, policy_document_ids: Iterable[int]) -> dict[int, str]:
-        """Searchable version per document; absent means "do not show"."""
+        """문서별 검색 가능 버전. 없으면 "보여 주지 않음"을 뜻한다."""
         return {
             doc["policyDocumentId"]: str(doc["policyVersion"])
             for doc in self.eligibility(policy_document_ids)
@@ -91,8 +94,8 @@ class SpringPolicyGateway:
         }
 
     def get_version(self, policy_document_id: int, document_version: str) -> PolicyDocumentRecord:
-        # AI-R1 carries no content_hash, so it cannot verify a source file; ingestion keeps
-        # using the manifest gateway (BE spec INT-13 note: phase-1 script loading).
+        # AI-R1에는 content_hash가 없어 원본 파일을 검증할 수 없다. 적재는 계속 manifest
+        # 게이트웨이를 쓴다(BE 명세 INT-13 비고: 1차 스크립트 적재).
         raise ContractBlockedError(
             "Spring has no document lookup with content_hash; use ManifestPolicyGateway"
         )
@@ -100,5 +103,5 @@ class SpringPolicyGateway:
     def record_r2_object(
         self, policy_document_id: int, document_version: str, object_key: str
     ) -> None:
-        # The object key travels with the INT-13 ingested report instead.
+        # 객체 키는 대신 INT-13 적재 완료 보고에 실어 보낸다.
         raise ContractBlockedError("object keys are reported through INT-13")

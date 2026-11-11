@@ -1,1 +1,1 @@
-"""INT-01 finance transaction analysis: pure rule-based calculation (no LLM, no I/O)."""
+"""INT-01 금융 거래 분석: 규칙 기반 순수 계산(LLM·I/O 없음)."""

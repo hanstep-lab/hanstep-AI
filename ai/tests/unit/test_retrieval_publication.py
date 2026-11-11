@@ -59,7 +59,7 @@ def test_pipeline_always_enforces_approval_filter() -> None:
         "review_status": "approved",
         "visa_types": {"$in": ["E-7-4"]},
     }
-    # Other embedding models are dropped before projection and scoring.
+    # 다른 임베딩 모델의 청크는 projection과 점수 계산 전에 걸러진다.
     assert pipeline[1] == {"$match": {"embedding_model": "BAAI/bge-m3"}}
     assert pipeline[2] == {"$project": {"embedding": 0}}
     assert pipeline[3] == {"$set": {"score": {"$meta": "vectorSearchScore"}}}
@@ -99,6 +99,8 @@ def test_filter_current_fails_closed(gateway: Any) -> None:
 
 
 class FakeCollection:
+    """aggregate에 받은 파이프라인을 기록하고 정해 둔 문서를 돌려주는 가짜 컬렉션."""
+
     def __init__(self, docs: list[dict[str, Any]]) -> None:
         self.docs = docs
         self.pipelines: list[list[dict[str, Any]]] = []
@@ -111,7 +113,7 @@ class FakeCollection:
 def test_english_query_uses_same_embedder_and_server_filter() -> None:
     gw = InMemoryPolicyGateway()
     gw.add(PolicyDocumentRecord(1, "v1", "a" * 64, "APPROVED", searchable=True))
-    # Simulates index lag: a pending chunk still returned by the search index.
+    # 인덱스 지연을 흉내 낸다: 검색 인덱스가 pending 청크를 아직 돌려준다.
     collection = FakeCollection([_hit(1, "v1"), _hit(1, "v1", active=False, status="pending")])
     service = SearchService(
         collection,  # type: ignore[arg-type]
@@ -124,13 +126,15 @@ def test_english_query_uses_same_embedder_and_server_filter() -> None:
     assert len(hits) == 1
     assert collection.pipelines[0][0]["$vectorSearch"]["filter"]["review_status"] == "approved"
     assert collection.pipelines[0][1] == {"$match": {"embedding_model": "BAAI/bge-m3"}}
-    # numCandidates = max(topK * 20, configured floor)
+    # numCandidates = max(topK * 20, 설정된 하한)
     assert collection.pipelines[0][0]["$vectorSearch"]["numCandidates"] == 100
     service.search("q", 8, None)
     assert collection.pipelines[1][0]["$vectorSearch"]["numCandidates"] == 160
 
 
 class UntouchableClient:
+    """어떤 속성에 접근해도 AssertionError를 내는 가짜 MongoDB 클라이언트."""
+
     def __getattr__(self, name: str) -> Any:
         raise AssertionError("activation must not touch MongoDB before checks pass")
 
@@ -139,10 +143,10 @@ class UntouchableClient:
     ("status", "searchable", "expected"),
     [
         ("DRAFT", False, ("pending", False)),
-        ("DRAFT", True, ("pending", False)),  # searchable alone never activates
+        ("DRAFT", True, ("pending", False)),  # searchable만으로는 활성화되지 않는다
         ("NEEDS_REVIEW", True, ("pending", False)),
         ("APPROVED", True, ("approved", True)),
-        ("APPROVED", False, ("approved", False)),  # approved but not in force yet
+        ("APPROVED", False, ("approved", False)),  # 승인됐지만 아직 시행 전
         ("RETIRED", True, ("approved", False)),
     ],
 )
@@ -170,9 +174,9 @@ def _stored(repo: FakeRepository, n: int, sha: str = "a" * 64, start: int = 0) -
 @pytest.mark.parametrize(
     ("setup", "expected_chunks", "record_hash"),
     [
-        (lambda r: _stored(r, 2, start=1), None, "a" * 64),  # gap: no chunk 0
-        (lambda r: _stored(r, 2, sha="b" * 64), None, "a" * 64),  # hash differs from MySQL
-        (lambda r: _stored(r, 2), 3, "a" * 64),  # MySQL chunk_count mismatch
+        (lambda r: _stored(r, 2, start=1), None, "a" * 64),  # 번호 빈틈: 청크 0이 없다
+        (lambda r: _stored(r, 2, sha="b" * 64), None, "a" * 64),  # MySQL과 해시가 다르다
+        (lambda r: _stored(r, 2), 3, "a" * 64),  # MySQL chunk_count와 불일치
     ],
 )
 def test_activation_preconditions_block_before_any_write(

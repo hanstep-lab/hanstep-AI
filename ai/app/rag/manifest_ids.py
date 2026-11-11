@@ -1,4 +1,4 @@
-"""Fill manifest IDs from a MySQL ``policy_documents`` export, matched by content hash."""
+"""MySQL ``policy_documents`` export에서 콘텐츠 해시로 매칭해 매니페스트 ID를 채운다."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ _SHA = re.compile(r"^[0-9a-f]{64}$")
 
 
 def parse_export(text: str) -> list[dict[str, Any]]:
-    """Return rows of {id, policy_version, content_hash}. Raises ValueError on bad input."""
+    """{id, policy_version, content_hash} 행 목록을 반환한다. 잘못된 입력이면 ValueError를 낸다."""
     stripped = text.strip()
     rows: list[dict[str, Any]] = []
     if stripped.startswith(("[", "{")):
@@ -60,7 +60,7 @@ def plan_fill(manifest: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str,
         if current == target:
             continue
         if current != (None, None):
-            # Never silently overwrite IDs already recorded for this file.
+            # 이 파일에 이미 기록된 ID는 절대 조용히 덮어쓰지 않는다.
             conflicts.append({"path": entry["path"], "current": current, "export": target})
             continue
         changes.append(

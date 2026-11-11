@@ -1,4 +1,4 @@
-"""Run the same AI quality checks locally, in pre-push, and in CI."""
+"""로컬, pre-push, CI에서 같은 AI 품질 검사를 실행한다."""
 
 import subprocess
 import sys
@@ -28,7 +28,7 @@ def main() -> None:
     if has_app:
         run("mypy", "app")
     if has_tests:
-        # No selected unit tests is an error (pytest exit code 5).
+        # 선택된 단위 테스트가 없으면 오류다(pytest 종료 코드 5).
         run("pytest", "-m", "unit and not integration and not llm and not rag")
     elif has_app:
         raise SystemExit("AI source exists but no tests exist. Add marked unit tests.")

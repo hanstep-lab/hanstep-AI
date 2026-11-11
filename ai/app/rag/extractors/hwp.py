@@ -1,9 +1,9 @@
-"""HWP 5.x binary extraction (OLE compound file + zlib-compressed record streams).
+"""HWP 5.x 바이너리 추출(OLE 복합 파일 + zlib 압축 레코드 스트림).
 
-Implements the public Hancom "한글 문서 파일 형식 5.0" layout: FileHeader flags, BodyText/
-SectionN record trees, PARA_TEXT, and table controls (TABLE + per-cell LIST_HEADER) so table
-rows/columns survive. Encrypted and distribution (배포용) documents are refused. HWP has no
-rendered page layout, so page numbers are never produced.
+공개된 Hancom "한글 문서 파일 형식 5.0" 구조를 구현한다. FileHeader 플래그,
+BodyText/SectionN 레코드 트리, PARA_TEXT, 표 컨트롤(TABLE + 셀별 LIST_HEADER)을 다뤄
+표의 행/열을 보존한다. 암호화 문서와 배포용(distribution) 문서는 거부한다. HWP에는
+렌더링된 페이지 레이아웃이 없으므로 페이지 번호는 만들지 않는다.
 """
 
 from __future__ import annotations
@@ -30,19 +30,23 @@ TAG_CTRL_HEADER = 71
 TAG_LIST_HEADER = 72
 TAG_TABLE = 77
 
-# Controls whose nested paragraphs are page decoration, not document content.
+# 하위 문단이 문서 내용이 아니라 페이지 장식인 컨트롤.
 SKIPPED_CONTROLS = {b"head", b"foot"}
-# WCHAR control codes that occupy 8 code units (inline and extended controls).
+# 8 코드 단위를 차지하는 WCHAR 제어 코드(인라인·확장 컨트롤).
 _WIDE_CONTROLS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
 _SECTION = re.compile(r"^Section(\d+)$")
 
 
 class HwpFormatError(ValueError):
+    """HWP 구조가 형식과 맞지 않거나 처리 한도를 넘는다."""
+
     pass
 
 
 @dataclass
 class Record:
+    """HWP 레코드 하나와 그 하위 레코드 트리."""
+
     tag: int
     level: int
     data: bytes
@@ -50,7 +54,7 @@ class Record:
 
 
 def parse_records(data: bytes) -> list[Record]:
-    """Parse a record stream into a tree using each record's level."""
+    """각 레코드의 level로 레코드 스트림을 트리로 파싱한다."""
     roots: list[Record] = []
     stack: list[Record] = []
     offset = 0
@@ -88,21 +92,21 @@ def parse_records(data: bytes) -> list[Record]:
 
 
 def decode_para_text(data: bytes) -> str:
-    """Decode PARA_TEXT WCHARs, dropping inline/extended control payloads."""
+    """PARA_TEXT의 WCHAR를 디코딩하고 인라인/확장 컨트롤 페이로드는 버린다."""
     out = bytearray()
     index = 0
     while index + 2 <= len(data):
         code = struct.unpack_from("<H", data, index)[0]
         if code in _WIDE_CONTROLS:
-            if code == 9:  # tab
+            if code == 9:  # 탭
                 out += b" \x00"
             index += 16
             continue
         if code in (10, 13):
             out += b"\n\x00"
-        elif code == 24:  # hyphen
+        elif code == 24:  # 하이픈
             out += b"-\x00"
-        elif code in (30, 31):  # non-breaking / fixed-width space
+        elif code in (30, 31):  # 줄바꿈 없는 공백 / 고정폭 공백
             out += b" \x00"
         elif code >= 32:
             out += data[index : index + 2]
@@ -116,6 +120,8 @@ def _ctrl_id(record: Record) -> bytes:
 
 @dataclass
 class _Walker:
+    """HWP 레코드 트리를 순회하며 문단·표 블록을 모은다."""
+
     blocks: list[Block] = field(default_factory=list)
     tables: int = 0
     skipped_controls: int = 0
@@ -144,11 +150,11 @@ class _Walker:
         if ctrl_id == b"tbl ":
             self.walk_table(ctrl)
             return
-        # Footnotes, endnotes, text boxes: keep their paragraphs in reading order.
+        # 각주, 미주, 글상자: 그 문단을 읽는 순서대로 유지한다.
         self.walk_paragraphs(ctrl.children)
 
     def cell_text(self, paragraphs: list[Record]) -> str:
-        """Cell content flattened to one line; nested tables become inline rows."""
+        """셀 내용을 한 줄로 펼친다. 중첩된 표는 인라인 행이 된다."""
         nested = _Walker()
         nested.walk_paragraphs(paragraphs)
         self.tables += nested.tables
@@ -170,7 +176,7 @@ class _Walker:
                 seen_table = True
             elif child.tag == TAG_LIST_HEADER:
                 if not seen_table:
-                    current = caption  # caption list precedes the TABLE record
+                    current = caption  # 캡션 리스트는 TABLE 레코드보다 앞에 온다
                     continue
                 if len(child.data) < 16:
                     raise HwpFormatError("cell LIST_HEADER too short")

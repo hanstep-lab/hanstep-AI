@@ -117,7 +117,7 @@ def test_oversized_table_header_is_not_repeated_and_never_raises() -> None:
     chunks = chunk_blocks([block], approx_token_count, config)
     assert all(c.token_count <= config.max_tokens for c in chunks)
     assert not any(c.repeated_table_header for c in chunks)
-    # Every original row still appears exactly once.
+    # 원래의 모든 행이 여전히 정확히 한 번씩 나온다.
     body = "\n".join(c.text for c in chunks)
     for row in rows[1:]:
         assert body.count(row) == 1

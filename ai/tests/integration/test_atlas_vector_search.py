@@ -1,7 +1,7 @@
-"""Atlas Local integration: validator, unique index, real vector index, approval visibility.
+"""Atlas Local 통합 테스트: validator, 고유 인덱스, 실제 벡터 인덱스, 승인 상태별 노출.
 
-Runs against ``MONGO_TEST_URI`` (default: a throwaway Atlas Local on localhost:27018) in a
-fresh database that this module creates and drops. Skipped with a reason when unreachable.
+``MONGO_TEST_URI``(기본값: localhost:27018의 일회용 Atlas Local)에 붙어, 이 모듈이 만들고
+지우는 새 데이터베이스에서 실행한다. 연결할 수 없으면 이유를 남기고 건너뛴다.
 
     docker run -d --name hanstep-mongodb-it -p 127.0.0.1:27018:27017 \
         mongodb/mongodb-atlas-local:8.0
@@ -50,7 +50,7 @@ MODEL = "BAAI/bge-m3"
 
 
 def eventually(check: Callable[[], bool], timeout: float = 60.0) -> bool:
-    """Bounded polling for mongot replication lag."""
+    """mongot 복제 지연을 기다리는, 시간 제한이 있는 폴링."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if check():
@@ -85,7 +85,7 @@ def repo(client: MongoClient[dict[str, Any]]) -> Iterator[ChunkRepository]:
         client.drop_database(name)
         pytest.fail(f"vector index not queryable within timeout: {status}")
     yield repository
-    # Only the database this module created.
+    # 이 모듈이 만든 데이터베이스만 지운다.
     client.drop_database(name)
 
 
@@ -111,9 +111,9 @@ def _ids(repo: ChunkRepository, text: str, gateway: InMemoryPolicyGateway) -> li
 
 
 def _raw_vector_hits(repo: ChunkRepository, text: str, pid: int) -> list[dict[str, Any]]:
-    """$vectorSearch with the server filter only (no MySQL re-check), limited to one document.
+    """서버 필터만 건 $vectorSearch(MySQL 재확인 없음). 결과는 문서 하나로 한정한다.
 
-    Other tests share the collection, so results are narrowed to ``pid``.
+    다른 테스트와 컬렉션을 함께 쓰므로 결과를 ``pid``로 좁힌다.
     """
     pipeline: list[dict[str, Any]] = [
         {
@@ -143,12 +143,12 @@ def test_index_definition_matches_and_smoke_query_runs(repo: ChunkRepository) ->
 @pytest.mark.parametrize(
     "mutate",
     [
-        lambda d: d.update(policy_document_id=5),  # Int32 instead of Int64
+        lambda d: d.update(policy_document_id=5),  # Int64 대신 Int32
         lambda d: d.update(embedding=d["embedding"][:1023]),
-        lambda d: d.update(is_active=True),  # active while pending
+        lambda d: d.update(is_active=True),  # pending인데 활성
         lambda d: d.update(review_status="APPROVED"),
         lambda d: d.pop("source_url"),
-        lambda d: d.update(page_number=None),  # optional field must be omitted, not null
+        lambda d: d.update(page_number=None),  # 선택 필드는 null이 아니라 생략해야 한다
         lambda d: d.pop("source_type"),
         lambda d: d.update(source_type="NOTICE"),
     ],
@@ -191,20 +191,20 @@ def _sync(repo: ChunkRepository, record: PolicyDocumentRecord, **kw: Any) -> Any
 
 
 def test_row_state_sync_controls_visibility(repo: ChunkRepository) -> None:
-    """BE model: each version is its own policy_documents row (new id)."""
+    """BE 모델: 버전마다 별도의 policy_documents 행(새 id)이다."""
     old_id, new_id = 910, 911
     text_old, text_new = "E-7-4 추천서 제출 서류 구판", "E-7-4 추천서 제출 서류 신판"
     gateway = InMemoryPolicyGateway()
     repo.insert_chunks([_record(old_id, "v1", 0, text_old, sha="1" * 64)])
     repo.insert_chunks([_record(new_id, "v2", 0, text_new, sha="2" * 64)])
 
-    # DRAFT: nothing searchable even after mongot catches up.
+    # DRAFT: mongot이 따라잡은 뒤에도 검색되는 것이 없다.
     draft = PolicyDocumentRecord(old_id, "v1", "1" * 64, "DRAFT")
     assert _sync(repo, draft).action == "unchanged"
     time.sleep(3)
     assert _raw_vector_hits(repo, text_old, old_id) == []
 
-    # APPROVED + searchable: activated, and a repeated sync is a no-op.
+    # APPROVED + searchable: 활성화되고, 다시 동기화해도 바뀌는 것이 없다.
     approved_old = PolicyDocumentRecord(old_id, "v1", "1" * 64, "APPROVED", searchable=True)
     gateway.add(approved_old)
     first = _sync(repo, approved_old, expected_chunks=1)
@@ -212,15 +212,15 @@ def test_row_state_sync_controls_visibility(repo: ChunkRepository) -> None:
     assert _sync(repo, approved_old, expected_chunks=1).action == "unchanged"
     assert eventually(lambda: _ids(repo, text_old, gateway) == [(old_id, "v1")])
 
-    # Approved but not yet in force (searchable=false): stays hidden.
+    # 승인됐지만 아직 시행 전(searchable=false): 계속 숨겨진다.
     not_in_force = PolicyDocumentRecord(new_id, "v2", "2" * 64, "APPROVED", searchable=False)
-    # Review status moves pending -> approved, but nothing is switched on.
+    # 검토 상태는 pending -> approved로 바뀌지만, 켜지는 것은 없다.
     assert _sync(repo, not_in_force).action == "updated"
     assert _sync(repo, not_in_force).action == "unchanged"
     new_chunk = repo.load_version(new_id, "v2", MODEL)[0]
     assert (new_chunk.review_status, new_chunk.is_active) == ("approved", False)
 
-    # Switch-over is two row syncs: old row RETIRED, new row searchable.
+    # 전환은 행 동기화 두 번이다: 이전 행은 RETIRED, 새 행은 searchable.
     retired_old = PolicyDocumentRecord(old_id, "v1", "1" * 64, "RETIRED")
     live_new = PolicyDocumentRecord(new_id, "v2", "2" * 64, "APPROVED", searchable=True)
     gateway.add(retired_old)
@@ -232,7 +232,7 @@ def test_row_state_sync_controls_visibility(repo: ChunkRepository) -> None:
     assert eventually(lambda: _ids(repo, text_new, gateway) == [(new_id, "v2")])
     assert eventually(lambda: _raw_vector_hits(repo, text_old, old_id) == [])
 
-    # Back to NEEDS_REVIEW: hidden again.
+    # 다시 NEEDS_REVIEW로: 다시 숨겨진다.
     review = PolicyDocumentRecord(new_id, "v2", "2" * 64, "NEEDS_REVIEW")
     assert _sync(repo, review).action == "deactivated"
     assert eventually(lambda: _raw_vector_hits(repo, text_new, new_id) == [])
@@ -278,7 +278,7 @@ def test_stale_index_results_are_filtered_by_mysql_state(repo: ChunkRepository) 
     assert eventually(
         lambda: any(h["policy_document_id"] == pid for h in _raw_vector_hits(repo, text, pid))
     )
-    # MySQL says another version is current: the search service must drop the hit.
+    # MySQL에서는 다른 버전이 현재 버전이다: 검색 서비스가 이 결과를 버려야 한다.
     gateway = InMemoryPolicyGateway()
     gateway.add(PolicyDocumentRecord(pid, "new", "a" * 64, "APPROVED", searchable=True))
     assert (pid, "old") not in _ids(repo, text, gateway)
@@ -342,7 +342,7 @@ def test_reconcile_plans_then_fixes_drift(repo: ChunkRepository, tmp_path: Any) 
     )
     repo.insert_chunks([_record(retired, "v1", 0, "정합성 은퇴 대상", sha="9" * 64)])
     repo.insert_chunks([_record(orphan, "v1", 0, "MySQL에 없는 문서", sha="a" * 64)])
-    # Drift: retired and orphan are still active in MongoDB.
+    # 드리프트: retired와 orphan이 MongoDB에서 아직 활성 상태다.
     repo.collection.update_many(
         {"policy_document_id": {"$in": [Int64(retired), Int64(orphan)]}},
         {"$set": {"review_status": "approved", "is_active": True}},
@@ -379,7 +379,7 @@ def test_reconcile_plans_then_fixes_drift(repo: ChunkRepository, tmp_path: Any) 
     assert (live, "activate") in actions
     assert (retired, "deactivate") in actions
     assert (orphan, "deactivate_orphan") in actions
-    # Planning wrote nothing.
+    # 계획 단계에서는 아무것도 쓰지 않았다.
     assert repo.load_version(live, "v1", MODEL)[0].is_active is False
 
     apply_plan(repo.database.client, repo, snapshot, plan, embedding_model=MODEL)
@@ -387,7 +387,7 @@ def test_reconcile_plans_then_fixes_drift(repo: ChunkRepository, tmp_path: Any) 
     assert not repo.load_version(retired, "v1", MODEL)[0].is_active
     assert not repo.load_version(orphan, "v1", MODEL)[0].is_active
 
-    # A second pass finds nothing to change (other tests' documents are not in this snapshot,
-    # so judge only the rows this test owns).
+    # 두 번째 실행에서는 바꿀 것이 없다(다른 테스트의 문서는 이 스냅샷에 없으므로
+    # 이 테스트가 만든 행만 판단한다).
     again = build_plan(repo, snapshot, embedding_model=MODEL, complete=False)
     assert {i.action for i in again.items} == {"ok"}

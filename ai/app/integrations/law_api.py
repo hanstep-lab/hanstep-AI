@@ -1,8 +1,8 @@
-"""법제처 국가법령정보 공동활용 API adapter (lawSearch.do / lawService.do, target=law, XML).
+"""법제처 국가법령정보 공동활용 API 어댑터(lawSearch.do / lawService.do, target=law, XML).
 
-Field names follow the official guide checked on 2026-11-08 (lsNwListGuide, lsNwInfoGuide).
-The test fixtures are hand-written from that guide; verify them against a real response once
-an ``OC`` is issued (see specs/rag/api_contracts.md).
+필드 이름은 2026-11-08에 확인한 공식 가이드(lsNwListGuide, lsNwInfoGuide)를 따른다.
+테스트 fixture는 그 가이드를 보고 손으로 작성했다. ``OC``를 발급받으면 실제 응답과 대조해
+검증한다(specs/rag/api_contracts.md 참고).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ _OC_PARAM = re.compile(r"(?i)\b(OC=)[^&\s\"']+")
 
 
 class _RedactOcFilter(logging.Filter):
-    """httpx logs full request URLs; strip the OC credential regardless of log level."""
+    """httpx는 요청 URL 전체를 로그에 남긴다. 로그 수준과 관계없이 OC 인증값을 지운다."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
@@ -44,19 +44,21 @@ TARGET_LAWS = ("출입국관리법", "출입국관리법 시행령", "출입국�
 MAX_RESPONSE_BYTES = 20 * 1024 * 1024
 MAX_PAGES = 50
 DISPLAY = 100
-# 별표구분 values chunked by default. 서식 (application forms) are mostly field labels: in the
-# 시행규칙 they are 286 of 299 annex units and ~1.36M characters, which would swamp retrieval.
-# They stay in the raw response kept in R2 and are counted in the extraction report.
+# 기본으로 청크화하는 별표구분 값. 서식(신청서 양식)은 대부분 항목 이름뿐이다. 시행규칙에서
+# 서식은 별표단위 299개 중 286개, 약 136만 자여서 넣으면 검색 결과를 뒤덮는다.
+# 서식은 R2에 보관하는 원본 응답에 남고 추출 보고서에 개수로 집계된다.
 DEFAULT_ANNEX_KINDS = ("별표", "부록")
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 class LawApiError(Exception):
-    """Non-retryable provider error (auth, schema, business error)."""
+    """재시도하지 않는 제공처 오류(인증, 스키마, 업무 오류)."""
 
 
 @dataclass(frozen=True)
 class LawSummary:
+    """법령 목록 조회(lawSearch.do) 결과 한 건."""
+
     mst: str  # 법령일련번호
     law_id: str  # 법령ID
     name: str  # 법령명한글
@@ -69,6 +71,8 @@ class LawSummary:
 
 @dataclass(frozen=True)
 class LawDocument:
+    """법령 본문 조회(lawService.do) 결과. 원본 XML, 추출 블록, 조문·부칙·별표 개수를 담는다."""
+
     law_id: str
     name: str
     promulgation_date: str
@@ -86,10 +90,10 @@ class LawDocument:
         return hashlib.sha256(self.raw_xml).hexdigest()
 
     def content_sha256(self) -> str:
-        """Hash of the parsed legal text only, ignoring volatile response fields.
+        """파싱한 법령 본문만의 해시. 응답마다 바뀌는 필드는 무시한다.
 
-        Used to decide whether a re-collection changed meaningfully. It does NOT replace
-        ``source_sha256`` (which stays the hash of the stored raw response).
+        재수집 결과가 의미 있게 바뀌었는지 판단할 때 쓴다. ``source_sha256``을 대신하지
+        않는다(``source_sha256``은 계속 저장된 원본 응답의 해시다).
         """
         text = "\n".join(block.text for block in self.blocks)
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -141,7 +145,7 @@ def parse_search(data: bytes) -> tuple[int, list[LawSummary]]:
 
 
 def select_exact(laws: list[LawSummary], name: str) -> LawSummary:
-    """Pick the single current law whose name matches exactly. Never 'first result wins'."""
+    """이름이 정확히 일치하는 현행 법령 하나를 고른다. '첫 결과 채택'은 절대 하지 않는다."""
     matches = [law for law in laws if law.name == name and law.status_code == "현행"]
     if len(matches) != 1:
         found = [(law.name, law.status_code, law.mst) for law in laws if law.name == name]
@@ -232,6 +236,8 @@ def law_extraction_report(doc: LawDocument) -> ExtractionReport:
 
 
 class LawApiClient:
+    """법제처 API 클라이언트. 재시도, 전체 페이지 검색, 대상 법령 수집을 맡는다."""
+
     def __init__(
         self,
         *,
@@ -268,7 +274,7 @@ class LawApiClient:
                 self._sleep(min(2**attempt, 30))
                 continue
             if response.is_redirect:
-                # Never forward the OC to another host.
+                # OC를 다른 호스트로 절대 넘기지 않는다.
                 raise LawApiError(f"unexpected redirect ({response.status_code})")
             if response.status_code in RETRYABLE_STATUS and attempt < self._max_attempts:
                 retry_after = response.headers.get("Retry-After", "")
@@ -284,7 +290,7 @@ class LawApiClient:
         raise LawApiError("retry budget exhausted")  # pragma: no cover
 
     def search_all(self, query: str) -> list[LawSummary]:
-        """All pages of a law-name search, detecting repeated pages and duplicates."""
+        """법령명 검색 결과를 모든 페이지에서 모은다. 반복 페이지와 중복을 감지한다."""
         results: dict[str, LawSummary] = {}
         seen_pages: set[tuple[str, ...]] = set()
         total = None

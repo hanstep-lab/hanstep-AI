@@ -1,7 +1,7 @@
-"""Deterministic structure-aware chunking of Korean policy text.
+"""한국어 정책 문서의 결정적·구조 인식 청킹.
 
-Chunks never cross a page boundary when page numbers are reliable, so each chunk maps to a
-single ``page_number``. Oversized input is split, never silently truncated.
+페이지 번호를 신뢰할 수 있으면 청크가 페이지 경계를 넘지 않으므로, 각 청크는 하나의
+``page_number``에 대응한다. 너무 긴 입력은 나누며, 조용히 잘라내지 않는다.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ CHUNKER_VERSION = "1"
 
 TokenCounter = Callable[[str], int]
 
-# Major structural headings: 제N장/절/조, roman numerals, "1 선발인원", "1. 개요", □, <제목>.
+# 주요 구조 제목: 제N장/절/조, 로마 숫자, "1 선발인원", "1. 개요", □, <제목>.
 _HEADING = re.compile(
     r"^(제\s*\d+\s*[장절관]|제\s*\d+\s*조(?:\s*의\s*\d+)?|[IVXⅠ-Ⅹ]+[.\s]|\d{1,2}\.?\s+[가-힣]"
     r"|□|■|<\s*[^<>|]{2,40}>)"
@@ -29,20 +29,22 @@ _SENTENCE_END = re.compile(r"(?<=[.?!다요])\s+")
 
 
 class ChunkingError(RagError):
-    """A chunk could not be kept within max_tokens."""
+    """청크를 max_tokens 이내로 유지할 수 없다."""
 
 
 def approx_token_count(text: str) -> int:
-    """Conservative offline estimate used only when the real tokenizer is unavailable."""
+    """실제 토크나이저를 쓸 수 없을 때만 사용하는 보수적인 오프라인 추정치."""
     return math.ceil(len(text) / 1.6)
 
 
 @dataclass(frozen=True)
 class ChunkerConfig:
+    """청크 목표·최대·겹침 토큰 수와 제목 분할 비율 설정."""
+
     target_tokens: int = 600
     max_tokens: int = 900
     overlap_tokens: int = 80
-    # Flush at a heading once the current chunk has at least this share of the target.
+    # 현재 청크가 목표의 이 비율 이상 찼으면 제목에서 청크를 끊는다.
     heading_flush_ratio: float = 0.4
 
     def __post_init__(self) -> None:
@@ -54,12 +56,14 @@ class ChunkerConfig:
 
 @dataclass(frozen=True)
 class ChunkDraft:
+    """임베딩·저장 전에 청커가 만든 청크 초안."""
+
     chunk_index: int
     text: str
     token_count: int
     page_number: int | None
     section_title: str | None
-    # Processing metadata kept in the run report, not in MongoDB.
+    # MongoDB가 아니라 실행 보고서에만 남기는 처리 메타데이터.
     kinds: tuple[str, ...] = ()
     repeated_table_header: bool = False
     overlap_lines: int = 0
@@ -81,6 +85,8 @@ def fingerprint(config: ChunkerConfig, extractor: str, tokenizer_id: str) -> str
 
 @dataclass
 class _Line:
+    """블록을 줄 단위로 펼친 청킹 입력 한 줄."""
+
     text: str
     page: int | None
     kind: str
@@ -90,6 +96,8 @@ class _Line:
 
 @dataclass
 class _Builder:
+    """줄을 누적해 ChunkDraft 목록을 만드는 청킹 상태."""
+
     config: ChunkerConfig
     count: TokenCounter
     drafts: list[ChunkDraft] = field(default_factory=list)
@@ -135,7 +143,7 @@ class _Builder:
                 ):
                     break
                 tail = candidate
-            # Never let the overlap be the whole chunk.
+            # 겹침이 청크 전체가 되지 않게 한다.
             if len(tail) == len(self.lines):
                 tail = tail[1:]
         self.lines = tail
@@ -172,7 +180,7 @@ class _Builder:
 
 
 def _split_long(text: str, count: TokenCounter, limit: int) -> list[str]:
-    """Split one over-long line on sentence ends, then on character windows."""
+    """너무 긴 한 줄을 먼저 문장 끝에서, 그다음 문자 구간 단위로 나눈다."""
     if count(text) <= limit:
         return [text]
     pieces: list[str] = []
@@ -187,7 +195,7 @@ def _split_long(text: str, count: TokenCounter, limit: int) -> list[str]:
         if count(sentence) <= limit:
             current = sentence
             continue
-        # Hard split: binary search the longest prefix that fits.
+        # 강제 분할: 한도에 맞는 가장 긴 접두부를 이진 탐색한다.
         rest = sentence
         while count(rest) > limit:
             lo, hi = 1, len(rest)
@@ -207,7 +215,7 @@ def _split_long(text: str, count: TokenCounter, limit: int) -> list[str]:
 
 def _expand(blocks: Iterable[Block], count: TokenCounter, config: ChunkerConfig) -> list[_Line]:
     lines: list[_Line] = []
-    # Leave room so a single line plus a repeated table header always fits in max_tokens.
+    # 한 줄과 반복된 표 헤더를 합쳐도 항상 max_tokens에 들어가도록 여유를 둔다.
     line_limit = config.max_tokens // 2
     for block in blocks:
         if block.kind == "table":
@@ -240,7 +248,7 @@ def chunk_blocks(
     builder = _Builder(config, count)
     previous_header: str | None = None
     for line in _expand(blocks, count, config):
-        # A table row continuing into a new chunk gets its header repeated (marked as copy).
+        # 새 청크로 이어지는 표 행에는 헤더를 반복해 붙인다(사본으로 표시).
         if line.kind == "table" and line.table_header:
             would_flush = bool(builder.lines) and (
                 builder.tokens(line.text) > config.target_tokens

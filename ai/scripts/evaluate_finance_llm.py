@@ -1,15 +1,15 @@
-"""LLM direct calculation vs the INT-01 rule engine: accuracy, consistency, tokens, latency.
+"""LLM 직접 계산과 INT-01 규칙 엔진 비교: 정확도, 일관성, 토큰, 지연 시간.
 
-Not part of pytest or CI. Cases are the ready, non-400 scenarios plus the Minh 12-month mock.
-The LLM gets the same calculation rules (2-7) and the transaction JSON, with no tools, and
-must answer a JSON object of integers. The API key is never printed or written.
+pytest·CI에 포함되지 않는다. 케이스는 ready 상태이면서 400이 아닌 시나리오와 Minh 12개월
+목업이다. LLM은 같은 계산 규칙(2-7)과 거래 JSON을 도구 없이 받고, 정수로 된 JSON 객체로
+답해야 한다. API 키는 절대 출력하거나 파일에 쓰지 않는다.
 
     uv run python scripts/evaluate_finance_llm.py --repeats 3 \
         --output artifacts/finance/llm_comparison.json
     uv run python scripts/evaluate_finance_llm.py --repeats 1 --cases S02,S08
 
-Prints one progress line per call and rewrites --output after every call ("status":
-running -> completed, or interrupted on Ctrl+C), so a stopped run keeps what it paid for.
+호출마다 진행 상황을 한 줄 출력하고 호출이 끝날 때마다 --output을 다시 쓴다("status":
+running -> completed, Ctrl+C면 interrupted). 그래서 중간에 멈춰도 비용을 낸 결과는 남는다.
 """
 
 from __future__ import annotations
@@ -37,8 +37,8 @@ FIELDS = ["avgMonthlyIncome", "fixedLiving", "remittance", "variableAvg", "spare
 MAX_TOKENS = 16000
 EXIT_INTERRUPTED = 130
 
-# Rules 2-7 verbatim from the INT-01 spec. A trailing backslash only splits a long source
-# line for the linter; it does not change the prompt text.
+# INT-01 명세의 규칙 2-7을 그대로 옮겼다. 줄 끝 백슬래시는 린터 때문에 긴 소스 줄을
+# 나눌 뿐이고, 프롬프트 텍스트는 바뀌지 않는다.
 RULES = """\
 2. 중복: 같은 id에 같은 내용이 여러 번 오면 한 번만 집계하고, \
 나머지는 excluded에 reason "DUPLICATE_ID".
@@ -121,7 +121,7 @@ def build_prompt(request: dict[str, Any]) -> str:
 
 
 def parse_answer(text: str) -> dict[str, int | None] | None:
-    """Strict parse: one JSON object with exactly the five fields, each int or null."""
+    """엄격한 파싱: 정확히 다섯 필드를 가진 JSON 객체 하나, 각 값은 int 또는 null."""
     cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
     try:
         data = json.loads(cleaned)
@@ -141,7 +141,7 @@ def parse_answer(text: str) -> dict[str, int | None] | None:
 def select_cases(
     cases: list[dict[str, Any]], selection: str | None, parser: argparse.ArgumentParser
 ) -> list[dict[str, Any]]:
-    """--cases S02,S08 keeps only those ids (in fixture order); no option keeps all."""
+    """--cases S02,S08이면 그 id만 남기고(fixture 순서 유지), 옵션이 없으면 전부 남긴다."""
     if selection is None:
         return cases
     wanted = {part.strip() for part in selection.split(",") if part.strip()}
@@ -153,7 +153,7 @@ def select_cases(
 
 
 def save_report(path: Path, report: dict[str, Any]) -> None:
-    # Write then rename, so Ctrl+C during a save never leaves a half-written file.
+    # 쓴 다음 이름을 바꾼다. 저장 도중 Ctrl+C를 눌러도 반쯤 쓴 파일이 남지 않는다.
     tmp = path.with_name(path.name + ".tmp")
     write_json(tmp, report)
     tmp.replace(path)
@@ -204,8 +204,8 @@ def main() -> int:
     started_at = datetime.now(UTC).isoformat()
     conditions = {
         "model": model,
-        # The SDK sends API version 2026-10-21, which rejects sampling parameters, so
-        # temperature is not sent and the API default sampling applies.
+        # SDK가 보내는 API 버전 2026-10-21은 샘플링 파라미터를 거부한다. 그래서
+        # temperature는 보내지 않고 API 기본 샘플링을 쓴다.
         "temperature": None,
         "temperature_note": "not sent (API default sampling)",
         "thinking": args.thinking,
@@ -217,7 +217,7 @@ def main() -> int:
     }
 
     rows: list[dict[str, Any]] = []
-    # Computed up front so a partial save can summarize every selected case.
+    # 중간 저장에서도 선택한 케이스를 모두 요약할 수 있게 미리 계산한다.
     prompts = {case["id"]: build_prompt(case["request"]) for case in cases}
     engine = {case["id"]: engine_answer(case["request"]) for case in cases}
     total_calls = len(cases) * args.repeats
@@ -234,7 +234,7 @@ def main() -> int:
         save_report(args.output, report)
         return summary
 
-    # Piped or redirected stdout on Windows defaults to cp1252, which cannot print Korean.
+    # Windows에서 파이프나 리디렉션된 stdout은 기본값이 cp1252라 한국어를 출력하지 못한다.
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     print(
@@ -310,16 +310,15 @@ def summarize(
 ) -> dict[str, Any]:
     total = len(rows)
     parsed = [r for r in rows if not r.get("parse_failed")]
-    # Accuracy denominator: calls the model actually answered. API errors (overload, network)
-    # are infrastructure failures, not wrong answers; parse failures and max_tokens cut-offs
-    # still count as wrong.
+    # 정확도 분모: 모델이 실제로 답한 호출. API 오류(과부하, 네트워크)는 오답이 아니라
+    # 인프라 실패다. 파싱 실패와 max_tokens 잘림은 그대로 오답으로 센다.
     scored = sum(1 for r in rows if not r.get("error"))
     field_rate = {
         k: (sum(r["field_match"][k] for r in parsed) / scored if scored else 0.0) for k in FIELDS
     }
     all_fields = sum(all(r["field_match"].values()) for r in parsed) / scored if scored else 0.0
     errors = [r["spare_abs_error"] for r in parsed if r.get("spare_abs_error") is not None]
-    # Calls with no usable answer, split into disjoint causes that add up to the total.
+    # 쓸 수 있는 답이 없는 호출. 서로 겹치지 않는 원인으로 나누며, 모두 더하면 total이 된다.
     failed = [r for r in rows if r.get("parse_failed")]
     api_errors = sum(1 for r in failed if r.get("error"))
     cut_off = sum(1 for r in failed if not r.get("error") and r.get("stop_reason") == "max_tokens")

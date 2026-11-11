@@ -1,4 +1,4 @@
-"""Vector search over approved, active chunks with a fail-closed MySQL version check."""
+"""승인·활성 청크를 대상으로 한 벡터 검색. MySQL 버전 확인은 fail-closed로 한다."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ SEOUL = ZoneInfo("Asia/Seoul")
 
 
 class SearchUnavailableError(Exception):
-    """Approval state could not be verified; no candidates may be returned."""
+    """승인 상태를 확인하지 못했다. 후보를 하나도 반환하면 안 된다."""
 
 
 def validate_visa_types(values: list[Any] | None) -> list[str]:
@@ -44,12 +44,12 @@ def build_pipeline(
     visa_types: list[str],
     embedding_model: str,
 ) -> list[dict[str, Any]]:
-    """The approval filter is always applied server-side; callers cannot pass a filter.
+    """승인 필터는 항상 서버 측에서 적용한다. 호출자는 필터를 넘길 수 없다.
 
-    ``embedding_model`` is enforced right after ``$vectorSearch`` so vectors from another
-    model (same 1024 dims, different space) never mix into ranking or duplicate a chunk.
-    It is a post-filter because the confirmed index definition has no ``embedding_model``
-    filter field; add one together with any future model change (see decisions.md).
+    ``embedding_model``은 ``$vectorSearch`` 바로 뒤에서 강제한다. 그래야 다른 모델의
+    벡터(같은 1024차원, 다른 공간)가 순위에 섞이거나 청크를 중복시키지 않는다.
+    확정된 인덱스 정의에 ``embedding_model`` 필터 필드가 없어서 후처리 필터로 둔다.
+    앞으로 모델을 바꿀 때 이 필터 필드를 함께 추가한다(decisions.md 참고).
     """
     if top_k < 1 or num_candidates < top_k or num_candidates > 10000:
         raise ValidationFailedError("invalid top_k/numCandidates")
@@ -75,6 +75,8 @@ def build_pipeline(
 
 @dataclass(frozen=True)
 class SearchHit:
+    """검색 결과로 반환하는 청크 하나와 출처 메타데이터."""
+
     policy_document_id: int
     document_version: str
     chunk_index: int
@@ -89,7 +91,7 @@ class SearchHit:
     issued_on: date | None = None
     page_number: int | None = None
     section_title: str | None = None
-    # Calendar days in Korea (stored as KST midnight in UTC).
+    # 한국 달력 날짜(KST 자정을 UTC로 저장).
     effective_from: date | None = None
     effective_to: date | None = None
 
@@ -105,10 +107,10 @@ def _kst_date(value: datetime | None) -> date | None:
 def filter_current(
     hits: list[dict[str, Any]], gateway: PolicyDocumentGateway
 ) -> list[dict[str, Any]]:
-    """Drop hits whose version is not the MySQL approved/current one.
+    """버전이 MySQL의 승인/현재 버전이 아닌 결과를 버린다.
 
-    Guards against search index lag after approval changes. Any gateway failure is raised as
-    :class:`SearchUnavailableError` so unverified candidates are never returned.
+    승인 상태가 바뀐 뒤 검색 인덱스 반영이 늦어지는 경우를 막는다. gateway 실패는 모두
+    :class:`SearchUnavailableError`로 올려 검증되지 않은 후보가 반환되지 않게 한다.
     """
     if not hits:
         return []
@@ -150,6 +152,8 @@ def to_hit(doc: dict[str, Any]) -> SearchHit:
 
 
 class SearchService:
+    """질의를 임베딩해 승인·활성 청크를 벡터 검색하는 서비스."""
+
     def __init__(
         self,
         collection: Collection[dict[str, Any]],
@@ -166,13 +170,13 @@ class SearchService:
         self.num_candidates = num_candidates
 
     def search(self, query: str, top_k: int, visa_types: list[str] | None) -> list[SearchHit]:
-        # English and Korean queries go through the same BGE-M3 model; no translation step.
+        # 영어·한국어 질의 모두 같은 BGE-M3 모델을 거친다. 번역 단계는 없다.
         vector = self.embedder.embed_query(query)
         pipeline = build_pipeline(
             index_name=self.index_name,
             query_vector=vector,
             top_k=top_k,
-            # Design spec v1.0: max(topK * 20, 100); the floor comes from settings.
+            # 설계 명세 v1.0: max(topK * 20, 100). 하한값은 settings에서 가져온다.
             num_candidates=max(self.num_candidates, top_k * CANDIDATES_PER_RESULT),
             visa_types=validate_visa_types(visa_types),
             embedding_model=self.embedder.model_name,

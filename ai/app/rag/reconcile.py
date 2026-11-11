@@ -1,8 +1,8 @@
-"""Reconcile MongoDB chunk state with a MySQL ``policy_documents`` snapshot.
+"""MongoDB 청크 상태를 MySQL ``policy_documents`` 스냅샷과 대조해 맞춘다.
 
-The snapshot is the source of truth. Planning is read-only; applying goes through
-:func:`app.rag.publication.sync_policy_state` so the same checks and transaction rules hold.
-Until a Spring listing API exists, the snapshot comes from a JSON export (AI-R2 body shape).
+스냅샷이 기준 원본이다. 계획 수립은 읽기 전용이고, 적용은
+:func:`app.rag.publication.sync_policy_state`를 거치므로 같은 검사와 트랜잭션 규칙이
+유지된다. Spring 목록 API가 생기기 전까지 스냅샷은 JSON export(AI-R2 본문 형태)에서 가져온다.
 """
 
 from __future__ import annotations
@@ -30,6 +30,8 @@ CHANGES: frozenset[str] = frozenset({"activate", "deactivate", "update", "deacti
 
 
 class SnapshotDocument(BaseModel):
+    """스냅샷에 담긴 MySQL ``policy_documents`` 행 하나."""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="forbid")
 
     policy_document_id: int = Field(ge=1)
@@ -50,6 +52,8 @@ class SnapshotDocument(BaseModel):
 
 
 class Snapshot(BaseModel):
+    """상태 대조의 기준이 되는 MySQL ``policy_documents`` 스냅샷."""
+
     model_config = ConfigDict(extra="forbid")
 
     documents: list[SnapshotDocument]
@@ -60,24 +64,26 @@ def load_snapshot(path: Path) -> Snapshot:
     keys = [(d.policy_document_id, d.policy_version) for d in snapshot.documents]
     ids = [d.policy_document_id for d in snapshot.documents]
     if len(set(ids)) != len(ids):
-        # BE stores one version per row, so an id must not appear twice.
+        # BE는 행마다 버전 하나를 저장하므로 같은 id가 두 번 나오면 안 된다.
         raise ValidationFailedError(f"snapshot repeats a policyDocumentId: {keys}")
     return snapshot
 
 
 @dataclass(frozen=True)
 class MongoState:
-    """Chunk state of one (policy_document_id, document_version)."""
+    """(policy_document_id, document_version) 하나의 청크 상태."""
 
     total: int = 0
     active: int = 0
     review_statuses: frozenset[str] = frozenset()
-    # Active chunks under the same id but another document_version.
+    # 같은 id에서 document_version이 다른 활성 청크.
     stale_active: int = 0
 
 
 @dataclass
 class PlanItem:
+    """문서 하나에 대해 계획한 동작과 그 적용 결과."""
+
     policy_document_id: int
     policy_version: str
     action: PlanAction
@@ -87,6 +93,8 @@ class PlanItem:
 
 @dataclass
 class Plan:
+    """스냅샷 대조로 만든 PlanItem 목록."""
+
     items: list[PlanItem] = field(default_factory=list)
 
     @property
@@ -103,7 +111,7 @@ class Plan:
 def decide(
     record: PolicyDocumentRecord, state: MongoState, verify_error: str | None
 ) -> tuple[PlanAction, str]:
-    """Pure decision for one snapshot row (unit-testable without MongoDB)."""
+    """스냅샷 행 하나에 대한 순수 판단(MongoDB 없이 단위 테스트 가능)."""
     review_status, active = target_state(record)
     if active:
         if state.total == 0:
@@ -126,7 +134,7 @@ def mongo_state(
     pid = Int64(record.policy_document_id)
     base: dict[str, Any] = {"policy_document_id": pid, "document_version": record.policy_version}
     _, active = target_state(record)
-    # Activation is judged on the current model; deactivation covers every model.
+    # 활성화는 현재 모델 기준으로 판단하고, 비활성화는 모든 모델을 대상으로 한다.
     scoped = {**base, "embedding_model": embedding_model} if active else base
     total = repo.collection.count_documents(scoped)
     active_count = repo.collection.count_documents({**base, "is_active": True})

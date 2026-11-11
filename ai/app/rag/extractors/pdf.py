@@ -1,4 +1,4 @@
-"""PDF text extraction with page tracking and scan/garbled detection."""
+"""페이지 추적과 스캔본·깨진 글자 감지를 포함한 PDF 텍스트 추출."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pypdf.errors import PdfReadError
 
 from app.rag.extractors.base import Block, ExtractionReport, garbled_ratio, normalize_text
 
-# Below this many characters per page on average, treat the PDF as scanned.
+# 페이지당 평균 글자 수가 이보다 적으면 PDF를 스캔본으로 본다.
 MIN_CHARS_PER_PAGE = 40
 MAX_GARBLED_RATIO = 0.05
 OCR_REMEDY = (
@@ -65,8 +65,8 @@ def extract_pdf(data: bytes, *, page_numbers_reliable: bool = True) -> Extractio
 
 
 def _split_paragraphs(text: str) -> list[str]:
-    """Split on blank lines; pypdf rarely emits them, so most pages stay one block.
+    """빈 줄에서 나눈다. pypdf는 빈 줄을 거의 내지 않아 대부분 페이지가 블록 하나로 남는다.
 
-    Finer structure (headings, items) is handled by the chunker's line-level splitting.
+    더 세밀한 구조(제목, 항목)는 청커의 줄 단위 분할이 처리한다.
     """
     return [part.strip() for part in text.split("\n\n") if part.strip()]

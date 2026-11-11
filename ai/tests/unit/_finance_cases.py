@@ -1,4 +1,4 @@
-"""Loads the hand-computed finance scenarios under tests/fixtures/finance/."""
+"""tests/fixtures/finance/ 아래에 있는, 손으로 계산한 금융 시나리오를 읽어 온다."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def ready_scenarios() -> list[dict[str, Any]]:
 
 
 def ready_ok_scenarios() -> list[dict[str, Any]]:
-    """Ready scenarios that expect a 200 response (400 scenarios excluded)."""
+    """200 응답을 기대하는 ready 시나리오(400 시나리오는 제외)."""
     return [s for s in ready_scenarios() if s["expected"].get("status") != 400]
 
 

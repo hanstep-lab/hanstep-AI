@@ -1,7 +1,7 @@
-"""Private R2 storage for official policy originals (S3-compatible, boto3).
+"""공식 정책 원본을 보관하는 비공개 R2 저장소(S3 호환, boto3).
 
-Objects are content addressed, so a different source can never overwrite an existing one.
-The ARC (외국인등록증) bucket is refused here: this pipeline never reads or writes it.
+객체는 내용 주소 방식이라 다른 원본이 기존 객체를 덮어쓸 수 없다.
+ARC(외국인등록증) 버킷은 여기서 거부한다. 이 파이프라인은 그 버킷을 읽지도 쓰지도 않는다.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ _EXT_CONTENT_TYPES = {
 
 
 def object_key(prefix: str, domain: str, sha256: str, extension: str) -> str:
-    """``{prefix}/{domain}/sha256/{hex}{ext}`` — proposal pending the backend key contract."""
+    """``{prefix}/{domain}/sha256/{hex}{ext}`` — 백엔드 키 계약 확정 전까지의 제안안."""
     if len(sha256) != 64:
         raise ValueError("sha256 must be 64 hex characters")
     ext = extension.lower() if extension.startswith(".") else f".{extension.lower()}"
@@ -35,14 +35,18 @@ def object_key(prefix: str, domain: str, sha256: str, extension: str) -> str:
 
 
 class ObjectStore(Protocol):
+    """원본 객체 저장소 인터페이스. SHA-256으로 업로드 내용과 저장 결과를 확인한다."""
+
     def put_if_absent(self, key: str, data: bytes, sha256: str) -> str:
-        """Return "uploaded" or "exists". Raise if an object exists with other content."""
+        """결과로 "uploaded" 또는 "exists"를 돌려준다. 다른 내용의 객체가 있으면 예외를 던진다."""
         ...
 
     def read_sha256(self, key: str) -> str: ...
 
 
 class UnconfiguredObjectStore:
+    """R2 설정이 없을 때 쓰는 저장소. 사용하는 순간 ContractBlockedError를 낸다."""
+
     def __init__(self, bucket_setting: str = "R2_POLICY_BUCKET") -> None:
         self.bucket_setting = bucket_setting
 
@@ -60,9 +64,9 @@ BUCKET_SETTINGS = {"visa": "R2_POLICY_BUCKET", "finance": "R2_PRODUCT_BUCKET"}
 
 
 def build_object_stores(settings: Settings) -> dict[str, ObjectStore]:
-    """One store per RAG domain: visa -> policy bucket, finance -> product bucket.
+    """RAG 도메인마다 저장소 하나: visa -> 정책 버킷, finance -> 상품 버킷.
 
-    Missing credentials or bucket names yield an UnconfiguredObjectStore that blocks at use.
+    인증 정보나 버킷 이름이 없으면 사용 시점에 막는 UnconfiguredObjectStore를 넣는다.
     """
     stores: dict[str, ObjectStore] = {}
     for domain, setting in BUCKET_SETTINGS.items():
@@ -82,6 +86,8 @@ def build_object_stores(settings: Settings) -> dict[str, ObjectStore]:
 
 
 class R2ObjectStore:
+    """R2(S3 호환) 버킷 저장소. 크기와 해시를 확인하고 키가 없을 때만 올린다."""
+
     def __init__(
         self,
         *,
@@ -141,14 +147,14 @@ class R2ObjectStore:
             Key=key,
             Body=data,
             ContentType=_EXT_CONTENT_TYPES.get(extension, "application/octet-stream"),
-            # ContentMD5 lets the server reject corrupted uploads; ETag is never used as SHA-256.
+            # ContentMD5로 서버가 손상된 업로드를 거부하게 한다. ETag는 SHA-256으로 쓰지 않는다.
             ContentMD5=base64.b64encode(hashlib.md5(data).digest()).decode(),  # noqa: S324
             Metadata={"sha256": sha256},
         )
         return "uploaded"
 
     def read_sha256(self, key: str) -> str:
-        """Download and hash the stored bytes (round-trip verification)."""
+        """저장된 바이트를 내려받아 해시한다(왕복 검증)."""
         body = self._client.get_object(Bucket=self.bucket, Key=key)["Body"]
         digest = hashlib.sha256()
         total = 0
@@ -170,6 +176,8 @@ class R2ObjectStore:
 
 @dataclass
 class InMemoryObjectStore:
+    """테스트용 메모리 저장소. 실제로 올린 횟수를 센다."""
+
     objects: dict[str, bytes] = field(default_factory=dict)
     puts: int = 0
 

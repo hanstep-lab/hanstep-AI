@@ -1,4 +1,4 @@
-"""Property checks for INT-01 with random transactions (hypothesis default settings)."""
+"""무작위 거래로 INT-01을 속성 기반 검사한다(hypothesis 기본 설정)."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ KINDS = [k.value for k in TransactionKind]
 @st.composite
 def requests(draw: st.DrawFn) -> dict[str, Any]:
     period_from = draw(st.dates(min_value=date(2024, 1, 1), max_value=date(2027, 12, 31)))
-    # 360 days is always shorter than 12 months, so the period itself is valid.
+    # 360일은 항상 12개월보다 짧으므로 기간 자체는 유효하다.
     period_to = period_from + timedelta(days=draw(st.integers(0, 360)))
     span = (period_to - period_from).days
     base = draw(
@@ -55,7 +55,7 @@ def requests(draw: st.DrawFn) -> dict[str, Any]:
         )
     )
     transactions = [{"id": i, **tx} for i, tx in enumerate(base, start=1)]
-    # Exact re-deliveries of some transactions (same id, same content).
+    # 일부 거래를 똑같이 다시 보낸 경우(같은 id, 같은 내용).
     if transactions:
         repeats = draw(st.lists(st.sampled_from(transactions), max_size=5))
         transactions = transactions + [dict(tx) for tx in repeats]

@@ -1,4 +1,4 @@
-"""MongoDB persistence for ``visa_policy_chunks``: validator, unique index, idempotent upsert."""
+"""``visa_policy_chunks``의 MongoDB 저장소: validator, 고유 인덱스, 멱등 upsert."""
 
 from __future__ import annotations
 
@@ -25,6 +25,8 @@ PlanAction = Literal["insert_all", "resume", "noop"]
 
 @dataclass(frozen=True)
 class ExistingChunk:
+    """이미 저장된 청크 중 쓰기 계획 비교에 필요한 필드."""
+
     chunk_index: int
     chunk_text: str
     source_sha256: str
@@ -32,6 +34,8 @@ class ExistingChunk:
 
 @dataclass(frozen=True)
 class UpsertPlan:
+    """문서 버전 하나에 대한 쓰기 결정과 새로 넣을 청크 인덱스."""
+
     action: PlanAction
     missing_indexes: tuple[int, ...] = ()
 
@@ -42,16 +46,16 @@ def plan_version_write(
     source_sha256: str,
     expected_texts: Sequence[str] | None,
 ) -> UpsertPlan:
-    """Decide what to do with one (document, version, model) given what is already stored.
+    """이미 저장된 내용을 보고 (문서, 버전, 모델) 하나를 어떻게 처리할지 정한다.
 
-    ``expected_texts`` is ``None`` before chunking (hash-only check, used to skip re-collection
-    without extracting or embedding).
+    청킹 전에는 ``expected_texts``가 ``None``이다(해시만 검사하며, 추출이나 임베딩 없이
+    재수집을 건너뛸 때 쓴다).
 
-    - Different hash for the same version: hard error.
-    - Same hash, all chunks present with identical text: no-op (approval state untouched).
-    - Same hash, a strict prefix present with identical text: resume missing chunks.
-    - Same hash, different text or extra chunks: chunking/parser settings changed for an
-      existing version; requires an explicit reprocessing policy, so it is an error.
+    - 같은 버전인데 해시가 다름: 즉시 오류.
+    - 해시가 같고 모든 청크가 같은 텍스트로 있음: no-op(승인 상태는 건드리지 않는다).
+    - 해시가 같고 앞쪽 일부(strict prefix)만 같은 텍스트로 있음: 빠진 청크를 이어 넣는다.
+    - 해시가 같은데 텍스트가 다르거나 청크가 더 많음: 기존 버전의 청킹/파서 설정이 바뀐
+      것이다. 명시적인 재처리 정책이 필요하므로 오류로 본다.
     """
     for chunk in existing:
         if chunk.source_sha256 != source_sha256:
@@ -82,12 +86,16 @@ def plan_version_write(
 
 @dataclass
 class WriteResult:
+    """청크 일괄 쓰기 결과(새로 넣은 수, 이미 있던 수, 오류)."""
+
     inserted: int = 0
     already_present: int = 0
     errors: list[str] = field(default_factory=list)
 
 
 class ChunkRepository:
+    """청크 컬렉션의 설정·조회·쓰기를 맡는 MongoDB 저장소."""
+
     def __init__(self, database: Database[dict[str, Any]], collection_name: str) -> None:
         self.database = database
         self.collection_name = collection_name
@@ -96,10 +104,10 @@ class ChunkRepository:
     def collection(self) -> Collection[dict[str, Any]]:
         return self.database[self.collection_name]
 
-    # --- setup -------------------------------------------------------------------------
+    # --- 설정 --------------------------------------------------------------------------
 
     def validator_status(self) -> tuple[str, dict[str, Any] | None]:
-        """Return ("missing" | "match" | "drift", current validator)."""
+        """("missing" | "match" | "drift", 현재 validator)를 반환한다."""
         infos = list(self.database.list_collections(filter={"name": self.collection_name}))
         if not infos:
             return "missing", None
@@ -107,7 +115,7 @@ class ChunkRepository:
         return ("match" if current == json_schema_validator() else "drift"), current
 
     def ensure_collection(self) -> str:
-        """Create the collection with the validator if missing. Never overwrites a validator."""
+        """컬렉션이 없으면 validator와 함께 만든다. 기존 validator는 절대 덮어쓰지 않는다."""
         status, current = self.validator_status()
         if status == "missing":
             try:
@@ -144,14 +152,14 @@ class ChunkRepository:
             return status
         duplicates = self.find_duplicates()
         if duplicates:
-            # Report, never delete.
+            # 보고만 하고 절대 삭제하지 않는다.
             raise ValidationFailedError(f"duplicate chunk keys exist: {duplicates[:5]}")
         self.collection.create_index(
             [(k, ASCENDING) for k, _ in UNIQUE_INDEX_KEYS], unique=True, name=UNIQUE_INDEX_NAME
         )
         return "created"
 
-    # --- reads -------------------------------------------------------------------------
+    # --- 조회 --------------------------------------------------------------------------
 
     @staticmethod
     def _version_filter(
@@ -183,14 +191,14 @@ class ChunkRepository:
         ).sort("chunk_index", ASCENDING)
         return [ChunkRecord.from_bson(doc) for doc in cursor]
 
-    # --- writes ------------------------------------------------------------------------
+    # --- 쓰기 --------------------------------------------------------------------------
 
     def insert_chunks(self, records: Sequence[ChunkRecord]) -> WriteResult:
-        """Insert-only upsert keyed by the unique index.
+        """고유 인덱스를 키로 하는 삽입 전용 upsert.
 
-        ``$setOnInsert`` means an existing record (including its review_status, is_active and
-        created_at) is never modified. Ordered=False so one failure does not stop the batch;
-        a rerun picks up whatever is still missing.
+        ``$setOnInsert``를 쓰므로 기존 레코드(review_status, is_active, created_at 포함)는
+        절대 수정되지 않는다. Ordered=False라서 실패 하나가 배치 전체를 멈추지 않으며,
+        다시 실행하면 아직 빠진 것을 채운다.
         """
         result = WriteResult()
         if not records:
@@ -211,7 +219,7 @@ class ChunkRepository:
             details = exc.details
             result.inserted = details.get("nUpserted", 0)
             for error in details.get("writeErrors", []):
-                # 11000 = concurrent insert of the same key; the rerun verifies its content.
+                # 11000 = 같은 키의 동시 삽입. 그 내용은 재실행 때 검증한다.
                 if error.get("code") == 11000:
                     result.already_present += 1
                 else:
