@@ -18,6 +18,8 @@ from app.core.config import Settings, configure_logging, get_settings
 from app.integrations.policy_gateway import PolicyDocumentGateway, UnconfiguredPolicyGateway
 from app.integrations.spring_policy_gateway import SpringPolicyGateway
 from app.rag.embeddings import BgeM3Embedder
+from app.visa.roadmap.service import StepWriter
+from app.visa.roadmap.text import LlmStepWriter
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,8 @@ class AppState:
     errors: dict[str, str] = field(default_factory=dict)
     # "not_loaded" | "loading" | "loaded" | "error". readiness가 이 값을 보고한다.
     model_status: str = "not_loaded"
+    # 로드맵 단계 문장 LLM. None이면 템플릿 문장만 쓴다.
+    roadmap_writer: StepWriter | None = None
 
 
 def _load_model(state: AppState) -> None:
@@ -46,6 +50,22 @@ def _load_model(state: AppState) -> None:
         logger.exception("embedding model failed to load")
         return
     state.model_status = "loaded"
+
+
+def _roadmap_writer(settings: Settings) -> StepWriter | None:
+    if not (settings.roadmap_llm_text and settings.anthropic_configured()):
+        return None
+    import anthropic
+
+    budget = settings.roadmap_llm_timeout_seconds
+    # 시간 관리는 LlmStepWriter가 한다(호출마다 남은 시간).
+    # SDK 재시도는 그 시간을 넘기게 하므로 끈다.
+    client = anthropic.Anthropic(
+        api_key=settings.anthropic_api_key.get_secret_value(),
+        timeout=budget,
+        max_retries=0,
+    )
+    return LlmStepWriter(client, settings.agent_model, timeout_seconds=budget)
 
 
 def build_state(settings: Settings) -> AppState:
@@ -63,7 +83,12 @@ def build_state(settings: Settings) -> AppState:
             api_key=settings.spring_internal_api_key.get_secret_value(),
             header=settings.internal_token_header,
         )
-    state = AppState(settings=settings, gateway=gateway, embedder=embedder)
+    state = AppState(
+        settings=settings,
+        gateway=gateway,
+        embedder=embedder,
+        roadmap_writer=_roadmap_writer(settings),
+    )
     if settings.mongo_configured():
         state.mongo = MongoClient(
             settings.mongo_uri.get_secret_value(),

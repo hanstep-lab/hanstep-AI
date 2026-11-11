@@ -1549,6 +1549,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aio-pika" },
+    { name = "anthropic" },
     { name = "beautifulsoup4" },
     { name = "boto3" },
     { name = "defusedxml" },
@@ -1577,7 +1578,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "anthropic" },
     { name = "hypothesis" },
     { name = "mypy" },
     { name = "pandas-stubs" },
@@ -1586,9 +1586,6 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
-]
-eval = [
-    { name = "anthropic" },
 ]
 lint = [
     { name = "mypy" },
@@ -1605,6 +1602,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aio-pika", specifier = ">=9.4.0" },
+    { name = "anthropic", specifier = ">=2.4.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.0" },
     { name = "boto3", specifier = ">=1.35.0" },
     { name = "defusedxml", specifier = ">=0.7.1" },
@@ -1633,7 +1631,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "anthropic", specifier = ">=2.4.0" },
     { name = "hypothesis", specifier = ">=6.170.15" },
     { name = "mypy", specifier = "==1.18.2" },
     { name = "pandas-stubs", specifier = ">=3.1.0.261029" },
@@ -1643,7 +1640,6 @@ dev = [
     { name = "pytest-cov", specifier = "==6.0.0" },
     { name = "ruff", specifier = "==0.14.0" },
 ]
-eval = [{ name = "anthropic", specifier = ">=2.4.0" }]
 lint = [
     { name = "mypy", specifier = "==1.18.2" },
     { name = "pandas-stubs", specifier = ">=3.1.0.261029" },

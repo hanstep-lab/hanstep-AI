@@ -22,7 +22,14 @@ from app.core.config import get_settings
 from app.rag.embeddings import BgeM3Embedder
 from app.visa.e74.engine import E74Assessment, EligibilityStatus
 from app.visa.e74.schemas import E74Profile
-from playground.e74_chat import PROMPT_ID, ChatTurn, SearchFn, ToolContext, run_turn
+from playground.e74_chat import (
+    CHAT_THINKING,
+    PROMPT_ID,
+    ChatTurn,
+    SearchFn,
+    ToolContext,
+    run_turn,
+)
 from playground.e74_views import (
     ITEM_GROUPS,
     STATUS_LABELS,
@@ -179,14 +186,14 @@ def _show_turn(entry: dict[str, Any]) -> None:
                     st.write(call.output)
         st.caption(
             f"입력 {turn.input_tokens:,} · 출력 {turn.output_tokens:,} 토큰 · "
-            f"종료 {turn.stop_reason}"
+            f"종료 {turn.stop_reason}" + (" · thinking 사용" if turn.thinking_used else "")
         )
 
 
 def _render_chat(profile: E74Profile | None, include_draft: bool) -> None:
     settings = get_settings()
     st.caption(
-        f"모델 {settings.agent_model} · 프롬프트 {PROMPT_ID} · "
+        f"모델 {settings.agent_model} · 프롬프트 {PROMPT_ID} · thinking {CHAT_THINKING['type']} · "
         "검색: 테스트 인덱스(승인 전 문서, 이 PC 메모리) · 점수: 왼쪽 프로필로 엔진 계산"
     )
     log: list[dict[str, Any]] = st.session_state.setdefault("chat_log", [])

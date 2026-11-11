@@ -7,6 +7,7 @@ Claude는 도구 결과를 설명한다. Claude 클라이언트는 밖에서 넣
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -15,10 +16,16 @@ from typing import Any, Protocol
 
 from app.visa.e74.engine import E74Assessment, assess_e74
 from app.visa.e74.schemas import E74Profile
+from app.visa.roadmap.text import rejects_thinking
+
+logger = logging.getLogger(__name__)
 
 PROMPT_ID = "e74-test-chat-v2"
 MAX_TOOL_ROUNDS = 6
 MAX_OUTPUT_TOKENS = 4096
+# 채팅은 질문을 해석하고 도구(검색, 점수 계산)를 고르고 결과를 조합해야 해서 추론을 켠다.
+# 로드맵 문장(app/visa/roadmap/text.py)은 정해진 데이터를 옮겨 적는 일이라 끈다.
+CHAT_THINKING: dict[str, str] = {"type": "adaptive"}
 TOP_IMPROVEMENTS = 8
 
 # 이모지로 쓰이는 문자: 그림 문자·국기·기호 보충(1F000~1FAFF), 기타 기호·딩뱃(2600~27BF),
@@ -167,6 +174,7 @@ class ChatTurn:
     input_tokens: int
     output_tokens: int
     notice: str | None = None
+    thinking_used: bool = False
 
 
 def assessment_payload(assessment: E74Assessment) -> dict[str, Any]:
@@ -234,14 +242,17 @@ def run_turn(
     calls: list[ToolCall] = []
     input_tokens = output_tokens = 0
     response: Any = None
+    thinking_used = False
     for _ in range(MAX_TOOL_ROUNDS):
-        response = client.messages.create(
+        response = _create(
+            client,
             model=model,
             max_tokens=MAX_OUTPUT_TOKENS,
             system=SYSTEM_PROMPT,
             tools=TOOLS,
             messages=history,
         )
+        thinking_used = thinking_used or any(b.type == "thinking" for b in response.content)
         input_tokens += response.usage.input_tokens
         output_tokens += response.usage.output_tokens
         history.append({"role": "assistant", "content": _without_emoji(response.content)})
@@ -273,6 +284,7 @@ def run_turn(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             notice=f"도구 호출이 {MAX_TOOL_ROUNDS}회를 넘어 중단함",
+            thinking_used=thinking_used,
         )
 
     notice = None
@@ -287,7 +299,23 @@ def run_turn(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         notice=notice,
+        thinking_used=thinking_used,
     )
+
+
+def _create(client: ClaudeClient, **kwargs: Any) -> Any:
+    """thinking을 켜고 부른다. 모델이 이 설정을 400으로 거부하면 설정을 빼고 한 번만 다시 부른다."""
+    try:
+        return client.messages.create(**kwargs, thinking=CHAT_THINKING)
+    except Exception as exc:
+        if not rejects_thinking(exc):
+            raise
+        logger.warning(
+            "chat LLM rejected thinking=%s (400) for model=%s; retrying once without thinking",
+            CHAT_THINKING["type"],
+            kwargs.get("model"),
+        )
+        return client.messages.create(**kwargs)
 
 
 def strip_emoji(text: str) -> str:
