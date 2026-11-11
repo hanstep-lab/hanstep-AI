@@ -1,5 +1,5 @@
-"""Mock persona Minh (E-9), 12 months. Expected values come from the mock's own _meta
-(monthly card totals, salary, rent, utilities, remittance), not from this implementation."""
+"""목업 페르소나 Minh(E-9), 12개월. 기대값은 이 구현이 아니라 목업 자체의 _meta
+(월별 카드 합계, 급여, 월세, 공과금, 송금)에서 가져온다."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def test_naive_double_counts_card_bills() -> None:
         date.fromisoformat(REQUEST["periodTo"]),
         [(t["direction"], t["amount"]) for t in REQUEST["transactions"]],
     )
-    # Card bills are withdrawals, so naive income is unaffected.
+    # 카드 대금은 출금이므로 단순 합산(naive) 수입에는 영향이 없다.
     assert naive.income == 2_350_000
-    # The card bill average (457,150) is subtracted on top of the card approvals.
+    # 카드 승인액에 더해 카드 대금 평균(457,150)까지 차감된다.
     assert naive.spare == 218_167

@@ -1,4 +1,4 @@
-"""Shared helpers for the RAG command-line scripts."""
+"""RAG 명령줄 스크립트가 공유하는 헬퍼."""
 
 from __future__ import annotations
 

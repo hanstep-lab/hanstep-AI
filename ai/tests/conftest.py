@@ -24,6 +24,8 @@ def fake_vector(text: str, dims: int = 1024) -> list[float]:
 
 
 class FakeEmbedder:
+    """텍스트 해시로 고정 벡터를 돌려주는 가짜 임베더. 임베딩 호출 수를 센다."""
+
     model_name = "BAAI/bge-m3"
 
     def __init__(self) -> None:
@@ -43,7 +45,7 @@ class FakeEmbedder:
 
 
 class FakeRepository:
-    """Dict-backed stand-in mirroring ChunkRepository's insert-only semantics."""
+    """ChunkRepository의 삽입 전용(insert-only) 동작을 그대로 따르는 dict 기반 대역."""
 
     def __init__(self) -> None:
         self.docs: dict[tuple[int, str, int, str], ChunkRecord] = {}

@@ -1,10 +1,10 @@
-"""Compare MongoDB chunk state with a MySQL policy_documents snapshot and optionally fix drift.
+"""MongoDB 청크 상태를 MySQL policy_documents 스냅샷과 비교하고, 원하면 불일치를 고친다.
 
-Default is read-only (plan only). --apply fixes each drifting row through sync_policy_state.
---complete-snapshot means the file lists every policy_documents row, so documents active in
-MongoDB but absent from the snapshot are deactivated as orphans.
+기본은 읽기 전용이다(계획만 낸다). --apply는 불일치한 행을 sync_policy_state로 하나씩 고친다.
+--complete-snapshot은 파일에 policy_documents의 모든 행이 있다는 뜻이다. 그래서 MongoDB에서는
+활성인데 스냅샷에 없는 문서는 고아로 보고 비활성화한다.
 
-Snapshot JSON (until a Spring listing API exists):
+스냅샷 JSON(Spring 목록 API가 생기기 전까지):
     {"documents": [{"policyDocumentId": 12, "policyVersion": "E74-2026-v1",
                     "contentHash": "<sha256>", "reviewStatus": "APPROVED",
                     "searchable": true, "chunkCount": 41}]}
@@ -89,7 +89,7 @@ def main() -> int:
     blocked = [i for i in plan.items if i.action == "blocked" or i.result.startswith("error")]
     if blocked:
         return EXIT_FAILED
-    # In plan mode, remaining drift is a non-zero exit so a scheduled run can alert.
+    # plan 모드에서는 불일치가 남아 있으면 0이 아닌 코드로 끝내, 예약 실행이 알릴 수 있게 한다.
     if not args.apply and plan.changes:
         return EXIT_FAILED
     return EXIT_OK

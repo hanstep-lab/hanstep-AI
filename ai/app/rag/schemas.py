@@ -1,7 +1,7 @@
-"""Confirmed MongoDB contract for ``shinhan_rag.visa_policy_chunks``.
+"""``shinhan_rag.visa_policy_chunks``의 확정된 MongoDB 계약.
 
-Field names and BSON types follow specs/rag/decisions.md section 1. Do not rename fields or
-add new persisted fields here without a contract change.
+필드 이름과 BSON 타입은 specs/rag/decisions.md 1절을 따른다. 계약 변경 없이 여기서
+필드 이름을 바꾸거나 새 저장 필드를 추가하지 않는다.
 """
 
 from __future__ import annotations
@@ -23,7 +23,8 @@ INT64_MIN, INT64_MAX = -(2**63), 2**63 - 1
 
 ReviewStatus = Literal["pending", "approved", "rejected"]
 REVIEW_STATUSES: tuple[str, ...] = ("pending", "approved", "rejected")
-# Lower-cased MySQL policy_documents.source_type (LAW/ADMIN_RULE/NOTICE/GUIDE/SCORE_TABLE).
+# 소문자로 바꾼 MySQL policy_documents.source_type
+# (LAW/ADMIN_RULE/NOTICE/GUIDE/SCORE_TABLE).
 SourceType = Literal["law", "admin_rule", "notice", "guide", "score_table"]
 SOURCE_TYPES: tuple[str, ...] = ("law", "admin_rule", "notice", "guide", "score_table")
 
@@ -33,22 +34,22 @@ UNIQUE_INDEX_KEYS: list[tuple[str, int]] = [
     ("chunk_index", 1),
     ("embedding_model", 1),
 ]
-# Name from the RAG design spec v1.0; ensure_unique_index matches existing indexes by keys.
+# RAG 설계 명세 v1.0의 이름. ensure_unique_index는 기존 인덱스를 키로 대조한다.
 UNIQUE_INDEX_NAME = "ux_policy_version_chunk_model"
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 def utc_now() -> datetime:
-    # BSON Date has millisecond precision; truncate so round-trips compare equal.
+    # BSON Date는 밀리초 정밀도다. 왕복 후에도 같게 비교되도록 잘라낸다.
     now = datetime.now(UTC)
     return now.replace(microsecond=now.microsecond // 1000 * 1000)
 
 
 def validate_embedding(vector: Any, dimensions: int = EMBEDDING_DIMENSIONS) -> list[float]:
-    """Return the vector as floats or raise ``ValueError``.
+    """벡터를 float 목록으로 반환하거나 ``ValueError``를 발생시킨다.
 
-    Rejects bools, NaN/Infinity, wrong lengths, empty and zero vectors.
+    bool, NaN/Infinity, 잘못된 길이, 빈 벡터와 영벡터는 거부한다.
     """
     if not isinstance(vector, list | tuple):
         raise ValueError("embedding must be a list of numbers")
@@ -74,7 +75,7 @@ def _require_text(value: str, name: str) -> str:
 
 
 class ChunkRecord(BaseModel):
-    """One chunk document as stored in MongoDB."""
+    """MongoDB에 저장되는 청크 문서 하나."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True, frozen=True)
 
@@ -100,7 +101,7 @@ class ChunkRecord(BaseModel):
     section_title: str | None = None
     effective_from: datetime | None = None
     effective_to: datetime | None = None
-    # Publication date (MySQL published_on), only when confirmed from the official source.
+    # 발행일(MySQL published_on). 공식 출처에서 확인된 경우에만 넣는다.
     issued_at: datetime | None = None
 
     @field_validator("policy_document_id", "chunk_index", "page_number", mode="before")
@@ -153,7 +154,7 @@ class ChunkRecord(BaseModel):
         if value is None:
             return None
         if value.tzinfo is None:
-            # PyMongo returns naive UTC datetimes unless tz_aware=True.
+            # PyMongo는 tz_aware=True가 아니면 naive UTC datetime을 반환한다.
             return value.replace(tzinfo=UTC)
         return value.astimezone(UTC)
 
@@ -166,7 +167,7 @@ class ChunkRecord(BaseModel):
         return self
 
     def to_bson(self) -> dict[str, Any]:
-        """Return a document with explicit BSON types (Int64 id, Int32 ints, Date, ObjectId)."""
+        """명시적인 BSON 타입(Int64 id, Int32 정수, Date, ObjectId)으로 된 문서를 반환한다."""
         doc: dict[str, Any] = {
             "policy_document_id": Int64(self.policy_document_id),
             "document_version": self.document_version,
@@ -188,7 +189,7 @@ class ChunkRecord(BaseModel):
         }
         if self.id is not None:
             doc["_id"] = self.id
-        # Optional fields are omitted, never stored as null.
+        # 선택 필드는 null로 저장하지 않고 생략한다.
         for name in ("page_number", "section_title", "effective_from", "effective_to", "issued_at"):
             value = getattr(self, name)
             if value is not None:
@@ -201,9 +202,9 @@ class ChunkRecord(BaseModel):
 
 
 def json_schema_validator(dimensions: int = EMBEDDING_DIMENSIONS) -> dict[str, Any]:
-    """``$jsonSchema`` validator mirroring :class:`ChunkRecord`.
+    """:class:`ChunkRecord`를 그대로 반영한 ``$jsonSchema`` validator.
 
-    Finite-value checks for embeddings stay in the application (``validate_embedding``).
+    임베딩의 유한값 검사는 애플리케이션(``validate_embedding``)에 남겨 둔다.
     """
     required = [
         "_id",
@@ -260,7 +261,7 @@ def json_schema_validator(dimensions: int = EMBEDDING_DIMENSIONS) -> dict[str, A
                 "effective_to": {"bsonType": "date"},
                 "issued_at": {"bsonType": "date"},
             },
-            # is_active=true requires review_status=approved (the reverse is not enforced).
+            # is_active=true면 review_status=approved여야 한다(반대 방향은 강제하지 않는다).
             "anyOf": [
                 {"properties": {"is_active": {"enum": [False]}}},
                 {"properties": {"review_status": {"enum": ["approved"]}}},

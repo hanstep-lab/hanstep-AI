@@ -1,4 +1,4 @@
-"""Request checks (rule 1), duplicate ids (rule 2) and excluded transactions (rule 3)."""
+"""요청 검사(규칙 1), 중복 id(규칙 2), 제외 거래(규칙 3)."""
 
 from __future__ import annotations
 
@@ -23,12 +23,14 @@ EXCLUDED_KINDS = frozenset(
 
 @dataclass(frozen=True)
 class FieldError:
+    """요청 검사 오류 하나: 필드 경로와 이유."""
+
     field: str
     reason: str
 
 
 class FinanceValidationError(ValueError):
-    """Rule 1 violation. Carries field paths and reasons only, never submitted values."""
+    """규칙 1 위반. 필드 경로와 이유만 담고, 제출된 값은 절대 담지 않는다."""
 
     def __init__(self, errors: list[FieldError]) -> None:
         super().__init__("invalid finance analysis request")
@@ -37,6 +39,8 @@ class FinanceValidationError(ValueError):
 
 @dataclass(frozen=True)
 class Exclusion:
+    """집계에서 뺀 거래 한 건: 거래 id, 이유, 금액."""
+
     transaction_id: int
     reason: str
     amount: int
@@ -44,6 +48,8 @@ class Exclusion:
 
 @dataclass
 class Normalized:
+    """정규화 결과: 집계할 거래와 제외된 거래."""
+
     kept: list[TransactionIn] = field(default_factory=list)
     excluded: list[Exclusion] = field(default_factory=list)
 
@@ -82,7 +88,7 @@ def exclusion_reason(tx: TransactionIn) -> str | None:
 
 
 def normalize(request: FinanceAnalyzeRequest) -> Normalized:
-    """Validate, then split transactions into kept ones and exclusions with reasons."""
+    """검사한 뒤 거래를 집계할 거래와 이유가 붙은 제외 거래로 나눈다."""
     validate(request)
     result = Normalized()
     seen: set[int] = set()

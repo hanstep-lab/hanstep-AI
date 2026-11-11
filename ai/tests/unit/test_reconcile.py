@@ -21,7 +21,7 @@ def _rec(status: Any, searchable: bool = False) -> PolicyDocumentRecord:
 @pytest.mark.parametrize(
     ("record", "state", "verify_error", "expected"),
     [
-        # approved + searchable
+        # 승인 + 검색 가능
         (_rec("APPROVED", True), MongoState(), None, "not_ingested"),
         (_rec("APPROVED", True), MongoState(3, 0, frozenset({"pending"})), None, "activate"),
         (_rec("APPROVED", True), MongoState(3, 3, frozenset({"approved"})), None, "ok"),
@@ -32,7 +32,7 @@ def _rec(status: Any, searchable: bool = False) -> PolicyDocumentRecord:
             "hash differs",
             "blocked",
         ),
-        # not searchable states
+        # 검색 불가 상태
         (_rec("RETIRED"), MongoState(3, 3, frozenset({"approved"})), None, "deactivate"),
         (_rec("DRAFT"), MongoState(3, 0, frozenset({"pending"})), None, "ok"),
         (_rec("APPROVED", False), MongoState(3, 0, frozenset({"pending"})), None, "update"),
@@ -77,7 +77,7 @@ def test_load_snapshot_parses_camel_case(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "bad",
     [
-        {**DOC, "reviewStatus": "approved"},  # MySQL ENUM values only
+        {**DOC, "reviewStatus": "approved"},  # MySQL ENUM 값만 허용
         {**DOC, "contentHash": "xyz"},
         {**DOC, "extra": 1},
         {k: v for k, v in DOC.items() if k != "searchable"},

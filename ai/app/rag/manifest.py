@@ -1,7 +1,7 @@
-"""Pipeline input manifest (``specs/rag/sources.json``).
+"""파이프라인 입력 매니페스트(``specs/rag/sources.json``).
 
-The manifest is an input contract for this pipeline, not a MongoDB schema. Unverified values
-stay ``null`` and :func:`preflight` blocks loading until they are confirmed.
+매니페스트는 MongoDB 스키마가 아니라 이 파이프라인의 입력 계약이다. 검증되지 않은 값은
+``null``로 두며, 확인될 때까지 :func:`preflight`가 적재를 막는다.
 """
 
 from __future__ import annotations
@@ -19,12 +19,12 @@ from app.rag.sources import DiscoveredFile, inspect_file
 
 Domain = Literal["visa", "finance"]
 
-# Hosts that hold copies, not official sources; never accept them as ``source_url``.
+# 공식 출처가 아니라 사본을 보관하는 호스트. ``source_url``로 절대 받지 않는다.
 NON_OFFICIAL_HOSTS = ("github.com", "githubusercontent.com", "r2.cloudflarestorage.com", "r2.dev")
 
 
 class DerivedInput(BaseModel):
-    """A human or tool generated derivative (e.g. HWP -> PDF) used for text extraction."""
+    """텍스트 추출에 쓰는, 사람이나 도구가 만든 파생본(예: HWP -> PDF)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -37,42 +37,49 @@ class DerivedInput(BaseModel):
 
 
 class Review(BaseModel):
+    """공식 출처 검토 여부와 검토자·검토일 기록."""
+
     model_config = ConfigDict(extra="forbid")
 
     verified: bool = False
     verified_by: str | None = None
     verified_at: date | None = None
-    # Where unverified values came from and what still needs checking.
+    # 미검증 값의 출처와 아직 확인이 필요한 사항.
     note: str | None = None
 
 
 class Relations(BaseModel):
+    """이 파일과 다른 원본 파일 사이의 파생·대체 관계."""
+
     model_config = ConfigDict(extra="forbid")
 
-    # Relative path of the original this file was derived from (e.g. HWP original of a PDF).
+    # 이 파일이 파생된 원본의 상대 경로(예: PDF의 HWP 원본).
     derived_from: str | None = None
     supersedes: str | None = None
     note: str | None = None
 
 
 class SourceEntry(BaseModel):
+    """매니페스트에 등록된 원본 파일 하나와 그 메타데이터."""
+
     model_config = ConfigDict(extra="forbid")
 
     path: str
-    # File name as published by the source, kept for tracing (the stored path is normalized).
+    # 출처가 게시한 그대로의 파일명. 추적용으로 보관한다(저장 경로는 정규화된다).
     original_filename: str | None = None
     domain: Domain
     classification_hint: str | None = None
     sha256: str
     title: str | None = None
     source_url: str | None = None
-    # Direct file URL whose bytes were hash-checked against this file (provenance, re-checks).
+    # 내려받은 바이트를 이 파일과 해시로 대조한 직접 파일 URL(출처 증명, 재확인용).
     download_url: str | None = None
     source_org: str | None = None
     visa_types: list[str] | None = None
-    # MySQL policy_documents.source_type, lower-cased (law/admin_rule/notice/guide/score_table).
+    # 소문자로 바꾼 MySQL policy_documents.source_type
+    # (law/admin_rule/notice/guide/score_table).
     source_type: SourceType | None = None
-    # MySQL published_on (발행일), only when stated in the official source.
+    # MySQL published_on(발행일). 공식 출처에 명시된 경우에만 넣는다.
     issued_on: date | None = None
     policy_document_id: int | None = Field(default=None, ge=1)
     document_version: str | None = None
@@ -84,6 +91,8 @@ class SourceEntry(BaseModel):
 
 
 class Manifest(BaseModel):
+    """데이터 루트와 원본 항목 목록을 담은 매니페스트 전체."""
+
     model_config = ConfigDict(extra="forbid")
 
     manifest_version: Literal[1] = 1
@@ -107,10 +116,10 @@ def is_official_url(url: str) -> bool:
 
 
 def preflight(entry: SourceEntry, root: Path) -> tuple[DiscoveredFile, list[str]]:
-    """Check one entry against disk and the confirmed contract.
+    """항목 하나를 디스크와 확정된 계약에 대조해 검사한다.
 
-    Returns the file inspection result and a list of blockers. An empty list means the entry
-    may be loaded (still subject to the MySQL gateway check at apply time).
+    파일 검사 결과와 차단 사유 목록을 반환한다. 목록이 비어 있으면 적재해도 된다는
+    뜻이다(단, apply 시점의 MySQL gateway 검사는 여전히 거친다).
     """
     found = inspect_file(root, entry.path)
     blockers: list[str] = []
@@ -127,7 +136,7 @@ def preflight(entry: SourceEntry, root: Path) -> tuple[DiscoveredFile, list[str]
         blockers.append("official source not reviewed (review.verified=false)")
     required = ["title", "source_org", "document_version"]
     if entry.domain == "visa":
-        # policy_documents.source_type; finance uses product_documents.doc_kind instead.
+        # policy_documents.source_type. finance는 대신 product_documents.doc_kind를 쓴다.
         required.append("source_type")
     for name in required:
         if not getattr(entry, name):

@@ -1,4 +1,4 @@
-"""Application settings loaded from ``ai/.env`` and the process environment."""
+"""``ai/.env``와 프로세스 환경 변수에서 읽는 애플리케이션 설정."""
 
 from __future__ import annotations
 
@@ -19,13 +19,15 @@ PLACEHOLDER_MARKERS = ("your-", "CHANGE_ME", "example.", "username:password")
 
 
 def is_placeholder(value: str | None) -> bool:
-    """True when a value is empty or still the ``.env.example`` placeholder."""
+    """값이 비었거나 아직 ``.env.example``의 예시값이면 True."""
     if not value:
         return True
     return any(marker in value for marker in PLACEHOLDER_MARKERS)
 
 
 class Settings(BaseSettings):
+    """AI 서버 설정. 외부 연동별로 설정을 마쳤는지도 판정한다."""
+
     model_config = SettingsConfigDict(
         env_file=AI_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
     )
@@ -39,17 +41,17 @@ class Settings(BaseSettings):
     mongo_vector_index: str = "rag_vector_index"
 
     embedding_model: str = "BAAI/bge-m3"
-    # Pin a Hugging Face commit for reproducible runs; empty means the hub default branch.
+    # 재현 가능한 실행을 위해 Hugging Face 커밋을 고정한다. 비우면 hub 기본 브랜치를 쓴다.
     embedding_model_revision: str = ""
     embedding_device: str = "cpu"
     embedding_batch_size: int = Field(default=8, ge=1, le=256)
     load_model_on_startup: bool = False
 
-    # Outbound AI -> Spring calls.
+    # AI -> Spring 발신 호출.
     spring_internal_api_url: str = ""
     spring_internal_api_key: SecretStr = SecretStr("")
-    # Inbound BE -> AI calls under /internal/v1. Kept separate from the outbound key so one
-    # leaked secret does not open both directions.
+    # /internal/v1 아래의 BE -> AI 수신 호출. 비밀값 하나가 유출돼도 양방향이 다 열리지
+    # 않도록 발신 키와 따로 둔다.
     ai_internal_api_token: SecretStr = SecretStr("")
     internal_token_header: str = "X-Internal-Token"
 
@@ -57,11 +59,11 @@ class Settings(BaseSettings):
     r2_access_key_id: SecretStr = SecretStr("")
     r2_secret_access_key: SecretStr = SecretStr("")
     r2_region: str = "auto"
-    # Visa policy originals / financial product descriptions & terms / ARC images (private).
+    # 비자 정책 원본 / 금융상품 설명서·약관 / ARC 이미지(비공개).
     r2_policy_bucket: str = ""
     r2_product_bucket: str = ""
     r2_arc_bucket: str = ""
-    # Proposal only; confirm the object key contract before production use.
+    # 제안값일 뿐이다. 운영에 쓰기 전에 객체 키 계약을 확정한다.
     r2_policy_prefix: str = "policy-sources"
 
     anthropic_api_key: SecretStr = SecretStr("")
@@ -94,7 +96,7 @@ class Settings(BaseSettings):
         return self.r2_credentials_configured() and not is_placeholder(self.r2_policy_bucket)
 
     def r2_bucket_for(self, domain: str) -> str:
-        """Source bucket per RAG domain. The ARC bucket is never a RAG source."""
+        """RAG 도메인별 원본 버킷. ARC 버킷은 절대 RAG 원본이 되지 않는다."""
         bucket = {"visa": self.r2_policy_bucket, "finance": self.r2_product_bucket}.get(domain, "")
         if is_placeholder(bucket):
             return ""
@@ -105,7 +107,8 @@ class Settings(BaseSettings):
     @field_validator("embedding_model_revision")
     @classmethod
     def _revision_is_commit_or_branch(cls, value: str) -> str:
-        # A pasted password or typo here would silently pull an unknown model revision.
+        # 여기에 비밀번호를 잘못 붙여 넣거나 오타가 나면 알 수 없는 모델 revision을 조용히
+        # 받아 온다.
         if value and not re.fullmatch(r"[0-9a-f]{7,40}|main", value):
             raise ValueError("EMBEDDING_MODEL_REVISION must be a commit hash, 'main' or empty")
         return value
@@ -113,7 +116,8 @@ class Settings(BaseSettings):
     @field_validator("r2_endpoint_url")
     @classmethod
     def _endpoint_without_path(cls, value: str) -> str:
-        # The dashboard shows per-bucket URLs (".../<bucket>"); boto3 needs the account endpoint.
+        # 대시보드는 버킷별 URL(".../<bucket>")을 보여 주지만 boto3에는 계정 엔드포인트가
+        # 필요하다.
         parsed = urlparse(value)
         if value and parsed.path not in ("", "/"):
             raise ValueError(
@@ -152,6 +156,6 @@ def get_settings() -> Settings:
 
 def configure_logging(level: str = "INFO") -> None:
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    # httpx logs full request URLs at INFO, which would leak query-string credentials (OC).
+    # httpx는 INFO에서 요청 URL 전체를 남기므로 쿼리 문자열의 인증값(OC)이 새어 나간다.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)

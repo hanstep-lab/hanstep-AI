@@ -1,7 +1,7 @@
-"""Retrieval evaluation: Recall@5, MRR@5 per language, leakage checks and latency.
+"""검색 평가: 언어별 Recall@5, MRR@5, 누출 검사, 지연 시간.
 
-Gold answers must be written by a person from the verified Korean source text. Cases with
-``status != "ready"`` are reported as blocked, never as passed.
+정답(gold)은 검증된 한국어 원문을 보고 사람이 작성해야 한다. ``status != "ready"``인
+케이스는 blocked로 보고하며, 절대 통과로 보고하지 않는다.
 
     uv run python scripts/evaluate_rag.py --cases specs/rag/evaluation.json \
         --output artifacts/rag/evaluation.json
@@ -28,7 +28,7 @@ from app.rag.retrieval import SearchService, SearchUnavailableError
 def score_case(
     hits: list[tuple[int, str, int]], gold: list[dict[str, Any]], k: int
 ) -> tuple[float, float]:
-    """Recall@k (any gold chunk in top k) and reciprocal rank of the first gold hit."""
+    """Recall@k(상위 k개 안에 정답 청크가 하나라도 있는지)와 첫 정답의 역순위(reciprocal rank)."""
     gold_keys = {(g["policy_document_id"], g["document_version"], g["chunk_index"]) for g in gold}
     for rank, hit in enumerate(hits[:k], start=1):
         if hit in gold_keys:

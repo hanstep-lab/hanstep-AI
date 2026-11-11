@@ -1,4 +1,4 @@
-"""HWPX (OWPML ZIP/XML) extraction with ZIP bomb, path traversal and XXE protection."""
+"""ZIP bomb, 경로 순회, XXE를 막는 HWPX(OWPML ZIP/XML) 추출."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def _check_archive(archive: zipfile.ZipFile) -> str | None:
 
 
 def _read_limited(archive: zipfile.ZipFile, name: str) -> bytes:
-    # Declared sizes can lie; cap the bytes actually inflated.
+    # 선언된 크기는 거짓일 수 있으므로 실제로 압축 해제한 바이트 수를 제한한다.
     with archive.open(name) as handle:
         data = handle.read(MAX_MEMBER_UNCOMPRESSED + 1)
     if len(data) > MAX_MEMBER_UNCOMPRESSED:
@@ -49,7 +49,7 @@ def _read_limited(archive: zipfile.ZipFile, name: str) -> bytes:
 
 
 def _paragraph_text(paragraph: Element) -> str:
-    """Text of a paragraph's own runs, excluding nested table cells."""
+    """중첩된 표 셀을 제외한, 문단 자체 run의 텍스트."""
     parts: list[str] = []
     for run in paragraph.findall(f"{HP}run"):
         for child in run:
@@ -118,6 +118,6 @@ def extract_hwpx(data: bytes) -> ExtractionReport:
     report.garbled_ratio = garbled_ratio(joined)
     if not report.blocks:
         report.status, report.reason = "failed", "HWPX contains no text"
-    # HWPX stores no rendered page layout, so page_number stays unknown.
+    # HWPX는 렌더링된 페이지 레이아웃을 저장하지 않으므로 page_number는 알 수 없다.
     report.page_numbers_reliable = False
     return report

@@ -1,9 +1,8 @@
-"""Boundary to the MySQL source of truth (``policy_documents``, ``ai_jobs``).
+"""기준 데이터인 MySQL(``policy_documents``, ``ai_jobs``)과의 경계.
 
-The backend contract (Spring internal API paths, DTOs, auth header, status enums) is not
-confirmed. :class:`UnconfiguredPolicyGateway` fails closed with the exact missing items;
-:class:`InMemoryPolicyGateway` exists for tests only. Do not add an HTTP implementation with
-guessed URLs.
+백엔드 계약(Spring 내부 API 경로, DTO, 인증 헤더, 상태 enum)은 아직 확정되지 않았다.
+:class:`UnconfiguredPolicyGateway`는 빠진 항목을 정확히 알리며 차단한다(fail-closed).
+:class:`InMemoryPolicyGateway`는 테스트 전용이다. 추측한 URL로 HTTP 구현을 추가하지 않는다.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from typing import Any, Literal, Protocol
 
 from app.rag.errors import ContractBlockedError
 
-# MySQL policy_documents.review_status (BE schema, API spec: ENUM values as-is).
+# MySQL policy_documents.review_status(BE 스키마, API 명세: ENUM 값 그대로).
 MysqlReviewStatus = Literal["DRAFT", "APPROVED", "NEEDS_REVIEW", "RETIRED"]
 
 MISSING_POLICY_CONTRACT = (
@@ -30,24 +29,26 @@ MISSING_JOB_CONTRACT = (
 
 @dataclass(frozen=True)
 class PolicyDocumentRecord:
-    """One ``policy_documents`` row. Each version is its own row (``content_hash`` is unique)."""
+    """``policy_documents`` 한 행. 버전마다 따로 행이 있다(``content_hash``는 유일하다)."""
 
     policy_document_id: int
     policy_version: str
     content_hash: str
     review_status: MysqlReviewStatus
-    # BE's verdict: APPROVED and inside the effective period, by BE rules (R1 search-eligibility).
+    # BE 판정값: BE 규칙에 따라 APPROVED이면서 적용 기간 안인지(R1 search-eligibility).
     searchable: bool = False
     object_key: str | None = None
 
 
 class PolicyDocumentGateway(Protocol):
+    """MySQL ``policy_documents`` 경계. 적재는 버전 확인에, 검색은 승인 확인에 쓴다."""
+
     def get_version(self, policy_document_id: int, document_version: str) -> PolicyDocumentRecord:
-        """Raise ``LookupError`` when the version is not registered."""
+        """등록되지 않은 버전이면 ``LookupError``를 던진다."""
         ...
 
     def current_versions(self, policy_document_ids: Iterable[int]) -> dict[int, str]:
-        """Searchable version per document (absent = not searchable). Must raise on failure."""
+        """문서별 검색 가능 버전(없으면 검색 불가). 실패하면 반드시 예외를 던진다."""
         ...
 
     def record_r2_object(
@@ -56,10 +57,14 @@ class PolicyDocumentGateway(Protocol):
 
 
 class JobReporter(Protocol):
+    """MySQL ``ai_jobs`` 작업 상태 보고 인터페이스."""
+
     def report(self, job_id: str, payload: dict[str, object]) -> None: ...
 
 
 class UnconfiguredPolicyGateway:
+    """계약 미확정 시 쓰는 기본 게이트웨이. 모든 호출에서 ContractBlockedError를 낸다."""
+
     def get_version(self, policy_document_id: int, document_version: str) -> PolicyDocumentRecord:
         raise ContractBlockedError(MISSING_POLICY_CONTRACT)
 
@@ -73,11 +78,11 @@ class UnconfiguredPolicyGateway:
 
 
 class ManifestPolicyGateway:
-    """Phase-1 gateway for script loading (BE spec INT-13 note: "1차는 스크립트로 직접 적재").
+    """스크립트 적재용 1차 게이트웨이(BE 명세 INT-13 비고: "1차는 스크립트로 직접 적재").
 
-    Trusts ``policy_document_id`` / ``document_version`` / ``sha256`` that a person copied from
-    MySQL into the manifest (``review.verified=true``). It cannot answer search-time approval
-    checks, so ``current_versions`` stays blocked and search keeps failing closed.
+    사람이 MySQL에서 manifest로 옮겨 적은 ``policy_document_id`` / ``document_version`` /
+    ``sha256``을 믿는다(``review.verified=true``). 검색 시점 승인 확인에는 답할 수 없으므로
+    ``current_versions``는 막혀 있고 검색은 계속 차단된다(fail-closed).
     """
 
     def __init__(self, entries: Iterable[Any]) -> None:
@@ -109,18 +114,20 @@ class ManifestPolicyGateway:
     def record_r2_object(
         self, policy_document_id: int, document_version: str, object_key: str
     ) -> None:
-        # Reported to Spring with INT-13 after the chunks are stored.
+        # 청크를 저장한 뒤 INT-13으로 Spring에 보고한다.
         self.r2_keys[(policy_document_id, document_version)] = object_key
 
 
 class UnconfiguredJobReporter:
+    """계약 미확정 시 쓰는 기본 작업 보고기. 항상 ContractBlockedError를 낸다."""
+
     def report(self, job_id: str, payload: dict[str, object]) -> None:
         raise ContractBlockedError(MISSING_JOB_CONTRACT)
 
 
 @dataclass
 class InMemoryPolicyGateway:
-    """Test double. Keys are (policy_document_id, policy_version)."""
+    """테스트 대역. 키는 (policy_document_id, policy_version)이다."""
 
     records: dict[tuple[int, str], PolicyDocumentRecord] = field(default_factory=dict)
     r2_keys: dict[tuple[int, str], str] = field(default_factory=dict)
@@ -157,6 +164,8 @@ class InMemoryPolicyGateway:
 
 @dataclass
 class InMemoryJobReporter:
+    """테스트용 작업 보고기. 받은 보고를 순서대로 쌓는다."""
+
     reports: list[tuple[str, dict[str, object]]] = field(default_factory=list)
 
     def report(self, job_id: str, payload: dict[str, object]) -> None:

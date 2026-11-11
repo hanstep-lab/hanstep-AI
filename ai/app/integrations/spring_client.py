@@ -1,9 +1,8 @@
-"""AI/Worker -> Spring internal API client (BE명세서 INT-08, INT-10, INT-13).
+"""AI/Worker -> Spring 내부 API 클라이언트(BE명세서 INT-08, INT-10, INT-13).
 
-Paths come from the BE draft spec; request bodies are defined on the AI side (x-role: 정하기)
-and written back into that spec. Every report is safe to repeat: Spring is
-expected to answer a duplicate with the same 2xx, so transport errors and 5xx are retried a
-bounded number of times.
+경로는 BE 명세 초안을 따른다. 요청 본문은 AI 쪽에서 정하고(x-role: 정하기) 그 명세에
+다시 반영한다. 모든 보고는 반복해도 안전하다. Spring은 중복 요청에 같은 2xx로 답해야 하므로
+전송 오류와 5xx는 정해진 횟수까지만 재시도한다.
 """
 
 from __future__ import annotations
@@ -23,16 +22,16 @@ logger = logging.getLogger(__name__)
 
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
-# Failure codes a policy-ingest worker reports through INT-10.
+# 정책 적재 워커가 INT-10으로 보고하는 실패 코드.
 PolicyFailureCode = Literal[
-    "SOURCE_FETCH_FAILED",  # original not downloadable from R2/provider (retryable)
-    "HASH_MISMATCH",  # bytes differ from MySQL content_hash
-    "EXTRACTION_FAILED",  # text could not be extracted
-    "NEEDS_OCR",  # scanned PDF
-    "NEEDS_CONVERSION",  # format not supported directly
-    "VERSION_CONFLICT",  # same version stored with another hash / different chunks
-    "EMBEDDING_FAILED",  # model error (retryable)
-    "VECTOR_STORE_FAILED",  # MongoDB write/verify failed (retryable)
+    "SOURCE_FETCH_FAILED",  # R2/제공처에서 원본을 내려받지 못함(재시도 가능)
+    "HASH_MISMATCH",  # 바이트가 MySQL content_hash와 다름
+    "EXTRACTION_FAILED",  # 텍스트를 추출하지 못함
+    "NEEDS_OCR",  # 스캔 PDF
+    "NEEDS_CONVERSION",  # 직접 지원하지 않는 형식
+    "VERSION_CONFLICT",  # 같은 버전이 다른 해시/다른 청크로 저장되어 있음
+    "EMBEDDING_FAILED",  # 모델 오류(재시도 가능)
+    "VECTOR_STORE_FAILED",  # MongoDB 쓰기/검증 실패(재시도 가능)
 ]
 RETRYABLE_FAILURES: frozenset[str] = frozenset(
     {"SOURCE_FETCH_FAILED", "EMBEDDING_FAILED", "VECTOR_STORE_FAILED"}
@@ -40,6 +39,8 @@ RETRYABLE_FAILURES: frozenset[str] = frozenset(
 
 
 class SpringApiError(Exception):
+    """Spring 내부 API 호출 실패. HTTP 상태와 Spring 오류 코드를 담는다."""
+
     def __init__(self, status: int, code: str, message: str) -> None:
         super().__init__(f"Spring {status} {code}: {message}")
         self.status = status
@@ -48,7 +49,7 @@ class SpringApiError(Exception):
 
 @dataclass(frozen=True)
 class PolicyIngestedReport:
-    """INT-13 body. Field names map to policy_documents columns (see spec doc)."""
+    """INT-13 본문. 필드 이름은 policy_documents 컬럼에 대응한다(명세 문서 참고)."""
 
     document_version: str
     content_hash: str
@@ -73,6 +74,8 @@ class PolicyIngestedReport:
 
 
 class SpringInternalClient:
+    """작업 시작·실패(INT-08, INT-10)와 정책 적재 완료(INT-13)를 Spring에 보고한다."""
+
     def __init__(
         self,
         *,
@@ -134,7 +137,7 @@ class SpringInternalClient:
         try:
             self._post(f"/internal/v1/ai/jobs/{job_id}/started", body, request_id)
         except SpringApiError as exc:
-            # A redelivered message for a job already started/finished is not an error here.
+            # 이미 시작했거나 끝난 작업의 메시지가 다시 전달된 것은 여기서 오류가 아니다.
             if exc.status == 409:
                 logger.info("job %s already started or finished", job_id)
                 return
@@ -151,7 +154,7 @@ class SpringInternalClient:
     ) -> None:
         body = {
             "errorCode": error_code,
-            # Summary only: no personal data, no source text (API spec 0.3).
+            # 요약만 보낸다. 개인정보와 원문은 넣지 않는다(API 명세 0.3).
             "message": message[:500],
             "retryable": error_code in RETRYABLE_FAILURES,
         }

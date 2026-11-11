@@ -1,12 +1,12 @@
-"""Ingest manually supplied documents listed in the manifest.
+"""manifest에 나열된, 수동으로 받은 문서를 적재한다.
 
---dry-run: preflight, extract and chunk only. No MongoDB/MySQL/R2 writes, no model download,
-           no network. Reports what --apply would block on.
---apply:   phase 1 (BE spec INT-13 "1차는 스크립트로 직접 적재"): manifest entries must carry the
-           policy_document_id / document_version / sha256 copied from MySQL and be verified.
-           Needs R2, MongoDB and the model. New chunks are written as pending/inactive; this
-           command never approves or activates anything.
---report-ingested: after --apply, POST each stored document to Spring INT-13.
+--dry-run: 사전 점검, 추출, 청킹만 한다. MongoDB/MySQL/R2 쓰기, 모델 다운로드, 네트워크
+           호출이 없다. --apply가 어디서 막힐지 보고한다.
+--apply:   1단계(BE 명세 INT-13 "1차는 스크립트로 직접 적재"): manifest 항목에 MySQL에서
+           복사한 policy_document_id / document_version / sha256이 있고 검증돼 있어야 한다.
+           R2, MongoDB, 모델이 필요하다. 새 청크는 pending/inactive로 쓴다. 이 명령은
+           어떤 것도 승인하거나 활성화하지 않는다.
+--report-ingested: --apply 뒤에 저장된 문서마다 Spring INT-13으로 POST한다.
 
     uv run python scripts/ingest_rag_documents.py --manifest specs/rag/sources.json --dry-run
     uv run python scripts/ingest_rag_documents.py --manifest specs/rag/sources.json \
@@ -121,7 +121,7 @@ def main() -> int:
         counter = local or approx_token_count
         tokenizer_id = f"{settings.embedding_model}@local-cache" if local else "approx-chars/1.6"
 
-    # Phase 1 (BE spec INT-13): IDs/versions copied from MySQL into verified manifest entries.
+    # 1단계(BE 명세 INT-13): ID/버전은 MySQL에서 복사해 검증된 manifest 항목에 들어 있다.
     gateway = ManifestPolicyGateway(manifest.sources) if args.apply else UnconfiguredPolicyGateway()
     deps = IngestionDeps(
         repository=repository,
@@ -137,7 +137,7 @@ def main() -> int:
     )
 
     def run_one(entry: SourceEntry) -> SourceResult:
-        # One broken document must not abort the batch or the run report.
+        # 문서 하나가 깨져도 배치 전체나 실행 보고서가 중단되면 안 된다.
         try:
             return process_entry(entry, root, deps, apply=args.apply)
         except Exception as exc:  # noqa: BLE001
@@ -173,7 +173,8 @@ def main() -> int:
                     spring.policy_ingested(entry.policy_document_id, body, request_id=run_id)
                     result.spring_report = "reported"
                 except SpringApiError as exc:
-                    # Chunks stay stored; a rerun is a no-op load and retries the report.
+                    # 청크는 저장된 채로 남는다. 다시 실행하면 적재는 할 일이 없고
+                    # 보고만 재시도한다.
                     result.spring_report = f"error: {exc}"
         finally:
             spring.close()

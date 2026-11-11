@@ -1,4 +1,4 @@
-"""Safe discovery of manually supplied source files under the data root."""
+"""데이터 루트 아래에 수동으로 넣은 소스 파일을 안전하게 찾는다."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def sniff_kind(head: bytes) -> FileKind:
-    """Detect the real container format from leading bytes, not the extension."""
+    """확장자가 아니라 앞부분 바이트로 실제 컨테이너 형식을 판별한다."""
     if head.startswith(b"%PDF-"):
         return "pdf"
     if head.startswith(_OLE_MAGIC):
@@ -32,9 +32,9 @@ def sniff_kind(head: bytes) -> FileKind:
 
 
 def resolve_inside(root: Path, relative: str) -> Path:
-    """Resolve ``relative`` under ``root`` and refuse anything that escapes it.
+    """``root`` 아래에서 ``relative``를 해석하고, 그 밖으로 벗어나는 경로는 거부한다.
 
-    Symlinks are resolved first, so a link pointing outside the root is rejected too.
+    심볼릭 링크를 먼저 해석하므로 루트 밖을 가리키는 링크도 거부된다.
     """
     if Path(relative).is_absolute():
         raise ValueError(f"absolute path not allowed: {relative}")
@@ -47,6 +47,8 @@ def resolve_inside(root: Path, relative: str) -> Path:
 
 @dataclass(frozen=True)
 class DiscoveredFile:
+    """소스 파일 하나의 검사 결과(상태, 형식, 크기, 해시)."""
+
     relative_path: str
     status: Literal["found", "excluded", "failed"]
     reason: str = ""
@@ -91,7 +93,7 @@ def inspect_file(root: Path, relative: str) -> DiscoveredFile:
 
 
 def discover(root: Path) -> list[DiscoveredFile]:
-    """Walk ``root`` (without following directory symlinks) and inspect every file."""
+    """``root``를 순회하며(디렉터리 심볼릭 링크는 따라가지 않음) 모든 파일을 검사한다."""
     root_resolved = root.resolve(strict=True)
     results: list[DiscoveredFile] = []
     for path in sorted(root_resolved.rglob("*")):

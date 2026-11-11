@@ -1,4 +1,4 @@
-"""Shared-token authentication for BE -> AI internal calls."""
+"""BE -> AI 내부 호출용 공유 토큰 인증."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 def require_internal_token(request: Request) -> None:
-    """Reject unless the configured header carries ``AI_INTERNAL_API_TOKEN``.
+    """설정한 헤더에 ``AI_INTERNAL_API_TOKEN`` 값이 없으면 거부한다.
 
-    Fails closed: with no (or a too-short/placeholder) token configured, every internal call
-    is rejected. Comparison is constant-time; the token is never logged.
+    fail-closed: 설정된 토큰이 없거나 너무 짧거나 예시값이면 모든 내부 호출을 거부한다.
+    비교는 상수 시간으로 하고, 토큰은 절대 로그에 남기지 않는다.
     """
     settings = request.app.state.rag.settings
     if not settings.internal_token_configured():

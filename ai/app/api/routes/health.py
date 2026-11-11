@@ -1,4 +1,4 @@
-"""Liveness and readiness. Readiness reports component state without secrets."""
+"""생존(liveness)과 준비(readiness) 확인. 준비 확인은 비밀값 없이 구성 요소 상태를 알린다."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ async def ready(request: Request) -> JSONResponse:
         checks["model"] = f"error:{state.errors['model']}"
     else:
         checks["model"] = getattr(state, "model_status", "not_loaded")
-    # Search verifies approval through the gateway; an unconfigured one makes every search 503.
+    # 검색은 게이트웨이로 승인을 확인한다. 게이트웨이가 미설정이면 모든 검색이 503이 된다.
     unconfigured = isinstance(state.gateway, UnconfiguredPolicyGateway)
     checks["policy_gateway"] = "blocked" if unconfigured else "configured"
     checks["internal_auth"] = (

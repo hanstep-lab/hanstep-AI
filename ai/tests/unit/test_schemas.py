@@ -23,7 +23,7 @@ def test_bson_round_trip_keeps_explicit_types() -> None:
     decoded = bson.decode(raw, codec_options=bson.CodecOptions(tz_aware=True))
 
     assert isinstance(doc["policy_document_id"], Int64)
-    # Type bytes in the encoded document: 0x12 = int64, 0x10 = int32, 0x09 = UTC datetime.
+    # 인코딩된 문서의 타입 바이트: 0x12 = int64, 0x10 = int32, 0x09 = UTC datetime.
     assert b"\x12policy_document_id\x00" in raw
     assert b"\x10chunk_index\x00" in raw
     assert b"\x10page_number\x00" in raw
@@ -75,7 +75,7 @@ def test_invalid_embeddings_rejected(vector: object) -> None:
         {"source_sha256": "abc"},
         {"visa_types": []},
         {"review_status": "APPROVED"},
-        {"source_type": "NOTICE"},  # stored lower-case
+        {"source_type": "NOTICE"},  # 소문자로 저장한다
         {"source_type": "faq"},
         {"policy_document_id": 0},
         {"policy_document_id": True},

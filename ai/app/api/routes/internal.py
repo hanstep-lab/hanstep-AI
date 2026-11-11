@@ -1,4 +1,4 @@
-"""``/internal/v1``: BE -> AI internal API. Every route here requires the internal token."""
+"""``/internal/v1``: BE -> AI 내부 API. 여기의 모든 경로는 내부 토큰이 필요하다."""
 
 from __future__ import annotations
 

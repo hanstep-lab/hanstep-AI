@@ -1,6 +1,6 @@
-"""Inventory the manual source folder: every file is found, excluded or failed, with reasons.
+"""수동 원본 폴더 점검: 모든 파일을 found/excluded/failed 중 하나로 이유와 함께 남긴다.
 
-Offline only: no database, R2, network or model download.
+오프라인 전용: 데이터베이스, R2, 네트워크, 모델 다운로드를 쓰지 않는다.
 
     uv run python scripts/inspect_rag_sources.py --root ../data/rag_documents \
         --output artifacts/rag/inventory.json

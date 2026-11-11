@@ -45,6 +45,8 @@ def _entry(**overrides: Any) -> SourceEntry:
 
 
 class Clock:
+    """호출할 때마다 1분씩 앞으로 가는 가짜 시계."""
+
     def __init__(self) -> None:
         self.now = datetime(2026, 11, 8, 1, 0, tzinfo=UTC)
 
@@ -100,7 +102,7 @@ def test_apply_loads_pending_then_rerun_is_noop_and_preserves_approval(
     stored = fake_repository.load_version(11, "2026-163", "BAAI/bge-m3")
     assert all(r.review_status == "pending" and not r.is_active for r in stored)
     assert all(r.source_type == "notice" for r in stored)
-    # issued_on 2026-03-05 is stored as KST midnight.
+    # issued_on 2026-03-05는 KST 자정으로 저장된다.
     assert stored[0].issued_at == datetime(2026, 3, 4, 15, 0, tzinfo=UTC)
     assert all(r.page_number is not None for r in stored)
     key = object_key("policy-sources", "visa", SHA, ".pdf")
@@ -112,7 +114,7 @@ def test_apply_loads_pending_then_rerun_is_noop_and_preserves_approval(
     calls_before = fake_embedder.embedded_texts
     second = process_entry(_entry(), DATA_ROOT, deps, apply=True)
     assert second.status == "skipped"
-    assert fake_embedder.embedded_texts == calls_before  # zero embedding calls
+    assert fake_embedder.embedded_texts == calls_before  # 임베딩 호출 0회
     after = fake_repository.load_version(11, "2026-163", "BAAI/bge-m3")
     assert all(r.review_status == "approved" and r.is_active for r in after)
     assert {r.chunk_index: r.created_at for r in after} == created

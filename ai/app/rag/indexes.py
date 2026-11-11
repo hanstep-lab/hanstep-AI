@@ -1,6 +1,6 @@
-"""Atlas Vector Search index: compare, create (explicitly), wait for queryable, smoke test.
+"""Atlas Vector Search 인덱스: 비교, (명시적) 생성, queryable 대기, 스모크 테스트.
 
-Never drops or rebuilds an index automatically.
+인덱스를 자동으로 삭제하거나 재구축하지 않는다.
 """
 
 from __future__ import annotations
@@ -41,6 +41,8 @@ def definitions_equal(current: dict[str, Any], expected: dict[str, Any]) -> bool
 
 @dataclass(frozen=True)
 class VectorIndexStatus:
+    """벡터 검색 인덱스의 정의 일치 상태와 queryable 여부."""
+
     state: IndexState
     name: str
     queryable: bool = False
@@ -95,7 +97,7 @@ def wait_until_queryable(
 def smoke_query(
     collection: Collection[dict[str, Any]], name: str, vector: list[float]
 ) -> list[dict[str, Any]]:
-    """Run a real $vectorSearch with the mandatory approval filter."""
+    """필수 승인 필터를 넣은 실제 $vectorSearch를 실행한다."""
     pipeline: list[dict[str, Any]] = [
         {
             "$vectorSearch": {

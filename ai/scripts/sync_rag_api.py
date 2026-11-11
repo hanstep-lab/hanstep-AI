@@ -1,10 +1,10 @@
-"""Collect official documents through provider APIs (first adapter: 법제처 law API).
+"""제공 기관 API로 공식 문서를 수집한다(첫 어댑터: 법제처 법령 API).
 
---dry-run:    validate the config and parse local fixtures; no network, no writes.
---fetch-only: call the provider read APIs only (needs LAW_API_OC); store responses under
-              artifacts/ for inspection; no MongoDB/MySQL/R2 writes.
---apply:      fetch -> MySQL registration -> R2 -> chunk/embed -> MongoDB pending -> verify.
-              Exits BLOCKED until the policy_documents/ai_jobs contracts are confirmed.
+--dry-run:    설정을 검증하고 로컬 fixture를 파싱한다. 네트워크 호출과 쓰기가 없다.
+--fetch-only: 제공 기관의 조회 API만 호출한다(LAW_API_OC 필요). 확인용으로 응답을
+              artifacts/ 아래에 저장한다. MongoDB/MySQL/R2 쓰기는 없다.
+--apply:      수집 -> MySQL 등록 -> R2 -> 청킹/임베딩 -> MongoDB pending -> 검증.
+              policy_documents/ai_jobs 계약이 확정될 때까지 BLOCKED로 끝난다.
 
     uv run python scripts/sync_rag_api.py --config specs/rag/api_sources.json --dry-run
 """
@@ -128,8 +128,8 @@ def main() -> int:
         elif args.fetch_only:
             report = fetch_only(config, run_id)
         else:
-            # Law documents need a policy_document_id/document_version issued by MySQL and a
-            # job row; neither contract exists, so stop before calling the provider.
+            # 법령 문서에는 MySQL이 발급한 policy_document_id/document_version과 job 행이
+            # 필요하다. 두 계약 모두 아직 없으므로 제공 기관 API를 부르기 전에 멈춘다.
             raise ContractBlockedError(f"{MISSING_POLICY_CONTRACT}; {MISSING_JOB_CONTRACT}")
     except ContractBlockedError as exc:
         print_json({"run_id": run_id, "result": "BLOCKED", "reason": str(exc)})
