@@ -6,6 +6,8 @@ Behaviour:
   word every ``delta_delay_ms``. Usage is always 0.
 - ``emit_thinking``: adds a thinking block (with signature) before the tool call and the answer,
   so tests can check that thinking is filtered from deltas and kept across the tool round trip.
+- ``pre_tool_text``: a text block streamed before the tool call (a model ignoring the prompt's
+  "no text before the tool call"), so tests can measure text sent before tools.
 
 Test-only triggers in the user message (documented here, two at most):
 - ``[fake-llm-error]``: raise an Anthropic connection error (-> LLM_UPSTREAM_ERROR).
@@ -69,6 +71,7 @@ def answer_from_tool_result(result: str | None) -> str:
 class FakeChatModel(BaseChatModel):
     delta_delay_ms: int = 30
     emit_thinking: bool = False
+    pre_tool_text: str = ""
     tools_bound: bool = False
     # Shared with copies made by bind_tools; tests read "calls" and "cancelled".
     probe: dict[str, Any] = Field(default_factory=dict)
@@ -120,6 +123,14 @@ class FakeChatModel(BaseChatModel):
             )
             if self.tools_bound and not tool_results:
                 call_id = f"toolu_fake_{self.probe['calls']}"
+                # Content blocks merge by index, so the tool_use goes after the text block.
+                tool_index = 2 if self.pre_tool_text else 1
+                if self.pre_tool_text:
+                    yield ChatGenerationChunk(
+                        message=AIMessageChunk(
+                            content=[{"type": "text", "text": self.pre_tool_text, "index": 1}]
+                        )
+                    )
                 yield ChatGenerationChunk(
                     message=AIMessageChunk(
                         content=[
@@ -129,7 +140,7 @@ class FakeChatModel(BaseChatModel):
                                 "id": call_id,
                                 "name": TOOL_NAME,
                                 "input": {},
-                                "index": 1,
+                                "index": tool_index,
                             },
                         ],
                         tool_call_chunks=[
@@ -138,7 +149,7 @@ class FakeChatModel(BaseChatModel):
                                 "name": TOOL_NAME,
                                 "args": "{}",
                                 "id": call_id,
-                                "index": 1,
+                                "index": tool_index,
                             }
                         ],
                     )

@@ -1,9 +1,11 @@
 """Run the chat graph and turn its custom stream into INT-05 SSE events.
 
 Order: agent.tool_call* -> agent.delta* -> agent.sources? -> [agent.metrics] -> agent.done,
-or agent.error at any point; nothing after done/error. The graph runs in its own task so the
-run deadline and a Spring disconnect (generator cancelled or closed) cancel the graph and the
-in-flight LLM call. Logs carry run id, latency, token counts, tool names and stop reasons only.
+or [agent.metrics] -> agent.error at any point; nothing after done/error. agent.metrics (only
+with ``X-Chat-Metrics: 1``) holds the LLM calls finished so far, so failed runs are measured too.
+The graph runs in its own task so the run deadline and a Spring disconnect (generator cancelled
+or closed) cancel the graph and the in-flight LLM call. Logs carry run id, latency, token
+counts, tool names and stop reasons only.
 """
 
 from __future__ import annotations
@@ -118,7 +120,33 @@ async def run_chat(
     calls: list[dict[str, Any]] = []
     sources: list[dict[str, Any]] = []
     first_delta_ms: int | None = None
+    # Per LLM call number: when its first text reached the stream, and how many characters.
+    call_first_delta_ms: dict[int, int] = {}
+    call_text_chars: dict[int, int] = {}
     outcome = "cancelled"
+
+    def metrics_event() -> ServerSentEvent:
+        last = calls[-1] if calls else None
+        answer_call = last if last is not None and last["stopReason"] != "tool_use" else None
+        return _event(
+            "agent.metrics",
+            {
+                "config": config.to_json(PROMPT_VERSION),
+                "calls": [{k: c.get(k) for k in _CALL_METRIC_FIELDS} for c in calls],
+                # Run start -> first text of the final answer call (after any tool results).
+                # Same clock as done.timings.firstDeltaMs; equal to it when no text came earlier.
+                "firstAnswerDeltaMs": (
+                    None if answer_call is None else call_first_delta_ms.get(answer_call["call"])
+                ),
+                # Text sent in calls that ended in a tool call (text before tools).
+                "preToolTextChars": sum(
+                    call_text_chars.get(c["call"], 0)
+                    for c in calls
+                    if c["stopReason"] == "tool_use"
+                ),
+            },
+        )
+
     try:
         try:
             deadline = started + options.run_timeout_seconds
@@ -132,8 +160,13 @@ async def run_chat(
                 if isinstance(item, BaseException):
                     raise item
                 if item["type"] == "delta":
+                    now_ms = _ms(started)
                     if first_delta_ms is None:
-                        first_delta_ms = _ms(started)
+                        first_delta_ms = now_ms
+                    call_first_delta_ms.setdefault(item["call"], now_ms)
+                    call_text_chars[item["call"]] = call_text_chars.get(item["call"], 0) + len(
+                        item["text"]
+                    )
                     deltas.append(item["text"])
                     yield _event("agent.delta", {"text": item["text"]})
                 elif item["type"] == "tool_call":
@@ -167,13 +200,7 @@ async def run_chat(
                 if sources:
                     yield _event("agent.sources", {"sources": sources})
                 if options.metrics:
-                    yield _event(
-                        "agent.metrics",
-                        {
-                            "config": config.to_json(PROMPT_VERSION),
-                            "calls": [{k: c.get(k) for k in _CALL_METRIC_FIELDS} for c in calls],
-                        },
-                    )
+                    yield metrics_event()
                 total_ms = _ms(started)
                 yield _event(
                     "agent.done",
@@ -200,6 +227,8 @@ async def run_chat(
                     },
                 )
                 return
+        if options.metrics:
+            yield metrics_event()
         yield _event("agent.error", {"code": outcome, "message": ERROR_MESSAGES[outcome]})
     finally:
         if not task.done():

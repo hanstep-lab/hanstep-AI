@@ -90,6 +90,8 @@ def test_fake_mode_two_questions(tmp_path: Path) -> None:
         assert "agent.metrics" in row["events"]
     summary = output.with_suffix(".md").read_text(encoding="utf-8")
     assert "server-default" in summary and "| F01 |" in summary
+    assert "firstAnswerDeltaMs" in summary
+    assert "도구 전 text가 나온 회차: 0/2" in summary
 
 
 def test_variants_alternate_round_robin(tmp_path: Path) -> None:
@@ -140,7 +142,8 @@ def test_max_usd_stops_before_a_paid_call(tmp_path: Path) -> None:
     output = tmp_path / "run.jsonl"
     code = _run(
         settings,
-        "--questions", "F01", "--max-usd", "0.0001", "--yes", "--output", str(output),
+        "--questions", "F01", "--llm-mode", "anthropic", "--max-usd", "0.0001", "--yes",
+        "--output", str(output),
         client=httpx.Client(transport=httpx.MockTransport(refuse)),
     )  # fmt: skip
     assert code == 0
@@ -155,7 +158,8 @@ def test_real_mode_asks_before_running(tmp_path: Path) -> None:
 
     settings = _settings(chat_llm_mode="anthropic", agent_model="claude-haiku-5-5")
     code = _run(
-        settings, "--questions", "F01", "--output", str(tmp_path / "x.jsonl"),
+        settings, "--questions", "F01", "--llm-mode", "anthropic",
+        "--output", str(tmp_path / "x.jsonl"),
         client=httpx.Client(transport=httpx.MockTransport(refuse)),
     )  # fmt: skip
     assert code == 0
@@ -190,3 +194,98 @@ def test_rescore_without_calls(tmp_path: Path) -> None:
     assert code == 0
     assert _rows(rescored)[0]["numberCheck"]["unsupported"] == ["29.8%"]
     assert "29.8%" in rescored.with_suffix(".md").read_text(encoding="utf-8")
+
+
+def _sse_server(*events: tuple[str, dict[str, Any]]) -> httpx.Client:
+    """A server that answers every INT-05 call with the given SSE events (no app, no API)."""
+    body = "".join(f"event: {name}\ndata: {json.dumps(data)}\n\n" for name, data in events)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def _call(model: str, stop: str, tokens_in: int, tokens_out: int) -> dict[str, Any]:
+    return {"model": model, "stopReason": stop, "inputTokens": tokens_in,
+            "outputTokens": tokens_out, "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0, "thinkingBlocks": 1, "firstTextMs": None,
+            "durationMs": 900}  # fmt: skip
+
+
+EMPTY_ANSWER_RUN = (
+    (
+        "agent.metrics",
+        {
+            "config": {"model": "claude-haiku-5-5"},
+            "calls": [
+                _call("claude-haiku-5-5", "tool_use", 1000, 100),
+                _call("claude-haiku-5-5", "max_tokens", 1500, 2000),
+            ],
+            "firstAnswerDeltaMs": None,
+            "preToolTextChars": 0,
+        },
+    ),
+    ("agent.error", {"code": "AGENT_INTERNAL_ERROR", "message": "Something went wrong."}),
+)
+
+
+def test_error_run_cost_counts_toward_budget_and_max_tokens(tmp_path: Path) -> None:
+    output = tmp_path / "run.jsonl"
+    # Per error run: (2500 x 0.10 + 2100 x 0.50) / 1M = $0.0013. Budget $0.003 allows two.
+    code = _run(
+        _settings(agent_model="claude-haiku-5-5"), "--questions", "F01", "--repeats", "3",
+        "--llm-mode", "anthropic", "--yes",
+        "--max-usd", "0.003", "--output", str(output), client=_sse_server(*EMPTY_ANSWER_RUN),
+    )  # fmt: skip
+    assert code == 0
+    rows = _rows(output)
+    assert len(rows) == 2
+    for row in rows:
+        assert row["status"] == "error"
+        assert row["usage"]["outputTokens"] == 2100
+        assert row["costUsd"] == pytest.approx(0.0013)
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["status"] == "budget_stopped"
+    assert conditions["spentUsd"] == pytest.approx(0.0026)
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    assert "stop_reason=max_tokens: 2" in summary
+
+
+@pytest.mark.parametrize(
+    "events",
+    [
+        EMPTY_ANSWER_RUN,
+        (
+            (
+                "agent.done",
+                {
+                    "content": "ok",
+                    "modelId": "fake-chat-model",
+                    "timings": {},
+                    "usage": {
+                        "inputTokens": 10,
+                        "outputTokens": 5,
+                        "cacheReadInputTokens": 0,
+                        "cacheCreationInputTokens": 0,
+                        "llmCalls": 1,
+                    },
+                },
+            ),
+        ),  # fmt: skip
+    ],
+    ids=["real-model", "real-tokens"],
+)
+def test_fake_mode_stops_when_server_is_real(
+    tmp_path: Path, events: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output = tmp_path / "run.jsonl"
+    code = _run(
+        _settings(), "--questions", "F01,F03", "--output", str(output),
+        client=_sse_server(*events),
+    )  # fmt: skip
+    assert code == 3
+    assert len(_rows(output)) == 1
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["status"] == "mode_mismatch"
+    assert "서버가 실제 모드" in capsys.readouterr().out

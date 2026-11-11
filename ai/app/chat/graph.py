@@ -1,11 +1,12 @@
 """LangGraph agent <-> tools loop. Nodes write stream events with ``get_stream_writer``.
 
 Custom stream items (consumed by app.chat.stream):
-- ``{"type": "delta", "text": ...}``: a text block piece of the model output, written at once.
-  Thinking blocks, progress notes between tools (thinking blocks under ``between_tools``) and
-  tool_use input pieces are never written.
+- ``{"type": "delta", "text": ..., "call": n}``: a text block piece of the model output, written
+  at once; ``call`` is the 0-based LLM call number in this run. Thinking blocks, progress notes
+  between tools (thinking blocks under ``between_tools``) and tool_use input pieces are never
+  written.
 - ``{"type": "tool_call", ...}``: one per executed tool, after it finishes.
-- ``{"type": "llm_call", ...}``: usage and timing of one model call (metrics only).
+- ``{"type": "llm_call", "call": n, ...}``: usage and timing of one model call (metrics only).
 """
 
 from __future__ import annotations
@@ -73,8 +74,13 @@ def build_graph(
     # Tool limit reached: the messages hold tool_use blocks, so keep the definition but forbid use.
     # BaseChatModel types tool_choice as str; ChatAnthropic takes the API dict form too.
     without_tools = model.bind_tools([TOOL_SCHEMA], tool_choice=cast(Any, {"type": "none"}))
+    # The graph is built per run, so this counts the LLM calls of one run.
+    llm_calls = 0
 
     async def agent(state: ChatState) -> dict[str, Any]:
+        nonlocal llm_calls
+        call_no = llm_calls
+        llm_calls += 1
         writer = get_stream_writer()
         runnable = with_tools if state["tool_calls_done"] < max_tool_calls else without_tools
         started = time.perf_counter()
@@ -85,7 +91,7 @@ def build_graph(
             for text in text_pieces(chunk):
                 if first_text is None:
                     first_text = time.perf_counter()
-                writer({"type": "delta", "text": text})
+                writer({"type": "delta", "text": text, "call": call_no})
             merged = chunk if merged is None else merged + chunk
         if merged is None:
             merged = AIMessageChunk(content="")
@@ -94,6 +100,7 @@ def build_graph(
         writer(
             {
                 "type": "llm_call",
+                "call": call_no,
                 "model": merged.response_metadata.get("model_name"),
                 "stopReason": merged.response_metadata.get("stop_reason"),
                 **_usage(merged),

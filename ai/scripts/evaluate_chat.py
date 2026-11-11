@@ -3,8 +3,8 @@
 Not part of pytest or CI. Calls a running server; it never calls Anthropic itself.
 
     # INT-05 directly (tokens and agent.metrics); server needs CHAT_ALLOW_CONFIG_OVERRIDE=true
-    # when --variants is given
-    uv run python scripts/evaluate_chat.py --target ai --questions F01,F03 \
+    # when --variants is given. --llm-mode says what the server runs (default fake).
+    uv run python scripts/evaluate_chat.py --target ai --llm-mode anthropic --questions F01,F03 \
         --output artifacts/chat/haiku_check.jsonl
     # Spring CHT-04 end to end (latency only)
     uv run python scripts/evaluate_chat.py --target spring --jwt <token> --subset latency \
@@ -16,7 +16,9 @@ Not part of pytest or CI. Calls a running server; it never calls Anthropic itsel
 Writes one JSONL line per call as it goes (the first line holds the conditions) and a summary
 markdown next to it (same name, .md). Variants run round-robin inside each question and
 repeat, so time-of-day drift spreads evenly. --max-usd stops before a call that would likely
-cross the budget. The API key and internal tokens are never printed or written.
+cross the budget; runs that end in agent.error count too (usage from agent.metrics). With
+--llm-mode fake the run stops at once if the server answers with a real model or real tokens.
+The API key and internal tokens are never printed or written.
 """
 
 from __future__ import annotations
@@ -59,6 +61,7 @@ PRICES: dict[str, tuple[float, float, float, float]] = {
 # much input and the full max_tokens of output. Real usage replaces it after the first call.
 EST_INPUT_TOKENS_PER_LLM_CALL = 3000
 EST_LLM_CALLS = 2
+USAGE_KEYS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
 
 
 def price_for(model: str | None) -> tuple[float, float, float, float]:
@@ -92,6 +95,26 @@ def estimate_call_usd(model: str, max_tokens: int, fake: bool) -> float:
     p_in, p_out, _, _ = price_for(model)
     per_llm = EST_INPUT_TOKENS_PER_LLM_CALL * p_in + max_tokens * p_out
     return EST_LLM_CALLS * per_llm / 1_000_000
+
+
+def run_usage(done: dict[str, Any], metrics: dict[str, Any] | None) -> dict[str, Any] | None:
+    """agent.done usage; for a run that ended in agent.error, the sum over agent.metrics calls."""
+    if done.get("usage"):
+        usage: dict[str, Any] = done["usage"]
+        return usage
+    calls = (metrics or {}).get("calls") or []
+    if not calls:
+        return None
+    summed: dict[str, Any] = {k: sum(int(c.get(k) or 0) for c in calls) for k in USAGE_KEYS}
+    summed["llmCalls"] = len(calls)
+    return summed
+
+
+def answering_model(done: dict[str, Any], metrics: dict[str, Any] | None) -> str | None:
+    """The model that actually answered (done.modelId or the last call's model), if known."""
+    models = [c["model"] for c in (metrics or {}).get("calls") or [] if c.get("model")]
+    model: str | None = done.get("modelId") or (models[-1] if models else None)
+    return model
 
 
 def load_questions(path: Path = QUESTIONS) -> dict[str, Any]:
@@ -145,9 +168,9 @@ def config_header(variant: dict[str, Any]) -> str | None:
     return json.dumps({k: variant[k] for k in keys if variant.get(k) is not None})
 
 
-def tool_context(settings: Settings, user_id: int) -> dict[str, Any]:
+def tool_context(settings: Settings, user_id: int, llm_mode: str) -> dict[str, Any]:
     """The INT-06 data the server's tool sees, summarized the same way (for number checks)."""
-    if settings.chat_llm_mode == "anthropic" and settings.spring_configured():
+    if llm_mode == "anthropic" and settings.spring_configured():
         client = SpringInternalClient(
             base_url=settings.spring_internal_api_url,
             api_key=settings.spring_internal_api_key.get_secret_value(),
@@ -299,7 +322,7 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
         "",
         "## 측정 조건",
         "",
-        f"- 대상: {conditions['target']}, 모드(로컬 설정 기준): {conditions['mode']}",
+        f"- 대상: {conditions['target']}, 모드(--llm-mode): {conditions['mode']}",
         f"- 시작: {conditions['startedAt']}, 상태: {conditions.get('status')}",
         f"- 문항 {len(conditions['questions'])}개, 반복 {conditions['repeats']}, "
         f"설정마다 워밍업 {conditions['warmup']}",
@@ -320,6 +343,18 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
             continue
         done = [r for r in mine if r["status"] == "done"]
         first = [r["timings"]["firstDeltaMs"] for r in done if "firstDeltaMs" in r["timings"]]
+        server_first = [
+            r["serverTimings"]["firstDeltaMs"]
+            for r in done
+            if (r.get("serverTimings") or {}).get("firstDeltaMs") is not None
+        ]
+        answer_first = [
+            r["metrics"]["firstAnswerDeltaMs"]
+            for r in done
+            if (r.get("metrics") or {}).get("firstAnswerDeltaMs") is not None
+        ]
+        measured = [r for r in mine if r.get("metrics")]
+        pre_tool = [r for r in measured if (r["metrics"].get("preToolTextChars") or 0) > 0]
         total = [r["timings"]["doneMs"] for r in done if "doneMs" in r["timings"]]
         calls = [c for r in mine for c in (r.get("metrics") or {}).get("calls", [])]
         unsupported = [r for r in done if r["numberCheck"]["unsupported"]]
@@ -330,6 +365,9 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
             "",
             f"- 호출 {len(mine)} (완료 {len(done)}, 오류 {len(mine) - len(done)})",
             f"- 첫 delta: {_stat(first)}",
+            f"- 서버 firstDeltaMs(첫 text): {_stat(server_first)}",
+            f"- 서버 firstAnswerDeltaMs(도구 결과 뒤 답변 호출의 첫 text): {_stat(answer_first)}",
+            f"- 도구 전 text가 나온 회차: {len(pre_tool)}/{len(measured)}",
             f"- 전체: {_stat(total)}",
             f"- stop_reason=max_tokens: {max_token_stops}",
             "- 평균 thinking 블록(호출당): "
@@ -413,6 +451,12 @@ def main(
 ) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--target", choices=["ai", "spring"], default="ai")
+    parser.add_argument(
+        "--llm-mode",
+        choices=["fake", "anthropic"],
+        default="fake",
+        help="what the server runs; anthropic asks before paid calls (not read from env)",
+    )
     parser.add_argument("--base-url", default=None, help="ai: http://localhost:8000, spring: :8080")
     parser.add_argument("--jwt", default=None, help="spring target: access token from /auth/entry")
     parser.add_argument("--user-id", type=int, default=1, help="ai target userId")
@@ -459,7 +503,7 @@ def main(
         variants = load_variants(args.variants, settings)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
-    fake = settings.chat_llm_mode == "fake"
+    fake = args.llm_mode == "fake"
     base_url = args.base_url or (
         "http://localhost:8000" if args.target == "ai" else "http://localhost:8080"
     )
@@ -469,7 +513,7 @@ def main(
     planned_max = sum(
         estimates[v["name"]] * (args.warmup + len(questions) * args.repeats) for v in variants
     )
-    print(f"mode={settings.chat_llm_mode} target={args.target} base={base_url}")
+    print(f"llm-mode={args.llm_mode} target={args.target} base={base_url}")
     for v in variants:
         print(
             f"  {v['name']}: model={v['model']} thinking={v.get('thinking')} "
@@ -486,10 +530,10 @@ def main(
         print("cancelled")
         return EXIT_OK
 
-    context = tool_context(settings, args.user_id)
+    context = tool_context(settings, args.user_id, args.llm_mode)
     conditions: dict[str, Any] = {
         "target": args.target,
-        "mode": settings.chat_llm_mode,
+        "mode": args.llm_mode,
         "baseUrl": base_url,
         "userId": args.user_id,
         "variants": [{k: v for k, v in variant.items() if k != "override"} for variant in variants],
@@ -535,11 +579,10 @@ def main(
             else:
                 result = call_spring(http, base_url, args.jwt, question)
             done = result.get("done") or {}
-            model = (result.get("metrics") or {}).get("config", {}).get("model") or done.get(
-                "modelId"
-            )
-            if done.get("modelId") == FAKE_MODEL_ID:
-                model = FAKE_MODEL_ID
+            metrics = result.get("metrics")
+            answered_by = answering_model(done, metrics)
+            model = answered_by or (metrics or {}).get("config", {}).get("model")
+            usage = run_usage(done, metrics)
             row: dict[str, Any] = {
                 "variant": variant["name"],
                 "questionId": question["id"],
@@ -553,10 +596,10 @@ def main(
                 "events": result["events"],
                 "timings": result["timings"],
                 "serverTimings": done.get("timings") or {"latencyMs": done.get("latencyMs")},
-                "usage": done.get("usage"),
-                "metrics": result.get("metrics"),
+                "usage": usage,
+                "metrics": metrics,
                 "model": model,
-                "costUsd": round(cost_usd(done.get("usage"), model), 6),
+                "costUsd": round(cost_usd(usage, model), 6),
                 "tools": result["tools"],
                 "answer": "".join(result["deltas"]),
                 "expectedTools": question["expectedTools"],
@@ -571,8 +614,13 @@ def main(
             observed[variant["name"]] = max(observed.get(variant["name"], 0.0), row["costUsd"])
             save("running")
             print(progress_line(len(rows), total_calls, row, conditions["spentUsd"]), flush=True)
-            if fake and model not in (None, FAKE_MODEL_ID):
-                print("STOP: local CHAT_LLM_MODE is fake but the server answered with a real model")
+            used_tokens = any((usage or {}).get(k) for k in USAGE_KEYS)
+            if fake and (answered_by not in (None, FAKE_MODEL_ID) or used_tokens):
+                print(
+                    "STOP: 서버가 실제 모드입니다(--llm-mode fake인데 응답에 실제 모델이나 "
+                    "토큰 사용량이 있음). 서버를 fake로 띄우거나 --llm-mode anthropic으로 "
+                    "다시 실행하세요."
+                )
                 save("mode_mismatch")
                 return EXIT_BLOCKED
     except KeyboardInterrupt:

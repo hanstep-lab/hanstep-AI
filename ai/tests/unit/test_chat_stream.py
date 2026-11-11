@@ -489,3 +489,40 @@ def test_chat_anthropic_receives_thinking_and_effort_without_calling_api() -> No
     payload = default._get_request_payload([("human", "hi")])  # type: ignore[attr-defined]
     assert "thinking" not in payload
     assert "output_config" not in payload
+
+
+# --- metrics on failed runs and first-text timings -------------------------------------------
+
+
+async def test_metrics_come_before_error_with_calls_so_far() -> None:
+    events = await _run(TRIGGER_EMPTY_ANSWER, metrics=True)
+    assert _names(events)[-2:] == ["agent.metrics", "agent.error"]
+    metrics = events[-2][1]
+    assert [c["stopReason"] for c in metrics["calls"]] == ["tool_use", "max_tokens"]
+    assert metrics["firstAnswerDeltaMs"] is None
+    # agent.error itself is unchanged (Spring contract).
+    assert set(events[-1][1]) == {"code", "message"}
+
+    failed = await _run(TRIGGER_LLM_ERROR, metrics=True)
+    assert _names(failed) == ["agent.metrics", "agent.error"]
+    assert failed[0][1]["calls"] == []
+
+    assert "agent.metrics" not in _names(await _run(TRIGGER_EMPTY_ANSWER))
+
+
+async def test_first_answer_delta_and_pre_tool_text() -> None:
+    plain = await _run(metrics=True)
+    metrics = next(data for name, data in plain if name == "agent.metrics")
+    done = plain[-1][1]
+    assert metrics["preToolTextChars"] == 0
+    assert metrics["firstAnswerDeltaMs"] == done["timings"]["firstDeltaMs"]
+
+    model = FakeChatModel(delta_delay_ms=0, pre_tool_text="Let me check. ")
+    chatty = await _run(model=model, metrics=True)
+    metrics = next(data for name, data in chatty if name == "agent.metrics")
+    done = chatty[-1][1]
+    assert metrics["preToolTextChars"] == len("Let me check. ")
+    assert metrics["firstAnswerDeltaMs"] >= done["timings"]["firstDeltaMs"]
+    # Today that text still goes out as a delta (only the prompt forbids it).
+    assert done["content"].startswith("Let me check. ")
+    assert _names(chatty)[0] == "agent.delta"
