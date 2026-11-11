@@ -71,6 +71,9 @@ class Settings(BaseSettings):
 
     # E-7-4 계산에 승인 전(DRAFT) 규칙 버전도 쓸지. 운영은 false, 로컬·시연에서만 true.
     e74_include_draft_rules: bool = False
+    # 로드맵 단계 문장을 LLM(agent_model)으로 쓸지. 꺼져 있거나 키가 없으면 템플릿 문장.
+    roadmap_llm_text: bool = False
+    roadmap_llm_timeout_seconds: float = Field(default=30.0, gt=0)
 
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")
