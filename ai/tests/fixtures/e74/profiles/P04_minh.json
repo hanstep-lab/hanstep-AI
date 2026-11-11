@@ -1,0 +1,58 @@
+{
+  "id": "P04",
+  "title": "로드맵 시연용 E-9 제조업 근로자(합성 데이터, 임시값)",
+  "profile": {
+    "visaProfile": {
+      "visaTypeCode": "E-9",
+      "birthDate": "1995-03-14",
+      "evidenceStatus": "VERIFIED",
+      "currentStayStartedOn": "2022-12-05",
+      "priorStayMonths": 0
+    },
+    "employmentHistories": [
+      {
+        "employmentHistoryId": 1,
+        "employerName": "DEMO-MFG",
+        "industryCode": "MANUFACTURING",
+        "workplaceRegionCode": "41273",
+        "isDepopulationArea": false,
+        "startedOn": "2022-12-12",
+        "contractEndOn": "2028-12-11",
+        "contractAnnualSalary": 28200000,
+        "verificationStatus": "VERIFIED"
+      }
+    ],
+    "incomeRecords": [
+      {
+        "incomeYear": 2024,
+        "annualAmount": 28200000,
+        "source": "TRANSACTION_ESTIMATE",
+        "verificationStatus": "DECLARED"
+      },
+      {
+        "incomeYear": 2025,
+        "annualAmount": 28200000,
+        "source": "TRANSACTION_ESTIMATE",
+        "verificationStatus": "DECLARED"
+      }
+    ],
+    "visaEvidences": [
+      {
+        "visaEvidenceId": 1,
+        "evidenceType": "TOPIK",
+        "levelValue": "3",
+        "issuedOn": "2025-10-19",
+        "expiresOn": "2027-10-19",
+        "status": "VERIFIED"
+      }
+    ],
+    "legalDeclaration": {
+      "finesUnder1mCount": 0,
+      "hasFine1mOrMore": false,
+      "taxStayRestrictionCount": 0,
+      "immigrationViolationCount": 0,
+      "hasOverstay3mOrMore": false,
+      "hasCurrentTaxArrears": false
+    }
+  }
+}

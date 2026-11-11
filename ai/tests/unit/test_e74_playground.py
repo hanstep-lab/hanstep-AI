@@ -31,7 +31,7 @@ def _sample(prefix: str) -> str:
 
 
 def test_samples_load_in_id_order() -> None:
-    assert [name[:3] for name in load_samples()] == ["P00", "P01", "P02", "P03"]
+    assert [name[:3] for name in load_samples()] == ["P00", "P01", "P02", "P03", "P04"]
 
 
 def test_parse_reports_json_and_field_errors() -> None:
