@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from app.visa.e74.dates import add_months
+from app.visa.e74.results import MissingInput
 from app.visa.e74.schemas import E74Profile, EmploymentHistoryIn
 
 Interval = tuple[date, date]
@@ -93,3 +94,46 @@ def current_stint(profile: E74Profile) -> CurrentStint | None:
 
 def intervals_of(rows: Iterable[EmploymentHistoryIn], as_of: date) -> list[Interval]:
     return [i for row in rows if (i := employment_interval(row, as_of)) is not None]
+
+
+@dataclass(frozen=True)
+class StintCoverage:
+    """현재 근무처 근속이 months개월 이상인지.
+
+    rows: 센 근무(같은 사업장 + 귀책 없이 떠난 직전 근무처).
+    unknown_previous: 이직 사유를 모르는 직전 근무처. 그 기간을 넣어야만 기준을 채울 때만 값이 있다.
+    """
+
+    rows: tuple[EmploymentHistoryIn, ...]
+    days: int
+    required: int
+    unknown_previous: EmploymentHistoryIn | None
+
+    @property
+    def met(self) -> bool:
+        return self.days >= self.required
+
+
+def stint_coverage(stint: CurrentStint, as_of: date, months: int) -> StintCoverage:
+    rows = list(stint.same_employer)
+    previous = stint.previous
+    if previous is not None and previous.left_without_fault is True:
+        rows.append(previous)
+    days = covered_days(intervals_of(rows, as_of))
+    need = required_days(as_of, months)
+    unknown = None
+    if (
+        days < need
+        and previous is not None
+        and previous.left_without_fault is None
+        and covered_days(intervals_of([*rows, previous], as_of)) >= need
+    ):
+        unknown = previous
+    return StintCoverage(rows=tuple(rows), days=days, required=need, unknown_previous=unknown)
+
+
+def left_without_fault_missing(row: EmploymentHistoryIn) -> MissingInput:
+    return MissingInput(
+        field=f"employmentHistories[employmentHistoryId={row.employment_history_id}].leftWithoutFault",
+        question="직전 근무처를 휴·폐업, 임금체불, 폭언·폭행 등 본인 잘못이 아닌 이유로 옮겼는지",
+    )

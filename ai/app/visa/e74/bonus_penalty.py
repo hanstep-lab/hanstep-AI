@@ -20,8 +20,9 @@ from app.visa.e74.employment import (
     covered_days,
     current_stint,
     employment_interval,
-    intervals_of,
+    left_without_fault_missing,
     required_days,
+    stint_coverage,
 )
 from app.visa.e74.questions import declaration_missing, declared_value
 from app.visa.e74.results import (
@@ -174,18 +175,14 @@ def calculate_tenure_bonus(
     if stint is None:
         return not_met_result(BONUS, "E74_TENURE_NO_CURRENT_JOB", {}, rule_code=code)
 
-    need = required_days(as_of, rule.condition.min_months)
-    rows = list(stint.same_employer)
-    previous = stint.previous
-    if previous is not None and previous.left_without_fault is True:
-        rows.append(previous)
-    days = covered_days(intervals_of(rows, as_of))
+    coverage = stint_coverage(stint, as_of, rule.condition.min_months)
+    rows = list(coverage.rows)
     evidence: dict[str, Any] = {
-        "coveredDays": days,
-        "requiredDays": need,
+        "coveredDays": coverage.days,
+        "requiredDays": coverage.required,
         "employmentHistoryIds": _ids(rows),
     }
-    if days >= need:
+    if coverage.met:
         return scored_result(
             BONUS,
             rule,
@@ -193,27 +190,14 @@ def calculate_tenure_bonus(
             message_code="E74_BONUS_TENURE",
             evidence=evidence,
         )
-    if previous is not None and previous.left_without_fault is None:
-        with_previous = covered_days(intervals_of([*rows, previous], as_of))
-        if with_previous >= need:
-            question = (
-                "직전 근무처를 휴·폐업, 임금체불, 폭언·폭행 등 본인 잘못이 아닌 이유로 옮겼는지"
-            )
-            return missing_result(
-                BONUS,
-                "E74_TENURE_NEEDS_JOB_CHANGE_REASON",
-                [
-                    MissingInput(
-                        field=(
-                            f"employmentHistories[employmentHistoryId="
-                            f"{previous.employment_history_id}].leftWithoutFault"
-                        ),
-                        question=question,
-                    )
-                ],
-                {**evidence, "coveredDaysWithPrevious": with_previous},
-                rule_code=code,
-            )
+    if coverage.unknown_previous is not None:
+        return missing_result(
+            BONUS,
+            "E74_TENURE_NEEDS_JOB_CHANGE_REASON",
+            [left_without_fault_missing(coverage.unknown_previous)],
+            evidence,
+            rule_code=code,
+        )
     return not_met_result(BONUS, "E74_BONUS_TENURE_SHORT", evidence, rule_code=code)
 
 
