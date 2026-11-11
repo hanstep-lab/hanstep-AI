@@ -33,10 +33,14 @@ dependencies = [
     "tenacity>=9.0.0",
     "tzdata>=2026.6",
     "pandas>=3.1.1",
-    "anthropic>=2.4.0",
 ]
 
 [dependency-groups]
+# scripts/evaluate_finance_llm.py 전용. 운영 이미지에는 langchain-anthropic을 통해
+# anthropic이 간접 설치되지만, 직접 호출은 평가 스크립트에서만 한다.
+eval = [
+    "anthropic>=2.4.0",
+]
 lint = [
     "ruff==0.14.0",
     "mypy==1.18.2",
@@ -51,6 +55,7 @@ test = [
 dev = [
     { include-group = "lint" },
     { include-group = "test" },
+    { include-group = "eval" },
     "pre-commit==4.3.0",
 ]
 

@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
+from app.finance.schemas import MAX_TRANSACTIONS
 from app.integrations.policy_gateway import UnconfiguredPolicyGateway
 from app.main import AppState, create_app
 from app.rag.embeddings import BgeM3Embedder
@@ -127,6 +128,15 @@ def _snake_case_field(body: dict[str, Any]) -> None:
     body["period_from"] = body.pop("periodFrom")
 
 
+def _category_code_bad_format(body: dict[str, Any]) -> None:
+    body["transactions"][0]["categoryCode"] = "food<script>"
+
+
+def _too_many_transactions(body: dict[str, Any]) -> None:
+    tx = body["transactions"][0]
+    body["transactions"] = [{**tx, "id": i} for i in range(MAX_TRANSACTIONS + 1)]
+
+
 @pytest.mark.parametrize(
     "mutate",
     [
@@ -137,6 +147,8 @@ def _snake_case_field(body: dict[str, Any]) -> None:
         _amount_negative,
         _same_id_different_content,
         _snake_case_field,
+        _category_code_bad_format,
+        _too_many_transactions,
     ],
 )
 def test_validation_errors(client: TestClient, mutate: Any) -> None:

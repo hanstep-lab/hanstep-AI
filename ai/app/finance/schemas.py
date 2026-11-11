@@ -11,6 +11,8 @@ from pydantic.alias_generators import to_camel
 
 # Sanity bound per transaction (1조 원). Keeps int64 sums far from overflow.
 MAX_AMOUNT = 1_000_000_000_000
+# Generous bound for 12 months of transactions; caps pandas memory if the caller misbehaves.
+MAX_TRANSACTIONS = 20_000
 
 
 class CamelRequest(BaseModel):
@@ -41,7 +43,7 @@ class TransactionIn(CamelRequest):
     booked_date: date
     direction: Direction
     amount: int = Field(gt=0, le=MAX_AMOUNT, description="KRW, positive integer")
-    category_code: str = Field(min_length=1, max_length=64)
+    category_code: str = Field(min_length=1, max_length=64, pattern=r"^[A-Z_]+$")
     transaction_kind: TransactionKind
 
 
@@ -49,7 +51,7 @@ class FinanceAnalyzeRequest(CamelRequest):
     user_id: int
     period_from: date
     period_to: date
-    transactions: list[TransactionIn]
+    transactions: list[TransactionIn] = Field(max_length=MAX_TRANSACTIONS)
 
 
 class Money(CamelResponse):

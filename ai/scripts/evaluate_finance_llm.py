@@ -310,10 +310,14 @@ def summarize(
 ) -> dict[str, Any]:
     total = len(rows)
     parsed = [r for r in rows if not r.get("parse_failed")]
+    # Accuracy denominator: calls the model actually answered. API errors (overload, network)
+    # are infrastructure failures, not wrong answers; parse failures and max_tokens cut-offs
+    # still count as wrong.
+    scored = sum(1 for r in rows if not r.get("error"))
     field_rate = {
-        k: (sum(r["field_match"][k] for r in parsed) / total if total else 0.0) for k in FIELDS
+        k: (sum(r["field_match"][k] for r in parsed) / scored if scored else 0.0) for k in FIELDS
     }
-    all_fields = sum(all(r["field_match"].values()) for r in parsed) / total if total else 0.0
+    all_fields = sum(all(r["field_match"].values()) for r in parsed) / scored if scored else 0.0
     errors = [r["spare_abs_error"] for r in parsed if r.get("spare_abs_error") is not None]
     # Calls with no usable answer, split into disjoint causes that add up to the total.
     failed = [r for r in rows if r.get("parse_failed")]
@@ -341,6 +345,7 @@ def summarize(
         }
     return {
         "calls": total,
+        "scored_calls": scored,
         "parse_failures": total - len(parsed),
         "unanswered": unanswered,
         "field_exact_rate": field_rate,
@@ -369,7 +374,10 @@ def print_table(summary: dict[str, Any], conditions: dict[str, Any]) -> None:
             f"{c['spare_exact']:>5} {'Y' if c['consistent'] else 'N':>5}"
         )
     rates = ", ".join(f"{k}={v:.0%}" for k, v in summary["field_exact_rate"].items())
-    print(f"field exact: {rates}; all fields: {summary['all_fields_exact_rate']:.0%}")
+    print(
+        f"field exact: {rates}; all fields: {summary['all_fields_exact_rate']:.0%} "
+        f"(over {summary['scored_calls']} scored calls, API errors excluded)"
+    )
     print(
         f"spare mean abs error: {summary['spare_mean_abs_error']}; parse failures: "
         f"{summary['parse_failures']}/{summary['calls']}; consistent cases: "
