@@ -1,9 +1,11 @@
 """E-7-4 점수 계산 입력: Spring이 MySQL에서 모아 보내는 프로필 스냅샷(camelCase JSON).
 
 필드 이름과 enum 값은 MySQL DDL(visa_profiles, employment_histories, income_records,
-visa_evidence)에 맞춘다. DDL에 없는 값(체류 시작일, 이직 사유, 감점·제외 자기신고 등)은
-선택 필드로 받는다. 값이 없으면 엔진이 판정을 보류하고 누락 입력으로 돌려주며,
-LLM이 그 목록으로 사용자에게 다시 묻는다.
+visa_evidence)의 테이블·컬럼 이름을 camelCase로 바꾼 것과 같다. 목록은 테이블 이름,
+행 ID는 `<엔티티>Id`(백엔드 DTO 관례)로 쓴다.
+
+DDL에 없는 값(체류 시작일, 이직 사유, 감점·제외 자기신고 등)은 선택 필드로 받는다.
+값이 없으면 엔진이 판정을 보류하고 누락 입력으로 돌려주며, LLM이 그 목록으로 사용자에게 다시 묻는다.
 
 스키마는 형식만 검증한다. 4년 체류, 3년 근속 같은 업무 판정은 엔진이 한다.
 """
@@ -19,9 +21,9 @@ from pydantic.alias_generators import to_camel
 
 # 금액 상한(1조 원). 금융 분석 INT-01과 같은 값.
 MAX_AMOUNT = 1_000_000_000_000
-MAX_EMPLOYMENTS = 50
-MAX_INCOMES = 20
-MAX_EVIDENCES = 50
+MAX_EMPLOYMENT_HISTORIES = 50
+MAX_INCOME_RECORDS = 20
+MAX_VISA_EVIDENCES = 50
 # 체류요건은 최근 10년(120개월) 안의 기간만 센다.
 MAX_PRIOR_STAY_MONTHS = 120
 MAX_DECLARED_COUNT = 99
@@ -35,7 +37,7 @@ class CamelRequest(BaseModel):
 
 
 class VerificationStatus(StrEnum):
-    """employment_histories·income_records·visa_evidence의 증빙 상태."""
+    """employment_histories·income_records의 verification_status, visa_evidence의 status."""
 
     DECLARED = "DECLARED"
     NEEDS_EVIDENCE = "NEEDS_EVIDENCE"
@@ -75,16 +77,15 @@ class EvidenceType(StrEnum):
 
 
 class VisaProfileIn(CamelRequest):
+    """visa_profiles 한 행 + 체류요건용 값(DDL 추가 제안 컬럼)."""
+
     visa_type_code: str | None = Field(
         default=None, pattern=VISA_CODE_PATTERN, description="현재 체류자격 코드(예: E-9)"
     )
     birth_date: date | None = Field(default=None, description="생년월일. 나이 점수용")
     evidence_status: ProfileEvidenceStatus = ProfileEvidenceStatus.DECLARED
-
-
-class StayIn(CamelRequest):
-    """체류요건(최근 10년 안에 E-9·E-10·H-2로 합계 4년) 판정용. DDL에 없어 자기신고로 받는다."""
-
+    # 아래 두 값은 DDL에 없다(visa_profiles 추가 제안).
+    # 체류요건: 최근 10년 안에 E-9·E-10·H-2로 합계 4년.
     current_stay_started_on: date | None = Field(
         default=None, description="현재 체류 시작일(입국일). 외국인등록증 발급일과 다를 수 있다"
     )
@@ -94,20 +95,19 @@ class StayIn(CamelRequest):
         le=MAX_PRIOR_STAY_MONTHS,
         description="현재 체류 이전, 최근 10년 안의 E-9·E-10·H-2 체류 기간 합계(개월)",
     )
-    verification_status: VerificationStatus = VerificationStatus.DECLARED
 
 
-class EmploymentIn(CamelRequest):
+class EmploymentHistoryIn(CamelRequest):
     """employment_histories 한 행.
 
     서비스는 E-9 경로만 지원하므로 모든 근무 기간을 E-9·E-10·H-2 자격 기간으로 본다.
     """
 
-    employment_id: int = Field(ge=1)
-    employer_key: str = Field(
+    employment_history_id: int = Field(ge=1)
+    employer_name: str = Field(
         min_length=1,
-        max_length=64,
-        description="같은 사업장 판정용 식별자(Spring 생성). 사업장명 원문은 받지 않는다",
+        max_length=200,
+        description="사업장명. 같은 사업장 재고용 판정에만 쓰고 로그에 남기지 않는다",
     )
     industry_code: str = Field(min_length=1, max_length=30, pattern=r"^[A-Z_]+$")
     workplace_region_code: str | None = Field(
@@ -124,7 +124,7 @@ class EmploymentIn(CamelRequest):
     )
     left_without_fault: bool | None = Field(
         default=None,
-        description="이 근무처를 휴·폐업, 임금체불 등 근로자 귀책 없는 사유로 떠났는지(DDL 없음)",
+        description="근로자 귀책 없는 사유(휴·폐업, 임금체불 등)로 떠났는지(DDL 추가 제안)",
     )
     verification_status: VerificationStatus = VerificationStatus.DECLARED
 
@@ -135,8 +135,8 @@ class EmploymentIn(CamelRequest):
         return self
 
 
-class IncomeIn(CamelRequest):
-    """income_records 한 행."""
+class IncomeRecordIn(CamelRequest):
+    """income_records 한 행. (연도, 출처)가 유일하므로 행 ID는 받지 않는다."""
 
     income_year: int = Field(ge=2000, le=2100)
     annual_amount: int = Field(ge=0, le=MAX_AMOUNT, description="연간 소득(원)")
@@ -144,10 +144,10 @@ class IncomeIn(CamelRequest):
     verification_status: VerificationStatus = VerificationStatus.DECLARED
 
 
-class EvidenceIn(CamelRequest):
-    """visa_evidence 한 행 + DDL에 없는 보조 값."""
+class VisaEvidenceIn(CamelRequest):
+    """visa_evidence 한 행 + DDL 추가 제안 컬럼."""
 
-    evidence_id: int = Field(ge=1)
+    visa_evidence_id: int = Field(ge=1)
     evidence_type: EvidenceType
     level_value: str | None = Field(
         default=None, max_length=30, description="TOPIK 급수, KIIP 단계, 자격명 등"
@@ -220,25 +220,34 @@ class E74Profile(CamelRequest):
     """E-7-4 계산에 쓰는 사용자 프로필 스냅샷."""
 
     visa_profile: VisaProfileIn
-    stay: StayIn | None = None
-    employments: list[EmploymentIn] = Field(default_factory=list, max_length=MAX_EMPLOYMENTS)
-    incomes: list[IncomeIn] = Field(default_factory=list, max_length=MAX_INCOMES)
-    evidences: list[EvidenceIn] = Field(default_factory=list, max_length=MAX_EVIDENCES)
+    employment_histories: list[EmploymentHistoryIn] = Field(
+        default_factory=list, max_length=MAX_EMPLOYMENT_HISTORIES
+    )
+    income_records: list[IncomeRecordIn] = Field(
+        default_factory=list, max_length=MAX_INCOME_RECORDS
+    )
+    visa_evidences: list[VisaEvidenceIn] = Field(
+        default_factory=list, max_length=MAX_VISA_EVIDENCES
+    )
     legal_declaration: LegalDeclarationIn | None = None
 
     @model_validator(mode="after")
     def _rows_are_consistent(self) -> Self:
-        if sum(1 for e in self.employments if e.ended_on is None) > 1:
+        if sum(1 for e in self.employment_histories if e.ended_on is None) > 1:
             raise ValueError("at most one current employment (endedOn null) is allowed")
-        _reject_duplicates("employmentId", [e.employment_id for e in self.employments])
-        _reject_duplicates("evidenceId", [e.evidence_id for e in self.evidences])
+        _reject_duplicates(
+            "employmentHistoryId", [e.employment_history_id for e in self.employment_histories]
+        )
+        _reject_duplicates("visaEvidenceId", [e.visa_evidence_id for e in self.visa_evidences])
         # MySQL uq_income_records_year(user_id, income_year, source)와 같은 제약.
-        _reject_duplicates("incomeYear+source", [(i.income_year, i.source) for i in self.incomes])
+        _reject_duplicates(
+            "incomeYear+source", [(i.income_year, i.source) for i in self.income_records]
+        )
         return self
 
     @property
-    def current_employment(self) -> EmploymentIn | None:
-        return next((e for e in self.employments if e.ended_on is None), None)
+    def current_employment(self) -> EmploymentHistoryIn | None:
+        return next((e for e in self.employment_histories if e.ended_on is None), None)
 
 
 def _reject_duplicates(name: str, keys: list[object]) -> None:

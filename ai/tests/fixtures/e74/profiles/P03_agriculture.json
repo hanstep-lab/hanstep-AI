@@ -5,17 +5,14 @@
     "visaProfile": {
       "visaTypeCode": "E-9",
       "birthDate": "1988-02-28",
-      "evidenceStatus": "PARTIALLY_VERIFIED"
-    },
-    "stay": {
+      "evidenceStatus": "PARTIALLY_VERIFIED",
       "currentStayStartedOn": "2023-02-14",
-      "priorStayMonths": 30,
-      "verificationStatus": "DECLARED"
+      "priorStayMonths": 30
     },
-    "employments": [
+    "employmentHistories": [
       {
-        "employmentId": 21,
-        "employerKey": "farm-x",
+        "employmentHistoryId": 21,
+        "employerName": "솔밭농원",
         "industryCode": "AGRICULTURE",
         "workplaceRegionCode": "47820",
         "isDepopulationArea": true,
@@ -25,8 +22,8 @@
         "verificationStatus": "DECLARED"
       },
       {
-        "employmentId": 22,
-        "employerKey": "farm-y",
+        "employmentHistoryId": 22,
+        "employerName": "들녘영농조합",
         "industryCode": "AGRICULTURE",
         "workplaceRegionCode": "44810",
         "isDepopulationArea": true,
@@ -36,8 +33,8 @@
         "verificationStatus": "NEEDS_EVIDENCE"
       },
       {
-        "employmentId": 23,
-        "employerKey": "farm-z",
+        "employmentHistoryId": 23,
+        "employerName": "새봄농장",
         "industryCode": "AGRICULTURE",
         "workplaceRegionCode": "44810",
         "isDepopulationArea": false,
@@ -48,7 +45,7 @@
         "verificationStatus": "DECLARED"
       }
     ],
-    "incomes": [
+    "incomeRecords": [
       {
         "incomeYear": 2024,
         "annualAmount": 24600000,
@@ -62,9 +59,9 @@
         "verificationStatus": "DECLARED"
       }
     ],
-    "evidences": [
+    "visaEvidences": [
       {
-        "evidenceId": 201,
+        "visaEvidenceId": 201,
         "evidenceType": "KIIP_PRE_TEST",
         "issuedOn": "2025-03-10",
         "status": "DECLARED",
@@ -72,12 +69,12 @@
         "preTestAssignedStage": 3
       },
       {
-        "evidenceId": 202,
+        "visaEvidenceId": 202,
         "evidenceType": "RECOMMENDATION_EMPLOYER",
         "status": "DECLARED"
       },
       {
-        "evidenceId": 203,
+        "visaEvidenceId": 203,
         "evidenceType": "RECOMMENDATION_PROVINCE",
         "status": "NEEDS_EVIDENCE"
       }

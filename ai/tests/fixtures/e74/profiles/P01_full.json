@@ -5,17 +5,14 @@
     "visaProfile": {
       "visaTypeCode": "E-9",
       "birthDate": "1994-05-12",
-      "evidenceStatus": "VERIFIED"
-    },
-    "stay": {
+      "evidenceStatus": "VERIFIED",
       "currentStayStartedOn": "2021-04-01",
-      "priorStayMonths": null,
-      "verificationStatus": "DECLARED"
+      "priorStayMonths": null
     },
-    "employments": [
+    "employmentHistories": [
       {
-        "employmentId": 11,
-        "employerKey": "emp-a",
+        "employmentHistoryId": 11,
+        "employerName": "한빛정밀",
         "industryCode": "MANUFACTURING",
         "workplaceRegionCode": "46720",
         "isDepopulationArea": true,
@@ -27,7 +24,7 @@
         "verificationStatus": "VERIFIED"
       }
     ],
-    "incomes": [
+    "incomeRecords": [
       {
         "incomeYear": 2024,
         "annualAmount": 31500000,
@@ -41,9 +38,9 @@
         "verificationStatus": "VERIFIED"
       }
     ],
-    "evidences": [
+    "visaEvidences": [
       {
-        "evidenceId": 101,
+        "visaEvidenceId": 101,
         "evidenceType": "TOPIK",
         "levelValue": "3",
         "issuedOn": "2025-06-20",
@@ -51,19 +48,19 @@
         "status": "VERIFIED"
       },
       {
-        "evidenceId": 102,
+        "visaEvidenceId": 102,
         "evidenceType": "RECOMMENDATION_EMPLOYER",
         "status": "VERIFIED"
       },
       {
-        "evidenceId": 103,
+        "visaEvidenceId": 103,
         "evidenceType": "DRIVER_LICENSE",
         "levelValue": "2종 보통",
         "issuedOn": "2023-03-02",
         "status": "VERIFIED"
       },
       {
-        "evidenceId": 104,
+        "visaEvidenceId": 104,
         "evidenceType": "NATIONAL_CERTIFICATE",
         "levelValue": "용접기능사",
         "issuedOn": "2024-09-13",
