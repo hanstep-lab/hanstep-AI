@@ -331,6 +331,8 @@ class Rule(RuleModel):
     description: str = Field(min_length=1, max_length=300)
     # JSON 전용: 팀 합의 전 해석(정의서 열린 질문). 이 규칙이 적용되면 NEEDS_REVIEW.
     review_note: str | None = Field(default=None, max_length=300)
+    # JSON 전용: 증빙 제출 서류(선발계획 붙임2). 개선 방안의 서류 안내에 쓴다.
+    documents: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def _is_consistent(self) -> Self:

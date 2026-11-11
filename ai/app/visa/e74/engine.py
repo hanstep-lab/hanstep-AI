@@ -21,6 +21,13 @@ from app.visa.e74.base_score import (
     calculate_korean_score,
 )
 from app.visa.e74.bonus_penalty import calculate_bonus_items, calculate_penalties
+from app.visa.e74.improvements import (
+    EMPTY_ANALYSIS,
+    Improvement,
+    ImprovementPlan,
+    ScoreGap,
+    analyze_improvements,
+)
 from app.visa.e74.requirements import (
     KOREAN_DEFERRED,
     ScoreItems,
@@ -100,6 +107,9 @@ class E74Assessment(CamelResponse):
     missing_inputs: tuple[MissingInputSummary, ...]
     needs_evidence: tuple[str, ...] = Field(description="값은 있지만 증빙 서류가 필요한 규칙 코드")
     review_notes: tuple[ReviewNote, ...]
+    score_gap: ScoreGap
+    improvements: tuple[Improvement, ...] = Field(description="우선순위 순 개선 방안(7단계)")
+    plan_to_required: ImprovementPlan
 
 
 def request_key(rule_version: str | None, as_of: date, profile: E74Profile) -> str:
@@ -221,6 +231,15 @@ def calculate_e74(profile: E74Profile, as_of: date, rule_set: RuleSet) -> E74Ass
         score_met = True
     elif total_item is not None and total_item.status is ItemStatus.NOT_MET:
         score_met = False
+    analysis = analyze_improvements(
+        profile,
+        rule_set,
+        as_of,
+        items,
+        required=score.required,
+        confirmed_total=score.total,
+        potential_total=potential.total,
+    )
 
     return E74Assessment(
         rule_version=rule_set.rule_version,
@@ -240,6 +259,9 @@ def calculate_e74(profile: E74Profile, as_of: date, rule_set: RuleSet) -> E74Ass
             for item in items
             if item.review_note is not None
         ),
+        score_gap=analysis.score_gap,
+        improvements=analysis.improvements,
+        plan_to_required=analysis.plan,
     )
 
 
@@ -275,4 +297,7 @@ def assess_e74(
                 note=f"{as_of.isoformat()}에 적용할 승인된 규칙 버전이 없음(Q9)",
             ),
         ),
+        score_gap=EMPTY_ANALYSIS.score_gap,
+        improvements=EMPTY_ANALYSIS.improvements,
+        plan_to_required=EMPTY_ANALYSIS.plan,
     )
