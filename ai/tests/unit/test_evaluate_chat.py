@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -289,3 +290,35 @@ def test_fake_mode_stops_when_server_is_real(
     conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
     assert conditions["status"] == "mode_mismatch"
     assert "서버가 실제 모드" in capsys.readouterr().out
+
+
+CHAT_FIXTURE = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "chat" / "finance_context_minh.json"
+)
+
+
+def _fixture_value(name: str) -> Decimal:
+    if name.isdigit():
+        return Decimal(name)
+    node: Any = json.loads(CHAT_FIXTURE.read_text(encoding="utf-8"))["latestAnalysis"]
+    for part in name.split("."):
+        node = node[part]
+    return Decimal(str(node["amount"]))
+
+
+def test_reference_values_match_fixture() -> None:
+    """Hand-written referenceValues equal the formula computed from the chat fixture."""
+    spec = EVAL.load_questions()
+    assert spec["version"] == "v1.1"
+    assert spec["latencySubset"] == ["F01", "F03", "F07", "F09", "H01"]
+    with_refs = [q for q in spec["questions"] if q.get("referenceValues")]
+    assert [q["id"] for q in with_refs] == ["T02", "T03"] + [f"C0{i}" for i in range(1, 8)]
+    for q in with_refs:
+        assert q["expectBehavior"] == "calculation_needed"
+        for ref in q["referenceValues"]:
+            left, op, right = ref["formula"].split()
+            a, b = _fixture_value(left), _fixture_value(right)
+            value = {"*": a * b, "-": a - b, "/": a / b}[op]
+            if ref["unit"] == "percent":
+                value = (value * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+            assert value == Decimal(str(ref["value"])), (q["id"], ref)
