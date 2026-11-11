@@ -32,13 +32,23 @@ from app.visa.e74.schemas import EvidenceType
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSION = "visa-roadmap-text-v1"
+PROMPT_VERSION = "visa-roadmap-text-v2"
 MAX_OUTPUT_TOKENS = 2048
 MAX_TITLE_CHARS = 40
 MAX_DESCRIPTION_CHARS = 300
 
 # 모의 사전진단이다. 승인 가능성·순위처럼 들리는 표현은 쓰지 않는다.
 FORBIDDEN_PHRASES = ("합격", "불합격", "상위", "가능성", "확률", "보장", "확실")
+# 금지 표현의 규칙 코드. 대체 로그에는 문장 대신 이 코드만 남긴다.
+FORBIDDEN_PHRASE_CODES = {
+    "합격": "PASS",
+    "불합격": "FAIL",
+    "상위": "RANK",
+    "가능성": "LIKELIHOOD",
+    "확률": "PROBABILITY",
+    "보장": "GUARANTEE",
+    "확실": "CERTAINTY",
+}
 
 _NUMBER = re.compile(r"\d[\d,]*")
 
@@ -140,6 +150,7 @@ SYSTEM_PROMPT = "\n".join(
         "- 입력에 없는 요건·서류·기관을 더하지 않아요.",
         "- 이 결과는 모의 사전진단이에요. "
         "승인 가능성, 합격, 순위(상위 몇 %), 기준 점수를 말하지 않아요.",
+        "- 안내·면책 문구(승인 여부, 결과 보장 등)는 쓰지 않아요. 화면이 고정 문구로 표시해요.",
         "- 이모지와 마크다운을 쓰지 않아요.",
         "- order는 입력과 같게, 모든 단계를 빠짐없이 돌려줘요.",
     ]
@@ -173,11 +184,15 @@ def numbers_in(text: str) -> set[int]:
 
 
 class LlmTextError(Exception):
-    """LLM 문장을 쓸 수 없음. reason은 응답 text.fallbackReason에 그대로 들어간다."""
+    """LLM 문장을 쓸 수 없음. reason은 응답 text.fallbackReason에 그대로 들어간다.
 
-    def __init__(self, reason: str) -> None:
+    rule_codes는 걸린 금지 표현의 규칙 코드(FORBIDDEN_PHRASE일 때만). 문장 원문은 담지 않는다.
+    """
+
+    def __init__(self, reason: str, rule_codes: tuple[str, ...] = ()) -> None:
         super().__init__(reason)
         self.reason = reason
+        self.rule_codes = rule_codes
 
 
 def check_llm_texts(
@@ -188,7 +203,6 @@ def check_llm_texts(
     if set(texts) != {s["order"] for s in steps}:
         raise LlmTextError("INVALID_OUTPUT")
     for text in texts.values():
-        body = f"{text.title}\n{text.description}"
         if (
             not text.title.strip()
             or not text.description.strip()
@@ -196,8 +210,11 @@ def check_llm_texts(
             or len(text.description) > MAX_DESCRIPTION_CHARS
         ):
             raise LlmTextError("INVALID_OUTPUT")
-        if any(p in body for p in FORBIDDEN_PHRASES):
-            raise LlmTextError("FORBIDDEN_PHRASE")
+    bodies = [f"{t.title}\n{t.description}" for t in texts.values()]
+    hits = sorted({FORBIDDEN_PHRASE_CODES[p] for p in FORBIDDEN_PHRASES for b in bodies if p in b})
+    if hits:
+        raise LlmTextError("FORBIDDEN_PHRASE", tuple(hits))
+    for body in bodies:
         if not numbers_in(body) <= allowed:
             raise LlmTextError("UNVERIFIED_NUMBER")
     return texts

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -15,7 +16,14 @@ from app.main import AppState, create_app
 from app.rag.embeddings import BgeM3Embedder
 from app.visa.roadmap.schemas import RoadmapRequest, RoadmapResponse
 from app.visa.roadmap.service import StepWriter, build_roadmap
-from app.visa.roadmap.text import PROMPT_VERSION, LlmStepWriter, numbers_in
+from app.visa.roadmap.text import (
+    FORBIDDEN_PHRASE_CODES,
+    FORBIDDEN_PHRASES,
+    PROMPT_VERSION,
+    SYSTEM_PROMPT,
+    LlmStepWriter,
+    numbers_in,
+)
 from tests.unit._e74_cases import profile_json
 
 pytestmark = pytest.mark.unit
@@ -263,6 +271,35 @@ def test_llm_missing_a_step_or_failing_falls_back() -> None:
     assert _dump(_roadmap(_request(), writer))["text"]["fallbackReason"] == "INVALID_OUTPUT"
     writer, _ = _writer(RuntimeError("boom"))
     assert _dump(_roadmap(_request(), writer))["text"]["fallbackReason"] == "LLM_ERROR"
+
+
+def test_fallback_logs_reason_and_rule_codes_but_not_the_text(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    sentence = "불합격 걱정 없이 상위권 보장이에요."
+    writer, _ = _writer(_rewrite(sentence))
+    with caplog.at_level(logging.WARNING, logger="app.visa.roadmap.service"):
+        d = _dump(_roadmap(_request(), writer))
+    assert d["text"]["fallbackReason"] == "FORBIDDEN_PHRASE"
+    assert "reason=FORBIDDEN_PHRASE rules=FAIL,GUARANTEE,PASS,RANK" in caplog.text
+    assert sentence not in caplog.text and "불합격" not in caplog.text
+
+
+def test_unverified_number_fallback_logs_no_rule_codes(caplog: pytest.LogCaptureFixture) -> None:
+    writer, _ = _writer(_rewrite("추천서를 받으면 +70점이에요."))
+    with caplog.at_level(logging.WARNING, logger="app.visa.roadmap.service"):
+        _roadmap(_request(), writer)
+    assert "reason=UNVERIFIED_NUMBER rules=-" in caplog.text
+    assert "70" not in caplog.text
+
+
+def test_every_forbidden_phrase_has_a_rule_code() -> None:
+    assert set(FORBIDDEN_PHRASE_CODES) == set(FORBIDDEN_PHRASES)
+
+
+def test_prompt_leaves_disclaimers_to_the_screen() -> None:
+    assert "안내·면책 문구(승인 여부, 결과 보장 등)는 쓰지 않아요" in SYSTEM_PROMPT
+    assert "화면이 고정 문구로 표시해요" in SYSTEM_PROMPT
 
 
 def test_numbers_in_reads_commas_and_dates() -> None:

@@ -6,6 +6,7 @@ HTTP·DB와 무관하다. 점수·날짜·금액은 모두 엔진과 이 코드�
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from datetime import date, timedelta
 from typing import Any, Protocol
@@ -47,6 +48,8 @@ from app.visa.roadmap.text import (
     template_apply_text,
     template_step_text,
 )
+
+logger = logging.getLogger(__name__)
 
 BASE_CATEGORIES = (RuleCategory.BASE_INCOME, RuleCategory.BASE_KOREAN, RuleCategory.BASE_AGE)
 
@@ -201,6 +204,12 @@ def _write_text(
     try:
         texts = writer.write(_llm_input(steps))
     except LlmTextError as exc:
+        # 사유와 금지 표현 규칙 코드만 남긴다(문장 원문은 남기지 않음).
+        logger.warning(
+            "roadmap text fell back to template: reason=%s rules=%s",
+            exc.reason,
+            ",".join(exc.rule_codes) or "-",
+        )
         return steps, template.model_copy(update={"fallback_reason": exc.reason})
     rewritten = tuple(
         s.model_copy(
