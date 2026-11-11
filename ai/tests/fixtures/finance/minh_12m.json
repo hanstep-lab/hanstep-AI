@@ -1,0 +1,2746 @@
+{
+  "_source": {
+    "repository": "hanstep-backend",
+    "commit": "74eade9ef0dce683ce44e7e9e93fe2e4d8ce67c4",
+    "files": [
+      "src/main/resources/mock/mydata/demo-e9-nguyen/bank-shinhan.json",
+      "src/main/resources/mock/mydata/demo-e9-nguyen/card-shinhan.json"
+    ],
+    "conversion": "bank DEPOSIT->INCOME, WITHDRAWAL->EXPENSE; card APPROVED->EXPENSE; bookedDate = KST date of *_dtime; id = 1.. in order bank trans_list then card approval_list; categoryCode/transactionKind copied from the mock"
+  },
+  "request": {
+    "userId": 1,
+    "periodFrom": "2025-11-01",
+    "periodTo": "2026-10-31",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2025-11-05",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2025-11-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 3,
+        "bookedDate": "2025-11-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 4,
+        "bookedDate": "2025-11-14",
+        "direction": "EXPENSE",
+        "amount": 440200,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 5,
+        "bookedDate": "2025-11-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 6,
+        "bookedDate": "2025-11-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 7,
+        "bookedDate": "2025-11-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 8,
+        "bookedDate": "2025-11-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 9,
+        "bookedDate": "2025-12-05",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 10,
+        "bookedDate": "2025-12-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 11,
+        "bookedDate": "2025-12-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 12,
+        "bookedDate": "2025-12-14",
+        "direction": "EXPENSE",
+        "amount": 431800,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 13,
+        "bookedDate": "2025-12-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 14,
+        "bookedDate": "2025-12-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 15,
+        "bookedDate": "2025-12-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 16,
+        "bookedDate": "2025-12-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 17,
+        "bookedDate": "2026-01-05",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 18,
+        "bookedDate": "2026-01-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 19,
+        "bookedDate": "2026-01-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 20,
+        "bookedDate": "2026-01-14",
+        "direction": "EXPENSE",
+        "amount": 498300,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 21,
+        "bookedDate": "2026-01-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 22,
+        "bookedDate": "2026-01-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 23,
+        "bookedDate": "2026-01-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 24,
+        "bookedDate": "2026-01-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 25,
+        "bookedDate": "2026-02-05",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 26,
+        "bookedDate": "2026-02-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 27,
+        "bookedDate": "2026-02-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 28,
+        "bookedDate": "2026-02-14",
+        "direction": "EXPENSE",
+        "amount": 452600,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 29,
+        "bookedDate": "2026-02-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 30,
+        "bookedDate": "2026-02-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 31,
+        "bookedDate": "2026-02-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 32,
+        "bookedDate": "2026-02-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 33,
+        "bookedDate": "2026-03-05",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 34,
+        "bookedDate": "2026-03-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 35,
+        "bookedDate": "2026-03-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 36,
+        "bookedDate": "2026-03-14",
+        "direction": "EXPENSE",
+        "amount": 512400,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 37,
+        "bookedDate": "2026-03-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 38,
+        "bookedDate": "2026-03-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 39,
+        "bookedDate": "2026-03-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 40,
+        "bookedDate": "2026-03-30",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 41,
+        "bookedDate": "2026-04-03",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 42,
+        "bookedDate": "2026-04-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 43,
+        "bookedDate": "2026-04-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 44,
+        "bookedDate": "2026-04-14",
+        "direction": "EXPENSE",
+        "amount": 418900,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 45,
+        "bookedDate": "2026-04-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 46,
+        "bookedDate": "2026-04-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 47,
+        "bookedDate": "2026-04-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 48,
+        "bookedDate": "2026-04-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 49,
+        "bookedDate": "2026-05-05",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 50,
+        "bookedDate": "2026-05-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 51,
+        "bookedDate": "2026-05-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 52,
+        "bookedDate": "2026-05-14",
+        "direction": "EXPENSE",
+        "amount": 426500,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 53,
+        "bookedDate": "2026-05-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 54,
+        "bookedDate": "2026-05-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 55,
+        "bookedDate": "2026-05-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 56,
+        "bookedDate": "2026-05-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 57,
+        "bookedDate": "2026-06-05",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 58,
+        "bookedDate": "2026-06-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 59,
+        "bookedDate": "2026-06-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 60,
+        "bookedDate": "2026-06-14",
+        "direction": "EXPENSE",
+        "amount": 471200,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 61,
+        "bookedDate": "2026-06-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 62,
+        "bookedDate": "2026-06-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 63,
+        "bookedDate": "2026-06-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 64,
+        "bookedDate": "2026-06-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 65,
+        "bookedDate": "2026-07-03",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 66,
+        "bookedDate": "2026-07-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 67,
+        "bookedDate": "2026-07-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 68,
+        "bookedDate": "2026-07-14",
+        "direction": "EXPENSE",
+        "amount": 437800,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 69,
+        "bookedDate": "2026-07-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 70,
+        "bookedDate": "2026-07-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 71,
+        "bookedDate": "2026-07-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 72,
+        "bookedDate": "2026-07-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 73,
+        "bookedDate": "2026-08-05",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 74,
+        "bookedDate": "2026-08-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 75,
+        "bookedDate": "2026-08-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 76,
+        "bookedDate": "2026-08-14",
+        "direction": "EXPENSE",
+        "amount": 444300,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 77,
+        "bookedDate": "2026-08-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 78,
+        "bookedDate": "2026-08-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 79,
+        "bookedDate": "2026-08-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 80,
+        "bookedDate": "2026-08-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 81,
+        "bookedDate": "2026-09-04",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 82,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 83,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 84,
+        "bookedDate": "2026-09-14",
+        "direction": "EXPENSE",
+        "amount": 462700,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 85,
+        "bookedDate": "2026-09-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 86,
+        "bookedDate": "2026-09-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 87,
+        "bookedDate": "2026-09-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 88,
+        "bookedDate": "2026-09-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 89,
+        "bookedDate": "2026-10-05",
+        "direction": "INCOME",
+        "amount": 2350000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 90,
+        "bookedDate": "2026-10-10",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 91,
+        "bookedDate": "2026-10-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 92,
+        "bookedDate": "2026-10-14",
+        "direction": "EXPENSE",
+        "amount": 489100,
+        "categoryCode": "CARD_PAYMENT",
+        "transactionKind": "CARD_SETTLEMENT"
+      },
+      {
+        "id": 93,
+        "bookedDate": "2026-10-18",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 94,
+        "bookedDate": "2026-10-18",
+        "direction": "EXPENSE",
+        "amount": 18000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 95,
+        "bookedDate": "2026-10-25",
+        "direction": "EXPENSE",
+        "amount": 70000,
+        "categoryCode": "UTILITY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 96,
+        "bookedDate": "2026-10-25",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 97,
+        "bookedDate": "2025-11-01",
+        "direction": "EXPENSE",
+        "amount": 6900,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 98,
+        "bookedDate": "2025-11-01",
+        "direction": "EXPENSE",
+        "amount": 14400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 99,
+        "bookedDate": "2025-11-01",
+        "direction": "EXPENSE",
+        "amount": 80800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 100,
+        "bookedDate": "2025-11-03",
+        "direction": "EXPENSE",
+        "amount": 12800,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 101,
+        "bookedDate": "2025-11-04",
+        "direction": "EXPENSE",
+        "amount": 32500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 102,
+        "bookedDate": "2025-11-05",
+        "direction": "EXPENSE",
+        "amount": 32100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 103,
+        "bookedDate": "2025-11-08",
+        "direction": "EXPENSE",
+        "amount": 11900,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 104,
+        "bookedDate": "2025-11-09",
+        "direction": "EXPENSE",
+        "amount": 32900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 105,
+        "bookedDate": "2025-11-10",
+        "direction": "EXPENSE",
+        "amount": 3800,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 106,
+        "bookedDate": "2025-11-10",
+        "direction": "EXPENSE",
+        "amount": 19500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 107,
+        "bookedDate": "2025-11-11",
+        "direction": "EXPENSE",
+        "amount": 18200,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 108,
+        "bookedDate": "2025-11-12",
+        "direction": "EXPENSE",
+        "amount": 15800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 109,
+        "bookedDate": "2025-11-12",
+        "direction": "EXPENSE",
+        "amount": 24800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 110,
+        "bookedDate": "2025-11-12",
+        "direction": "EXPENSE",
+        "amount": 15300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 111,
+        "bookedDate": "2025-11-15",
+        "direction": "EXPENSE",
+        "amount": 12700,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 112,
+        "bookedDate": "2025-11-16",
+        "direction": "EXPENSE",
+        "amount": 11100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 113,
+        "bookedDate": "2025-11-19",
+        "direction": "EXPENSE",
+        "amount": 10200,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 114,
+        "bookedDate": "2025-11-20",
+        "direction": "EXPENSE",
+        "amount": 4400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 115,
+        "bookedDate": "2025-11-23",
+        "direction": "EXPENSE",
+        "amount": 14100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 116,
+        "bookedDate": "2025-11-23",
+        "direction": "EXPENSE",
+        "amount": 25700,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 117,
+        "bookedDate": "2025-11-23",
+        "direction": "EXPENSE",
+        "amount": 17500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 118,
+        "bookedDate": "2025-11-30",
+        "direction": "EXPENSE",
+        "amount": 14400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 119,
+        "bookedDate": "2025-12-03",
+        "direction": "EXPENSE",
+        "amount": 105500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 120,
+        "bookedDate": "2025-12-04",
+        "direction": "EXPENSE",
+        "amount": 33500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 121,
+        "bookedDate": "2025-12-06",
+        "direction": "EXPENSE",
+        "amount": 19700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 122,
+        "bookedDate": "2025-12-08",
+        "direction": "EXPENSE",
+        "amount": 23800,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 123,
+        "bookedDate": "2025-12-09",
+        "direction": "EXPENSE",
+        "amount": 3200,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 124,
+        "bookedDate": "2025-12-10",
+        "direction": "EXPENSE",
+        "amount": 23800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 125,
+        "bookedDate": "2025-12-12",
+        "direction": "EXPENSE",
+        "amount": 23200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 126,
+        "bookedDate": "2025-12-12",
+        "direction": "EXPENSE",
+        "amount": 21200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 127,
+        "bookedDate": "2025-12-13",
+        "direction": "EXPENSE",
+        "amount": 32000,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 128,
+        "bookedDate": "2025-12-13",
+        "direction": "EXPENSE",
+        "amount": 53200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 129,
+        "bookedDate": "2025-12-13",
+        "direction": "EXPENSE",
+        "amount": 8500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 130,
+        "bookedDate": "2025-12-14",
+        "direction": "EXPENSE",
+        "amount": 16600,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 131,
+        "bookedDate": "2025-12-14",
+        "direction": "EXPENSE",
+        "amount": 16100,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 132,
+        "bookedDate": "2025-12-17",
+        "direction": "EXPENSE",
+        "amount": 12600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 133,
+        "bookedDate": "2025-12-17",
+        "direction": "EXPENSE",
+        "amount": 14400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 134,
+        "bookedDate": "2025-12-23",
+        "direction": "EXPENSE",
+        "amount": 14400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 135,
+        "bookedDate": "2025-12-23",
+        "direction": "EXPENSE",
+        "amount": 27200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 136,
+        "bookedDate": "2025-12-24",
+        "direction": "EXPENSE",
+        "amount": 18600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 137,
+        "bookedDate": "2025-12-28",
+        "direction": "EXPENSE",
+        "amount": 12000,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 138,
+        "bookedDate": "2025-12-29",
+        "direction": "EXPENSE",
+        "amount": 18800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 139,
+        "bookedDate": "2026-01-03",
+        "direction": "EXPENSE",
+        "amount": 21100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 140,
+        "bookedDate": "2026-01-04",
+        "direction": "EXPENSE",
+        "amount": 6400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 141,
+        "bookedDate": "2026-01-06",
+        "direction": "EXPENSE",
+        "amount": 10700,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 142,
+        "bookedDate": "2026-01-07",
+        "direction": "EXPENSE",
+        "amount": 38700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 143,
+        "bookedDate": "2026-01-07",
+        "direction": "EXPENSE",
+        "amount": 5100,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 144,
+        "bookedDate": "2026-01-12",
+        "direction": "EXPENSE",
+        "amount": 11500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 145,
+        "bookedDate": "2026-01-13",
+        "direction": "EXPENSE",
+        "amount": 18100,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 146,
+        "bookedDate": "2026-01-14",
+        "direction": "EXPENSE",
+        "amount": 32100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 147,
+        "bookedDate": "2026-01-14",
+        "direction": "EXPENSE",
+        "amount": 40000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 148,
+        "bookedDate": "2026-01-14",
+        "direction": "EXPENSE",
+        "amount": 21100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 149,
+        "bookedDate": "2026-01-16",
+        "direction": "EXPENSE",
+        "amount": 45300,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 150,
+        "bookedDate": "2026-01-17",
+        "direction": "EXPENSE",
+        "amount": 19000,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 151,
+        "bookedDate": "2026-01-20",
+        "direction": "EXPENSE",
+        "amount": 22600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 152,
+        "bookedDate": "2026-01-20",
+        "direction": "EXPENSE",
+        "amount": 57200,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 153,
+        "bookedDate": "2026-01-21",
+        "direction": "EXPENSE",
+        "amount": 10100,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 154,
+        "bookedDate": "2026-01-23",
+        "direction": "EXPENSE",
+        "amount": 6600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 155,
+        "bookedDate": "2026-01-24",
+        "direction": "EXPENSE",
+        "amount": 11900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 156,
+        "bookedDate": "2026-01-24",
+        "direction": "EXPENSE",
+        "amount": 37800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 157,
+        "bookedDate": "2026-01-26",
+        "direction": "EXPENSE",
+        "amount": 10500,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 158,
+        "bookedDate": "2026-01-29",
+        "direction": "EXPENSE",
+        "amount": 8200,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 159,
+        "bookedDate": "2026-01-30",
+        "direction": "EXPENSE",
+        "amount": 18600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 160,
+        "bookedDate": "2026-02-02",
+        "direction": "EXPENSE",
+        "amount": 73800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 161,
+        "bookedDate": "2026-02-02",
+        "direction": "EXPENSE",
+        "amount": 13900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 162,
+        "bookedDate": "2026-02-02",
+        "direction": "EXPENSE",
+        "amount": 68100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 163,
+        "bookedDate": "2026-02-02",
+        "direction": "EXPENSE",
+        "amount": 50400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 164,
+        "bookedDate": "2026-02-03",
+        "direction": "EXPENSE",
+        "amount": 32400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 165,
+        "bookedDate": "2026-02-03",
+        "direction": "EXPENSE",
+        "amount": 14700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 166,
+        "bookedDate": "2026-02-07",
+        "direction": "EXPENSE",
+        "amount": 33200,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 167,
+        "bookedDate": "2026-02-09",
+        "direction": "EXPENSE",
+        "amount": 10500,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 168,
+        "bookedDate": "2026-02-09",
+        "direction": "EXPENSE",
+        "amount": 39900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 169,
+        "bookedDate": "2026-02-11",
+        "direction": "EXPENSE",
+        "amount": 19800,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 170,
+        "bookedDate": "2026-02-12",
+        "direction": "EXPENSE",
+        "amount": 29900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 171,
+        "bookedDate": "2026-02-13",
+        "direction": "EXPENSE",
+        "amount": 6400,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 172,
+        "bookedDate": "2026-02-14",
+        "direction": "EXPENSE",
+        "amount": 2500,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 173,
+        "bookedDate": "2026-02-15",
+        "direction": "EXPENSE",
+        "amount": 20000,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 174,
+        "bookedDate": "2026-02-18",
+        "direction": "EXPENSE",
+        "amount": 5200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 175,
+        "bookedDate": "2026-02-19",
+        "direction": "EXPENSE",
+        "amount": 20000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 176,
+        "bookedDate": "2026-02-20",
+        "direction": "EXPENSE",
+        "amount": 12300,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 177,
+        "bookedDate": "2026-02-22",
+        "direction": "EXPENSE",
+        "amount": 8300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 178,
+        "bookedDate": "2026-02-26",
+        "direction": "EXPENSE",
+        "amount": 14100,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 179,
+        "bookedDate": "2026-02-27",
+        "direction": "EXPENSE",
+        "amount": 24100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 180,
+        "bookedDate": "2026-02-27",
+        "direction": "EXPENSE",
+        "amount": 12900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 181,
+        "bookedDate": "2026-03-01",
+        "direction": "EXPENSE",
+        "amount": 18900,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 182,
+        "bookedDate": "2026-03-04",
+        "direction": "EXPENSE",
+        "amount": 12800,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 183,
+        "bookedDate": "2026-03-05",
+        "direction": "EXPENSE",
+        "amount": 24000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 184,
+        "bookedDate": "2026-03-06",
+        "direction": "EXPENSE",
+        "amount": 18900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 185,
+        "bookedDate": "2026-03-09",
+        "direction": "EXPENSE",
+        "amount": 6700,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 186,
+        "bookedDate": "2026-03-10",
+        "direction": "EXPENSE",
+        "amount": 24300,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 187,
+        "bookedDate": "2026-03-11",
+        "direction": "EXPENSE",
+        "amount": 19400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 188,
+        "bookedDate": "2026-03-11",
+        "direction": "EXPENSE",
+        "amount": 8000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 189,
+        "bookedDate": "2026-03-11",
+        "direction": "EXPENSE",
+        "amount": 4600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 190,
+        "bookedDate": "2026-03-14",
+        "direction": "EXPENSE",
+        "amount": 55300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 191,
+        "bookedDate": "2026-03-15",
+        "direction": "EXPENSE",
+        "amount": 10100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 192,
+        "bookedDate": "2026-03-16",
+        "direction": "EXPENSE",
+        "amount": 40200,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 193,
+        "bookedDate": "2026-03-16",
+        "direction": "EXPENSE",
+        "amount": 51400,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 194,
+        "bookedDate": "2026-03-17",
+        "direction": "EXPENSE",
+        "amount": 4800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 195,
+        "bookedDate": "2026-03-18",
+        "direction": "EXPENSE",
+        "amount": 11200,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 196,
+        "bookedDate": "2026-03-23",
+        "direction": "EXPENSE",
+        "amount": 35700,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 197,
+        "bookedDate": "2026-03-26",
+        "direction": "EXPENSE",
+        "amount": 4000,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 198,
+        "bookedDate": "2026-03-26",
+        "direction": "EXPENSE",
+        "amount": 11100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 199,
+        "bookedDate": "2026-03-30",
+        "direction": "EXPENSE",
+        "amount": 2800,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 200,
+        "bookedDate": "2026-03-30",
+        "direction": "EXPENSE",
+        "amount": 14600,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 201,
+        "bookedDate": "2026-03-31",
+        "direction": "EXPENSE",
+        "amount": 40100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 202,
+        "bookedDate": "2026-04-02",
+        "direction": "EXPENSE",
+        "amount": 2400,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 203,
+        "bookedDate": "2026-04-08",
+        "direction": "EXPENSE",
+        "amount": 57000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 204,
+        "bookedDate": "2026-04-08",
+        "direction": "EXPENSE",
+        "amount": 15100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 205,
+        "bookedDate": "2026-04-09",
+        "direction": "EXPENSE",
+        "amount": 45000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 206,
+        "bookedDate": "2026-04-10",
+        "direction": "EXPENSE",
+        "amount": 14800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 207,
+        "bookedDate": "2026-04-10",
+        "direction": "EXPENSE",
+        "amount": 32700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 208,
+        "bookedDate": "2026-04-11",
+        "direction": "EXPENSE",
+        "amount": 24700,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 209,
+        "bookedDate": "2026-04-12",
+        "direction": "EXPENSE",
+        "amount": 6200,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 210,
+        "bookedDate": "2026-04-12",
+        "direction": "EXPENSE",
+        "amount": 7200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 211,
+        "bookedDate": "2026-04-14",
+        "direction": "EXPENSE",
+        "amount": 27200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 212,
+        "bookedDate": "2026-04-14",
+        "direction": "EXPENSE",
+        "amount": 16500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 213,
+        "bookedDate": "2026-04-15",
+        "direction": "EXPENSE",
+        "amount": 18800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 214,
+        "bookedDate": "2026-04-17",
+        "direction": "EXPENSE",
+        "amount": 43300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 215,
+        "bookedDate": "2026-04-18",
+        "direction": "EXPENSE",
+        "amount": 5800,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 216,
+        "bookedDate": "2026-04-18",
+        "direction": "EXPENSE",
+        "amount": 3300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 217,
+        "bookedDate": "2026-04-22",
+        "direction": "EXPENSE",
+        "amount": 2300,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 218,
+        "bookedDate": "2026-04-24",
+        "direction": "EXPENSE",
+        "amount": 11800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 219,
+        "bookedDate": "2026-04-25",
+        "direction": "EXPENSE",
+        "amount": 78900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 220,
+        "bookedDate": "2026-04-30",
+        "direction": "EXPENSE",
+        "amount": 13500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 221,
+        "bookedDate": "2026-05-03",
+        "direction": "EXPENSE",
+        "amount": 11300,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 222,
+        "bookedDate": "2026-05-04",
+        "direction": "EXPENSE",
+        "amount": 45200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 223,
+        "bookedDate": "2026-05-04",
+        "direction": "EXPENSE",
+        "amount": 17200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 224,
+        "bookedDate": "2026-05-06",
+        "direction": "EXPENSE",
+        "amount": 18300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 225,
+        "bookedDate": "2026-05-08",
+        "direction": "EXPENSE",
+        "amount": 7200,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 226,
+        "bookedDate": "2026-05-12",
+        "direction": "EXPENSE",
+        "amount": 62100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 227,
+        "bookedDate": "2026-05-12",
+        "direction": "EXPENSE",
+        "amount": 38100,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 228,
+        "bookedDate": "2026-05-13",
+        "direction": "EXPENSE",
+        "amount": 27900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 229,
+        "bookedDate": "2026-05-15",
+        "direction": "EXPENSE",
+        "amount": 16400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 230,
+        "bookedDate": "2026-05-18",
+        "direction": "EXPENSE",
+        "amount": 20600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 231,
+        "bookedDate": "2026-05-18",
+        "direction": "EXPENSE",
+        "amount": 6900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 232,
+        "bookedDate": "2026-05-19",
+        "direction": "EXPENSE",
+        "amount": 56800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 233,
+        "bookedDate": "2026-05-19",
+        "direction": "EXPENSE",
+        "amount": 11700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 234,
+        "bookedDate": "2026-05-20",
+        "direction": "EXPENSE",
+        "amount": 33800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 235,
+        "bookedDate": "2026-05-21",
+        "direction": "EXPENSE",
+        "amount": 8600,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 236,
+        "bookedDate": "2026-05-21",
+        "direction": "EXPENSE",
+        "amount": 14100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 237,
+        "bookedDate": "2026-05-22",
+        "direction": "EXPENSE",
+        "amount": 52600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 238,
+        "bookedDate": "2026-05-24",
+        "direction": "EXPENSE",
+        "amount": 12000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 239,
+        "bookedDate": "2026-05-25",
+        "direction": "EXPENSE",
+        "amount": 3200,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 240,
+        "bookedDate": "2026-05-26",
+        "direction": "EXPENSE",
+        "amount": 7200,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 241,
+        "bookedDate": "2026-06-01",
+        "direction": "EXPENSE",
+        "amount": 16300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 242,
+        "bookedDate": "2026-06-02",
+        "direction": "EXPENSE",
+        "amount": 15300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 243,
+        "bookedDate": "2026-06-02",
+        "direction": "EXPENSE",
+        "amount": 7400,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 244,
+        "bookedDate": "2026-06-03",
+        "direction": "EXPENSE",
+        "amount": 31300,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 245,
+        "bookedDate": "2026-06-07",
+        "direction": "EXPENSE",
+        "amount": 61300,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 246,
+        "bookedDate": "2026-06-10",
+        "direction": "EXPENSE",
+        "amount": 4500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 247,
+        "bookedDate": "2026-06-13",
+        "direction": "EXPENSE",
+        "amount": 4000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 248,
+        "bookedDate": "2026-06-14",
+        "direction": "EXPENSE",
+        "amount": 73500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 249,
+        "bookedDate": "2026-06-14",
+        "direction": "EXPENSE",
+        "amount": 67900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 250,
+        "bookedDate": "2026-06-14",
+        "direction": "EXPENSE",
+        "amount": 16100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 251,
+        "bookedDate": "2026-06-15",
+        "direction": "EXPENSE",
+        "amount": 62700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 252,
+        "bookedDate": "2026-06-18",
+        "direction": "EXPENSE",
+        "amount": 11500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 253,
+        "bookedDate": "2026-06-20",
+        "direction": "EXPENSE",
+        "amount": 4500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 254,
+        "bookedDate": "2026-06-21",
+        "direction": "EXPENSE",
+        "amount": 3000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 255,
+        "bookedDate": "2026-06-21",
+        "direction": "EXPENSE",
+        "amount": 17600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 256,
+        "bookedDate": "2026-06-22",
+        "direction": "EXPENSE",
+        "amount": 10700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 257,
+        "bookedDate": "2026-06-24",
+        "direction": "EXPENSE",
+        "amount": 13500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 258,
+        "bookedDate": "2026-06-29",
+        "direction": "EXPENSE",
+        "amount": 16700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 259,
+        "bookedDate": "2026-07-07",
+        "direction": "EXPENSE",
+        "amount": 33700,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 260,
+        "bookedDate": "2026-07-08",
+        "direction": "EXPENSE",
+        "amount": 20100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 261,
+        "bookedDate": "2026-07-09",
+        "direction": "EXPENSE",
+        "amount": 12500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 262,
+        "bookedDate": "2026-07-09",
+        "direction": "EXPENSE",
+        "amount": 39000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 263,
+        "bookedDate": "2026-07-10",
+        "direction": "EXPENSE",
+        "amount": 4700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 264,
+        "bookedDate": "2026-07-10",
+        "direction": "EXPENSE",
+        "amount": 36800,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 265,
+        "bookedDate": "2026-07-12",
+        "direction": "EXPENSE",
+        "amount": 49800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 266,
+        "bookedDate": "2026-07-14",
+        "direction": "EXPENSE",
+        "amount": 11800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 267,
+        "bookedDate": "2026-07-14",
+        "direction": "EXPENSE",
+        "amount": 18700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 268,
+        "bookedDate": "2026-07-17",
+        "direction": "EXPENSE",
+        "amount": 16500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 269,
+        "bookedDate": "2026-07-19",
+        "direction": "EXPENSE",
+        "amount": 44200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 270,
+        "bookedDate": "2026-07-23",
+        "direction": "EXPENSE",
+        "amount": 4400,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 271,
+        "bookedDate": "2026-07-25",
+        "direction": "EXPENSE",
+        "amount": 17200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 272,
+        "bookedDate": "2026-07-26",
+        "direction": "EXPENSE",
+        "amount": 38400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 273,
+        "bookedDate": "2026-07-28",
+        "direction": "EXPENSE",
+        "amount": 23400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 274,
+        "bookedDate": "2026-07-29",
+        "direction": "EXPENSE",
+        "amount": 13100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 275,
+        "bookedDate": "2026-07-29",
+        "direction": "EXPENSE",
+        "amount": 8000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 276,
+        "bookedDate": "2026-07-30",
+        "direction": "EXPENSE",
+        "amount": 9200,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 277,
+        "bookedDate": "2026-07-30",
+        "direction": "EXPENSE",
+        "amount": 10300,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 278,
+        "bookedDate": "2026-07-31",
+        "direction": "EXPENSE",
+        "amount": 32500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 279,
+        "bookedDate": "2026-08-01",
+        "direction": "EXPENSE",
+        "amount": 13300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 280,
+        "bookedDate": "2026-08-02",
+        "direction": "EXPENSE",
+        "amount": 8300,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 281,
+        "bookedDate": "2026-08-02",
+        "direction": "EXPENSE",
+        "amount": 9300,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 282,
+        "bookedDate": "2026-08-02",
+        "direction": "EXPENSE",
+        "amount": 15500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 283,
+        "bookedDate": "2026-08-02",
+        "direction": "EXPENSE",
+        "amount": 72700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 284,
+        "bookedDate": "2026-08-11",
+        "direction": "EXPENSE",
+        "amount": 15100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 285,
+        "bookedDate": "2026-08-11",
+        "direction": "EXPENSE",
+        "amount": 11600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 286,
+        "bookedDate": "2026-08-12",
+        "direction": "EXPENSE",
+        "amount": 22700,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 287,
+        "bookedDate": "2026-08-12",
+        "direction": "EXPENSE",
+        "amount": 54000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 288,
+        "bookedDate": "2026-08-14",
+        "direction": "EXPENSE",
+        "amount": 16700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 289,
+        "bookedDate": "2026-08-16",
+        "direction": "EXPENSE",
+        "amount": 11700,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 290,
+        "bookedDate": "2026-08-17",
+        "direction": "EXPENSE",
+        "amount": 21500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 291,
+        "bookedDate": "2026-08-18",
+        "direction": "EXPENSE",
+        "amount": 4900,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 292,
+        "bookedDate": "2026-08-18",
+        "direction": "EXPENSE",
+        "amount": 7000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 293,
+        "bookedDate": "2026-08-19",
+        "direction": "EXPENSE",
+        "amount": 46100,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 294,
+        "bookedDate": "2026-08-20",
+        "direction": "EXPENSE",
+        "amount": 8100,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 295,
+        "bookedDate": "2026-08-21",
+        "direction": "EXPENSE",
+        "amount": 19300,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 296,
+        "bookedDate": "2026-08-25",
+        "direction": "EXPENSE",
+        "amount": 43000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 297,
+        "bookedDate": "2026-08-26",
+        "direction": "EXPENSE",
+        "amount": 48100,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 298,
+        "bookedDate": "2026-08-31",
+        "direction": "EXPENSE",
+        "amount": 13800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 299,
+        "bookedDate": "2026-09-01",
+        "direction": "EXPENSE",
+        "amount": 2900,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 300,
+        "bookedDate": "2026-09-03",
+        "direction": "EXPENSE",
+        "amount": 9100,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 301,
+        "bookedDate": "2026-09-03",
+        "direction": "EXPENSE",
+        "amount": 12300,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 302,
+        "bookedDate": "2026-09-03",
+        "direction": "EXPENSE",
+        "amount": 14000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 303,
+        "bookedDate": "2026-09-04",
+        "direction": "EXPENSE",
+        "amount": 9600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 304,
+        "bookedDate": "2026-09-05",
+        "direction": "EXPENSE",
+        "amount": 13700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 305,
+        "bookedDate": "2026-09-05",
+        "direction": "EXPENSE",
+        "amount": 32800,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 306,
+        "bookedDate": "2026-09-07",
+        "direction": "EXPENSE",
+        "amount": 29600,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 307,
+        "bookedDate": "2026-09-07",
+        "direction": "EXPENSE",
+        "amount": 9600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 308,
+        "bookedDate": "2026-09-08",
+        "direction": "EXPENSE",
+        "amount": 36800,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 309,
+        "bookedDate": "2026-09-08",
+        "direction": "EXPENSE",
+        "amount": 17600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 310,
+        "bookedDate": "2026-09-16",
+        "direction": "EXPENSE",
+        "amount": 34500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 311,
+        "bookedDate": "2026-09-18",
+        "direction": "EXPENSE",
+        "amount": 9100,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 312,
+        "bookedDate": "2026-09-18",
+        "direction": "EXPENSE",
+        "amount": 32500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 313,
+        "bookedDate": "2026-09-19",
+        "direction": "EXPENSE",
+        "amount": 53700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 314,
+        "bookedDate": "2026-09-22",
+        "direction": "EXPENSE",
+        "amount": 28700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 315,
+        "bookedDate": "2026-09-24",
+        "direction": "EXPENSE",
+        "amount": 24300,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 316,
+        "bookedDate": "2026-09-25",
+        "direction": "EXPENSE",
+        "amount": 7500,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 317,
+        "bookedDate": "2026-09-28",
+        "direction": "EXPENSE",
+        "amount": 12500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 318,
+        "bookedDate": "2026-09-28",
+        "direction": "EXPENSE",
+        "amount": 22700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 319,
+        "bookedDate": "2026-09-28",
+        "direction": "EXPENSE",
+        "amount": 33900,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 320,
+        "bookedDate": "2026-09-30",
+        "direction": "EXPENSE",
+        "amount": 41700,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 321,
+        "bookedDate": "2026-10-01",
+        "direction": "EXPENSE",
+        "amount": 12900,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 322,
+        "bookedDate": "2026-10-01",
+        "direction": "EXPENSE",
+        "amount": 2600,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 323,
+        "bookedDate": "2026-10-01",
+        "direction": "EXPENSE",
+        "amount": 59400,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 324,
+        "bookedDate": "2026-10-02",
+        "direction": "EXPENSE",
+        "amount": 14900,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 325,
+        "bookedDate": "2026-10-08",
+        "direction": "EXPENSE",
+        "amount": 6100,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 326,
+        "bookedDate": "2026-10-09",
+        "direction": "EXPENSE",
+        "amount": 5900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 327,
+        "bookedDate": "2026-10-12",
+        "direction": "EXPENSE",
+        "amount": 19400,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 328,
+        "bookedDate": "2026-10-14",
+        "direction": "EXPENSE",
+        "amount": 40000,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 329,
+        "bookedDate": "2026-10-15",
+        "direction": "EXPENSE",
+        "amount": 14500,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 330,
+        "bookedDate": "2026-10-20",
+        "direction": "EXPENSE",
+        "amount": 64900,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 331,
+        "bookedDate": "2026-10-20",
+        "direction": "EXPENSE",
+        "amount": 12600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 332,
+        "bookedDate": "2026-10-21",
+        "direction": "EXPENSE",
+        "amount": 10000,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 333,
+        "bookedDate": "2026-10-22",
+        "direction": "EXPENSE",
+        "amount": 33800,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 334,
+        "bookedDate": "2026-10-23",
+        "direction": "EXPENSE",
+        "amount": 25000,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 335,
+        "bookedDate": "2026-10-24",
+        "direction": "EXPENSE",
+        "amount": 10600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 336,
+        "bookedDate": "2026-10-26",
+        "direction": "EXPENSE",
+        "amount": 19600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 337,
+        "bookedDate": "2026-10-27",
+        "direction": "EXPENSE",
+        "amount": 10100,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 338,
+        "bookedDate": "2026-10-29",
+        "direction": "EXPENSE",
+        "amount": 8600,
+        "categoryCode": "TRANSPORT",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 339,
+        "bookedDate": "2026-10-30",
+        "direction": "EXPENSE",
+        "amount": 17600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 340,
+        "bookedDate": "2026-10-30",
+        "direction": "EXPENSE",
+        "amount": 14500,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 341,
+        "bookedDate": "2026-10-31",
+        "direction": "EXPENSE",
+        "amount": 7600,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      }
+    ]
+  }
+}

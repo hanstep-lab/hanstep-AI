@@ -1,0 +1,95 @@
+{
+  "id": "S01",
+  "title": "원래 설계 샘플 (2026-09 한 달)",
+  "status": "ready",
+  "trap": "기본 분류: 소득/고정(HOUSING)/송금/변동(LIVING)이 각자 자리에 들어가는지",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-09-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-09-25",
+        "direction": "INCOME",
+        "amount": 2400000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2026-09-05",
+        "direction": "EXPENSE",
+        "amount": 600000,
+        "categoryCode": "HOUSING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 3,
+        "bookedDate": "2026-09-12",
+        "direction": "EXPENSE",
+        "amount": 650000,
+        "categoryCode": "LIVING",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 4,
+        "bookedDate": "2026-09-26",
+        "direction": "EXPENSE",
+        "amount": 500000,
+        "categoryCode": "REMITTANCE",
+        "transactionKind": "NORMAL"
+      }
+    ]
+  },
+  "expected": {
+    "avgMonthlyIncome": {
+      "amount": 2400000,
+      "currency": "KRW"
+    },
+    "fixedLiving": {
+      "amount": 600000,
+      "currency": "KRW"
+    },
+    "remittance": {
+      "amount": 500000,
+      "currency": "KRW"
+    },
+    "variableExpense": {
+      "avg": {
+        "amount": 650000,
+        "currency": "KRW"
+      },
+      "min": {
+        "amount": 650000,
+        "currency": "KRW"
+      },
+      "max": {
+        "amount": 650000,
+        "currency": "KRW"
+      }
+    },
+    "spare": {
+      "amount": 650000,
+      "currency": "KRW"
+    },
+    "dataQuality": {
+      "observedMonthCount": 1,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": []
+    },
+    "excluded": []
+  },
+  "naive_expected": {
+    "income": 2400000,
+    "expense": 1750000,
+    "spare": 650000
+  },
+  "calc": [
+    "꽉 찬 달: 2026-09 (1개)",
+    "소득 = 2,400,000 / 고정 = 600,000 / 송금 = 500,000 / 변동 = 650,000 (min=max=avg)",
+    "spare = 2,400,000 - 600,000 - 500,000 - 650,000 = 650,000",
+    "naive: 걸친 달 1 / 소득 2,400,000 / 지출 600,000+650,000+500,000 = 1,750,000 / spare 650,000"
+  ]
+}

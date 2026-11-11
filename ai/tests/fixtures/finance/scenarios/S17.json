@@ -1,0 +1,36 @@
+{
+  "id": "S17",
+  "title": "같은 id 다른 금액",
+  "status": "ready",
+  "trap": "같은 id인데 amount가 다르면 400 VALIDATION_ERROR",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-09-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 200000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 1,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 300000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      }
+    ]
+  },
+  "expected": {
+    "status": 400,
+    "code": "VALIDATION_ERROR"
+  },
+  "calc": [
+    "id 1이 amount 200,000 / 300,000으로 다름 -> 규칙 1 위반 -> 400"
+  ]
+}

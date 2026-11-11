@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     # Proposal only; confirm the object key contract before production use.
     r2_policy_prefix: str = "policy-sources"
 
+    anthropic_api_key: SecretStr = SecretStr("")
+    agent_model: str = "claude-sonnet-5-5"
+
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")
 
@@ -128,6 +131,9 @@ class Settings(BaseSettings):
     def internal_token_configured(self) -> bool:
         token = self.ai_internal_api_token.get_secret_value()
         return not is_placeholder(token) and len(token) >= MIN_INTERNAL_TOKEN_LENGTH
+
+    def anthropic_configured(self) -> bool:
+        return not is_placeholder(self.anthropic_api_key.get_secret_value())
 
     def spring_configured(self) -> bool:
         return not (

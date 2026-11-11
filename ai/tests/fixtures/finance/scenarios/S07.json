@@ -1,0 +1,86 @@
+{
+  "id": "S07",
+  "title": "대출 상환",
+  "status": "ready",
+  "trap": "LOAN_REPAYMENT 출금은 카테고리(LOAN)와 무관하게 고정지출, UNKNOWN_CATEGORY 경고 없음",
+  "request": {
+    "userId": 1,
+    "periodFrom": "2026-09-01",
+    "periodTo": "2026-09-30",
+    "transactions": [
+      {
+        "id": 1,
+        "bookedDate": "2026-09-25",
+        "direction": "INCOME",
+        "amount": 2000000,
+        "categoryCode": "SALARY",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 2,
+        "bookedDate": "2026-09-10",
+        "direction": "EXPENSE",
+        "amount": 400000,
+        "categoryCode": "FOOD",
+        "transactionKind": "NORMAL"
+      },
+      {
+        "id": 3,
+        "bookedDate": "2026-09-15",
+        "direction": "EXPENSE",
+        "amount": 300000,
+        "categoryCode": "LOAN",
+        "transactionKind": "LOAN_REPAYMENT"
+      }
+    ]
+  },
+  "expected": {
+    "avgMonthlyIncome": {
+      "amount": 2000000,
+      "currency": "KRW"
+    },
+    "fixedLiving": {
+      "amount": 300000,
+      "currency": "KRW"
+    },
+    "remittance": {
+      "amount": 0,
+      "currency": "KRW"
+    },
+    "variableExpense": {
+      "avg": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "min": {
+        "amount": 400000,
+        "currency": "KRW"
+      },
+      "max": {
+        "amount": 400000,
+        "currency": "KRW"
+      }
+    },
+    "spare": {
+      "amount": 1300000,
+      "currency": "KRW"
+    },
+    "dataQuality": {
+      "observedMonthCount": 1,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": []
+    },
+    "excluded": []
+  },
+  "naive_expected": {
+    "income": 2000000,
+    "expense": 700000,
+    "spare": 1300000
+  },
+  "calc": [
+    "id 3 LOAN_REPAYMENT -> 고정 300,000",
+    "spare = 2,000,000 - 300,000 - 0 - 400,000 = 1,300,000",
+    "naive: 걸친 달 1 / 소득 2,000,000 / 지출 400,000+300,000 = 700,000 / spare 1,300,000"
+  ]
+}
