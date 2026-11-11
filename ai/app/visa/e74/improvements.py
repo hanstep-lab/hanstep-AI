@@ -46,7 +46,7 @@ from app.visa.e74.rules import (
     Tenure,
     TotalScore,
 )
-from app.visa.e74.schemas import E74Profile, EmploymentHistoryIn
+from app.visa.e74.schemas import E74Profile, EmploymentHistoryIn, EvidenceType
 
 SCORED = (
     RuleCategory.BASE_INCOME,
@@ -381,6 +381,12 @@ def _raise_korean(item: ItemResult, rule_set: RuleSet) -> Improvement | None:
     )
 
 
+def _blocks(rule: Rule, unmet_evidence: frozenset[EvidenceType]) -> bool:
+    """필수요건이기도 한 가점(고용기업 추천)은 그 요건이 충족되지 않았으면 신청을 막는다."""
+    c = rule.condition
+    return isinstance(c, EvidencePresent) and c.evidence_type in unmet_evidence
+
+
 def _bonus_improvement(
     rule: Rule,
     items: dict[str, ItemResult],
@@ -388,9 +394,11 @@ def _bonus_improvement(
     profile: E74Profile,
     as_of: date,
     seen_groups: set[str],
+    unmet_evidence: frozenset[EvidenceType],
 ) -> Improvement | None:
     c = rule.condition
     points = rule.points or 0
+    blocking = _blocks(rule, unmet_evidence)
 
     def make(kind: ImprovementKind, code: str, description: str, **extra: Any) -> Improvement:
         return Improvement(
@@ -398,7 +406,7 @@ def _bonus_improvement(
             kind=kind,
             actor=rule.actor,
             points_gain=points,
-            blocking=False,
+            blocking=blocking,
             documents=rule.documents,
             message_code=code,
             description=description,
@@ -542,6 +550,15 @@ def analyze_improvements(
     industry = current.industry_code if current is not None else None
     found: list[Improvement] = []
     seen_groups: set[str] = set()
+    # 아직 충족되지 않은(NEEDS_EVIDENCE·NOT_MET) 추천 요건이 요구하는 증빙 종류.
+    unmet_evidence = frozenset(
+        rule.condition.evidence_type
+        for item in items
+        if item.category is RuleCategory.REQUIREMENT
+        and item.status in (ItemStatus.NEEDS_EVIDENCE, ItemStatus.NOT_MET)
+        and (rule := rules.get(item.rule_code or "")) is not None
+        and isinstance(rule.condition, EmployerRecommendation)
+    )
 
     for item in items:
         rule = rules.get(item.rule_code or "")
@@ -584,7 +601,7 @@ def analyze_improvements(
                         kind=ImprovementKind.SUBMIT_EVIDENCE,
                         actor=rule.actor,
                         points_gain=potential - earned,
-                        blocking=False,
+                        blocking=_blocks(rule, unmet_evidence),
                         documents=rule.documents,
                         message_code="E74_IMPROVE_SUBMIT_EVIDENCE",
                         description=(
@@ -593,7 +610,9 @@ def analyze_improvements(
                     )
                 )
             if item.category is RuleCategory.BONUS and item.status is ItemStatus.NOT_MET:
-                bonus = _bonus_improvement(rule, by_code, rule_set, profile, as_of, seen_groups)
+                bonus = _bonus_improvement(
+                    rule, by_code, rule_set, profile, as_of, seen_groups, unmet_evidence
+                )
                 if bonus is not None:
                     found.append(bonus)
 

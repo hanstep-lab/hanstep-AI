@@ -184,3 +184,36 @@ def test_no_rule_set_means_no_improvements() -> None:
     a = _assess(eligible_body(), date(2027, 3, 1))
     assert a.improvements == () and a.score_gap.required is None
     assert not a.plan_to_required.reaches_required
+
+
+def _without_employer_recommendation(body: dict[str, Any]) -> dict[str, Any]:
+    body["visaEvidences"] = [
+        e for e in body["visaEvidences"] if e["evidenceType"] != "RECOMMENDATION_EMPLOYER"
+    ]
+    return body
+
+
+def test_missing_employer_recommendation_blocks_application() -> None:
+    # REQ_EMPLOYER_REC가 NEEDS_EVIDENCE(근속은 채움, 추천서 없음)
+    a = _assess(_without_employer_recommendation(eligible_body()))
+    assert next(i for i in a.items if i.rule_code == "REQ_EMPLOYER_REC").status.value == (
+        "NEEDS_EVIDENCE"
+    )
+    rec = _by_code(a)["REC_EMPLOYER"]
+    assert (rec.kind, rec.points_gain, rec.blocking) == (ImprovementKind.OBTAIN_BONUS, 50, True)
+
+
+def test_employer_recommendation_blocks_when_tenure_is_short() -> None:
+    # REQ_EMPLOYER_REC가 NOT_MET(현재 근무처 1년 미만)
+    body = _without_employer_recommendation(eligible_body())
+    job(body).update({"startedOn": "2026-03-01"})
+    a = _assess(body)
+    assert next(i for i in a.items if i.rule_code == "REQ_EMPLOYER_REC").status.value == "NOT_MET"
+    assert _by_code(a)["REC_EMPLOYER"].blocking
+
+
+def test_declared_employer_recommendation_blocks_until_verified() -> None:
+    body = eligible_body()
+    evidence(body, "RECOMMENDATION_EMPLOYER")["status"] = "DECLARED"
+    rec = _by_code(_assess(body))["REC_EMPLOYER"]
+    assert (rec.kind, rec.blocking) == (ImprovementKind.SUBMIT_EVIDENCE, True)
