@@ -21,6 +21,7 @@ from playground.e74_chat import (
     assessment_payload,
     execute_tool,
     run_turn,
+    strip_emoji,
 )
 from playground.rag_test_index import MANIFEST_PATH, active_entries, build_index, search_payload
 from tests.unit._e74_builders import AS_OF, eligible_body, profile
@@ -102,7 +103,7 @@ def test_turn_runs_tools_and_returns_final_text() -> None:
         ]
     )
     history: list[dict[str, Any]] = []
-    turn = run_turn(client, "claude-haiku-4-5", history, "제 점수는?", _ctx())
+    turn = run_turn(client, "claude-haiku-5-5", history, "제 점수는?", _ctx())
 
     assert turn.text == "총점은 305점입니다." and turn.stop_reason == "end_turn"
     assert [c.name for c in turn.tool_calls] == ["calculate_e74_score", "search_visa_policies"]
@@ -112,7 +113,7 @@ def test_turn_runs_tools_and_returns_final_text() -> None:
     second = client.messages.requests[1]["messages"]
     results = second[-1]["content"]
     assert second[-1]["role"] == "user" and [r["tool_use_id"] for r in results] == ["t1", "t2"]
-    assert client.messages.requests[0]["model"] == "claude-haiku-4-5"
+    assert client.messages.requests[0]["model"] == "claude-haiku-5-5"
     assert len(history) == 4  # user, assistant(tool_use), user(tool_result), assistant
 
 
@@ -130,6 +131,45 @@ def test_history_carries_into_next_turn() -> None:
         "user",
         "assistant",
         "user",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("총 305점 ✅\n✅ 한국 체류 기간", "총 305점\n한국 체류 기간"),
+        ("신청할 수 있어요! 🎉 점수는 305점이에요", "신청할 수 있어요! 점수는 305점이에요"),
+        ("1️⃣ 한국어 올리기", "1. 한국어 올리기"),
+        ("⚠️ 서류를 확인해 주세요", "서류를 확인해 주세요"),
+        ("👨‍👩‍👧 가족 초청", "가족 초청"),  # ZWJ로 이은 묶음
+        ("🇰🇷 한국", "한국"),  # 국기
+        ("서류\n   - TOPIK 성적표 📄", "서류\n   - TOPIK 성적표"),  # 목록 들여쓰기는 남긴다
+        # 이모지가 아닌 기호와 숫자는 그대로 둔다.
+        (
+            "기본 205점 + 가점 100점 · 출처: 선발 계획 p.3 → 다음 단계 (+40점, ©)",
+            "기본 205점 + 가점 100점 · 출처: 선발 계획 p.3 → 다음 단계 (+40점, ©)",
+        ),
+    ],
+)
+def test_strip_emoji(raw: str, expected: str) -> None:
+    assert strip_emoji(raw) == expected
+
+
+def test_emoji_is_removed_from_answer_and_history() -> None:
+    client = FakeClient(
+        [
+            Response([Block("text", text="305점이에요 🎉")], "end_turn"),
+            Response([Block("text", text="b")], "end_turn"),
+        ]
+    )
+    history: list[dict[str, Any]] = []
+    turn = run_turn(client, "m", history, "첫 질문", _ctx())
+    run_turn(client, "m", history, "두 번째", _ctx())
+
+    assert turn.text == "305점이에요"
+    # 다음 턴에 보내는 기록에도 이모지가 없어야 모델이 따라 쓰지 않는다.
+    assert client.messages.requests[1]["messages"][1]["content"] == [
+        {"type": "text", "text": "305점이에요"}
     ]
 
 
