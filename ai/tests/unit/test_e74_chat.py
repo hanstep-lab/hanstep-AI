@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
@@ -15,6 +16,7 @@ import pytest
 from app.rag.manifest import load_manifest
 from app.visa.e74.engine import assess_e74
 from playground.e74_chat import (
+    CHAT_THINKING,
     MAX_TOOL_ROUNDS,
     TOOLS,
     ToolContext,
@@ -63,21 +65,35 @@ class Response:
 class FakeMessages:
     """준비한 응답을 차례로 돌려주고 받은 요청을 기록하는 가짜 messages API."""
 
-    def __init__(self, responses: list[Response]) -> None:
+    def __init__(self, responses: list[Response | Exception]) -> None:
         self.responses = responses
         self.requests: list[dict[str, Any]] = []
 
     def create(self, **kwargs: Any) -> Response:
         # 호출 시점의 messages를 복사해 둔다(이후 history가 늘어나도 그대로 남게).
         self.requests.append({**kwargs, "messages": list(kwargs["messages"])})
-        return self.responses.pop(0)
+        reply = self.responses.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
 
 
 class FakeClient:
     """가짜 Claude 클라이언트."""
 
-    def __init__(self, responses: list[Response]) -> None:
+    def __init__(self, responses: list[Response | Exception]) -> None:
         self.messages = FakeMessages(responses)
+
+
+class ApiError(Exception):
+    """anthropic.APIStatusError처럼 status_code를 가진 오류."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+THINKING_REJECTED = ApiError(400, '"thinking.type.adaptive" is not supported for this model')
 
 
 def _ctx(**overrides: Any) -> ToolContext:
@@ -281,3 +297,55 @@ def test_payload_is_compact() -> None:
     )
     assert "items" not in payload
     assert all(r["status"] != "NOT_APPLICABLE" for r in payload["requirements"])
+
+
+# --- thinking ------------------------------------------------------------------------------
+
+
+def test_every_round_asks_for_adaptive_thinking() -> None:
+    client = FakeClient(
+        [
+            Response(
+                [
+                    Block("thinking"),
+                    Block("tool_use", id="t1", name="calculate_e74_score", input={}),
+                ],
+                "tool_use",
+            ),
+            Response([Block("text", text="총점은 305점입니다.")], "end_turn"),
+        ]
+    )
+    history: list[dict[str, Any]] = []
+    turn = run_turn(client, "claude-haiku-5-5", history, "제 점수는?", _ctx())
+    assert CHAT_THINKING == {"type": "adaptive"}
+    assert [r["thinking"] for r in client.messages.requests] == [CHAT_THINKING] * 2
+    assert turn.thinking_used is True
+    # thinking 블록은 다음 요청에 그대로 넘긴다(도구 사용 중 추론 유지).
+    assert history[1]["content"][0].type == "thinking"
+
+
+def test_turn_without_thinking_blocks_reports_it() -> None:
+    client = FakeClient([Response([Block("text", text="안녕하세요.")], "end_turn")])
+    assert run_turn(client, "m", [], "안녕", _ctx()).thinking_used is False
+
+
+def test_rejected_thinking_is_retried_once_without_it(caplog: pytest.LogCaptureFixture) -> None:
+    client = FakeClient([THINKING_REJECTED, Response([Block("text", text="네.")], "end_turn")])
+    with caplog.at_level(logging.WARNING, logger="playground.e74_chat"):
+        turn = run_turn(client, "claude-haiku-4-5", [], "안녕", _ctx())
+    assert turn.text == "네."
+    first, second = client.messages.requests
+    assert first["thinking"] == CHAT_THINKING and "thinking" not in second
+    assert "rejected thinking=adaptive (400) for model=claude-haiku-4-5" in caplog.text
+
+
+def test_failed_retry_and_other_errors_are_raised() -> None:
+    retry_fails = FakeClient([THINKING_REJECTED, ApiError(500, "overloaded")])
+    with pytest.raises(ApiError):
+        run_turn(retry_fails, "m", [], "안녕", _ctx())
+    assert len(retry_fails.messages.requests) == 2
+
+    not_thinking = FakeClient([ApiError(400, "invalid tool schema")])
+    with pytest.raises(ApiError):
+        run_turn(not_thinking, "m", [], "안녕", _ctx())
+    assert len(not_thinking.messages.requests) == 1

@@ -263,7 +263,7 @@ def check_llm_texts(
     return texts
 
 
-def _rejects_thinking(exc: Exception) -> bool:
+def rejects_thinking(exc: Exception) -> bool:
     """thinking 설정을 거부한 400인지. 상태 코드와 오류 메시지의 "thinking"으로 판단한다."""
     return getattr(exc, "status_code", None) == 400 and "thinking" in str(exc).lower()
 
@@ -296,7 +296,7 @@ class LlmStepWriter:
                 # 응답 시간이 2배 이상 흔들린다(측정: 출력 토큰 약 450 ↔ 1,200).
                 response = self._create(steps, thinking={"type": "disabled"})
             except Exception as exc:
-                if not _rejects_thinking(exc):
+                if not rejects_thinking(exc):
                     raise
                 # thinking을 끌 수 없는 모델(Opus 5.5, Fable 등): 설정을 빼고 한 번만 다시 부른다.
                 logger.warning(
