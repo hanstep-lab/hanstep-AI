@@ -23,6 +23,9 @@ INT64_MIN, INT64_MAX = -(2**63), 2**63 - 1
 
 ReviewStatus = Literal["pending", "approved", "rejected"]
 REVIEW_STATUSES: tuple[str, ...] = ("pending", "approved", "rejected")
+# Lower-cased MySQL policy_documents.source_type (LAW/ADMIN_RULE/NOTICE/GUIDE/SCORE_TABLE).
+SourceType = Literal["law", "admin_rule", "notice", "guide", "score_table"]
+SOURCE_TYPES: tuple[str, ...] = ("law", "admin_rule", "notice", "guide", "score_table")
 
 UNIQUE_INDEX_KEYS: list[tuple[str, int]] = [
     ("policy_document_id", 1),
@@ -30,7 +33,8 @@ UNIQUE_INDEX_KEYS: list[tuple[str, int]] = [
     ("chunk_index", 1),
     ("embedding_model", 1),
 ]
-UNIQUE_INDEX_NAME = "uniq_document_version_chunk_model"
+# Name from the RAG design spec v1.0; ensure_unique_index matches existing indexes by keys.
+UNIQUE_INDEX_NAME = "ux_policy_version_chunk_model"
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -86,6 +90,7 @@ class ChunkRecord(BaseModel):
     source_url: str
     source_org: str
     visa_types: list[str]
+    source_type: SourceType
     language: str = "ko"
     review_status: ReviewStatus = "pending"
     is_active: bool = False
@@ -95,6 +100,8 @@ class ChunkRecord(BaseModel):
     section_title: str | None = None
     effective_from: datetime | None = None
     effective_to: datetime | None = None
+    # Publication date (MySQL published_on), only when confirmed from the official source.
+    issued_at: datetime | None = None
 
     @field_validator("policy_document_id", "chunk_index", "page_number", mode="before")
     @classmethod
@@ -140,7 +147,7 @@ class ChunkRecord(BaseModel):
             _require_text(value, "section_title")
         return value
 
-    @field_validator("created_at", "updated_at", "effective_from", "effective_to")
+    @field_validator("created_at", "updated_at", "effective_from", "effective_to", "issued_at")
     @classmethod
     def _aware_utc(cls, value: datetime | None) -> datetime | None:
         if value is None:
@@ -171,6 +178,7 @@ class ChunkRecord(BaseModel):
             "title": self.title,
             "source_url": self.source_url,
             "source_org": self.source_org,
+            "source_type": self.source_type,
             "visa_types": list(self.visa_types),
             "language": self.language,
             "review_status": self.review_status,
@@ -181,7 +189,7 @@ class ChunkRecord(BaseModel):
         if self.id is not None:
             doc["_id"] = self.id
         # Optional fields are omitted, never stored as null.
-        for name in ("page_number", "section_title", "effective_from", "effective_to"):
+        for name in ("page_number", "section_title", "effective_from", "effective_to", "issued_at"):
             value = getattr(self, name)
             if value is not None:
                 doc[name] = value
@@ -210,6 +218,7 @@ def json_schema_validator(dimensions: int = EMBEDDING_DIMENSIONS) -> dict[str, A
         "source_url",
         "source_org",
         "visa_types",
+        "source_type",
         "language",
         "review_status",
         "is_active",
@@ -240,6 +249,7 @@ def json_schema_validator(dimensions: int = EMBEDDING_DIMENSIONS) -> dict[str, A
                 "source_org": non_empty,
                 "visa_types": {"bsonType": "array", "minItems": 1, "items": non_empty},
                 "language": non_empty,
+                "source_type": {"enum": list(SOURCE_TYPES)},
                 "review_status": {"enum": list(REVIEW_STATUSES)},
                 "is_active": {"bsonType": "bool"},
                 "created_at": {"bsonType": "date"},
@@ -248,6 +258,7 @@ def json_schema_validator(dimensions: int = EMBEDDING_DIMENSIONS) -> dict[str, A
                 "section_title": non_empty,
                 "effective_from": {"bsonType": "date"},
                 "effective_to": {"bsonType": "date"},
+                "issued_at": {"bsonType": "date"},
             },
             # is_active=true requires review_status=approved (the reverse is not enforced).
             "anyOf": [

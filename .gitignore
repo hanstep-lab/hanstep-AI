@@ -23,6 +23,8 @@ ai/specs/rag/README.md
 ai/specs/rag/decisions.md
 ai/specs/rag/api_contracts.md
 ai/specs/rag/evaluation.json
+/BE명세서.yaml
+/AI명세서.md
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,visualstudiocode

@@ -18,6 +18,8 @@ dependencies = [
     # Vector search / embeddings
     "pymongo>=4.13.0",
     "sentence-transformers>=3.4.0",
+    # Direct dependency only so the Linux CPU index below applies (sentence-transformers needs it).
+    "torch>=2.5",
     "numpy>=1.26.0",
     # Queue / storage
     "aio-pika>=9.4.0",
@@ -61,6 +63,16 @@ dev = [
 
 [tool.uv]
 package = false
+
+# Linux (Docker, CI) installs CPU-only PyTorch: the default Linux wheel pulls ~4 GB of CUDA
+# libraries, and the embedding service runs on CPU by default. macOS keeps the PyPI wheel.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 
 [tool.ruff]
 line-length = 100

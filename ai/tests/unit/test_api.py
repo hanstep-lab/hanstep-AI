@@ -99,9 +99,25 @@ def test_old_paths_are_gone(client: TestClient, path: str) -> None:
 
 
 def test_ready_reports_unconfigured_gateway_even_with_spring_env(client: TestClient) -> None:
-    # Spring URL/key are set in the fixture, but the gateway is still the unconfigured one.
+    # The fixture state wires the unconfigured gateway explicitly.
     checks = client.get("/health/ready").json()["checks"]
     assert checks["policy_gateway"] == "blocked"
+
+
+def test_build_state_uses_spring_gateway_when_configured() -> None:
+    from app.integrations.spring_policy_gateway import SpringPolicyGateway
+    from app.main import build_state
+
+    configured = Settings(
+        _env_file=None,  # type: ignore[call-arg]
+        spring_internal_api_url="http://localhost:8080",
+        spring_internal_api_key=SPRING_KEY,  # type: ignore[arg-type]
+    )
+    assert isinstance(build_state(configured).gateway, SpringPolicyGateway)
+    assert isinstance(
+        build_state(Settings(_env_file=None)).gateway,  # type: ignore[call-arg]
+        UnconfiguredPolicyGateway,
+    )
 
 
 def test_health_needs_no_token(client: TestClient) -> None:
@@ -167,6 +183,8 @@ def test_search_response_is_camel_case() -> None:
             "source_url": "https://www.moj.go.kr/x",
             "source_org": "법무부",
             "visa_types": ["E-7-4"],
+            "source_type": "notice",
+            "issued_at": datetime(2026, 5, 31, 15, 0, tzinfo=UTC),
             "score": 0.8,
             "page_number": 3,
             "effective_from": datetime(2026, 5, 31, 15, 0, tzinfo=UTC),  # KST 2026-06-01
@@ -177,6 +195,7 @@ def test_search_response_is_camel_case() -> None:
     assert body["policyDocumentId"] == 7
     assert body["effectiveFrom"] == date(2026, 6, 1).isoformat()
     assert body["effectiveTo"] is None
+    assert (body["sourceType"], body["issuedOn"]) == ("notice", "2026-06-01")
     assert {"sourceUrl", "sourceOrg", "visaTypes", "pageNumber", "sectionTitle"} <= set(body)
     assert not any("_" in key for key in body)
 
@@ -293,3 +312,60 @@ def test_embedding_revision_rejects_other_values(revision: str) -> None:
 
     with pytest.raises(ValidationError, match="commit hash"):
         Settings(_env_file=None, embedding_model_revision=revision)  # type: ignore[call-arg]
+
+
+def test_model_loads_in_background_and_live_answers_meanwhile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+
+    import app.main as main_module
+
+    release = threading.Event()
+    calls: list[str] = []
+
+    def slow_load(self: BgeM3Embedder) -> None:
+        calls.append("load")
+        release.wait(timeout=5)
+        self._model = object()  # type: ignore[assignment]
+
+    monkeypatch.setattr(BgeM3Embedder, "load", slow_load)
+    monkeypatch.setattr(
+        main_module,
+        "get_settings",
+        lambda: Settings(_env_file=None, load_model_on_startup=True),  # type: ignore[call-arg]
+    )
+    with TestClient(main_module.create_app()) as client:
+        assert client.get("/health/live").status_code == 200
+        assert client.get("/health/ready").json()["checks"]["model"] == "loading"
+        release.set()
+        for _ in range(50):
+            if client.get("/health/ready").json()["checks"]["model"] == "loaded":
+                break
+            threading.Event().wait(0.05)
+        assert client.get("/health/ready").json()["checks"]["model"] == "loaded"
+    assert calls == ["load"]
+
+
+def test_model_load_failure_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    import app.main as main_module
+
+    def broken(self: BgeM3Embedder) -> None:
+        raise OSError("hub unreachable")
+
+    monkeypatch.setattr(BgeM3Embedder, "load", broken)
+    monkeypatch.setattr(
+        main_module,
+        "get_settings",
+        lambda: Settings(_env_file=None, load_model_on_startup=True),  # type: ignore[call-arg]
+    )
+    with TestClient(main_module.create_app()) as client:
+        for _ in range(50):
+            model = client.get("/health/ready").json()["checks"]["model"]
+            if model.startswith("error"):
+                break
+            threading.Event().wait(0.05)
+        assert model == "error:OSError"
+        assert "hub unreachable" not in client.get("/health/ready").text

@@ -1,0 +1,11 @@
+# One-command local stack: backend infrastructure + AI server.
+# Requires the backend repository checked out next to this one:
+#   ../hanstep-backend   (gh repo clone hanstep-lab/hanstep-backend ../hanstep-backend)
+# Usage (from this directory):
+#   docker compose -f compose.full.yml up -d
+#   docker compose -f compose.full.yml ps
+# The backend compose is included as-is, so infrastructure stays defined in one place.
+# Variables for both files are read from this repository's .env.
+include:
+  - path: ../hanstep-backend/docker-compose.yml
+  - path: docker-compose.yml

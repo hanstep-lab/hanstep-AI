@@ -118,6 +118,7 @@ def record_kwargs(**overrides: Any) -> dict[str, Any]:
         "source_url": "https://www.hikorea.go.kr/board/1",
         "source_org": "법무부",
         "visa_types": ["E-7-4"],
+        "source_type": "notice",
         "created_at": now,
         "updated_at": now,
     }

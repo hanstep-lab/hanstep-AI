@@ -40,7 +40,12 @@ def _check_mongo(state: Any) -> dict[str, str]:
 async def ready(request: Request) -> JSONResponse:
     state = request.app.state.rag
     checks = await run_in_threadpool(_check_mongo, state)
-    checks["model"] = "loaded" if state.embedder.loaded else state.errors.get("model", "not_loaded")
+    if state.embedder.loaded:
+        checks["model"] = "loaded"
+    elif "model" in state.errors:
+        checks["model"] = f"error:{state.errors['model']}"
+    else:
+        checks["model"] = getattr(state, "model_status", "not_loaded")
     # Search verifies approval through the gateway; an unconfigured one makes every search 503.
     unconfigured = isinstance(state.gateway, UnconfiguredPolicyGateway)
     checks["policy_gateway"] = "blocked" if unconfigured else "configured"

@@ -2,8 +2,11 @@
 
 --dry-run: preflight, extract and chunk only. No MongoDB/MySQL/R2 writes, no model download,
            no network. Reports what --apply would block on.
---apply:   requires every contract (MySQL gateway, R2, MongoDB, model). New chunks are written
-           as pending/inactive; this command never approves or activates anything.
+--apply:   phase 1 (BE spec INT-13 "1차는 스크립트로 직접 적재"): manifest entries must carry the
+           policy_document_id / document_version / sha256 copied from MySQL and be verified.
+           Needs R2, MongoDB and the model. New chunks are written as pending/inactive; this
+           command never approves or activates anything.
+--report-ingested: after --apply, POST each stored document to Spring INT-13.
 
     uv run python scripts/ingest_rag_documents.py --manifest specs/rag/sources.json --dry-run
     uv run python scripts/ingest_rag_documents.py --manifest specs/rag/sources.json \
@@ -14,14 +17,16 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import _bootstrap  # noqa: F401
 
 from app.core.config import configure_logging, get_settings
-from app.integrations.policy_gateway import UnconfiguredPolicyGateway
+from app.integrations.policy_gateway import ManifestPolicyGateway, UnconfiguredPolicyGateway
 from app.integrations.r2 import BUCKET_SETTINGS, UnconfiguredObjectStore, build_object_stores
+from app.integrations.spring_client import SpringApiError, SpringInternalClient
 from app.rag.chunking import approx_token_count
 from app.rag.cli import (
     EXIT_BLOCKED,
@@ -32,7 +37,7 @@ from app.rag.cli import (
     write_json,
 )
 from app.rag.embeddings import BgeM3Embedder, local_tokenizer_counter
-from app.rag.ingestion import IngestionDeps, SourceResult, process_entry
+from app.rag.ingestion import SEOUL, IngestionDeps, SourceResult, ingested_report, process_entry
 from app.rag.manifest import SourceEntry, load_manifest
 from app.rag.repository import ChunkRepository
 
@@ -49,7 +54,14 @@ def main() -> int:
     parser.add_argument("--only", action="append", default=[], help="relative path subset")
     parser.add_argument("--run-id", help="reuse a run id when resuming")
     parser.add_argument("--output-dir", type=Path)
+    parser.add_argument(
+        "--report-ingested",
+        action="store_true",
+        help="after --apply, report stored documents to Spring (INT-13)",
+    )
     args = parser.parse_args()
+    if args.report_ingested and not args.apply:
+        parser.error("--report-ingested requires --apply")
 
     settings = get_settings()
     configure_logging(settings.log_level)
@@ -69,6 +81,16 @@ def main() -> int:
     repository = None
     embedder = None
     mongo_client: Any = None
+    spring: SpringInternalClient | None = None
+    if args.report_ingested:
+        if not settings.spring_configured():
+            print("BLOCKED: SPRING_INTERNAL_API_URL / SPRING_INTERNAL_API_KEY not configured")
+            return EXIT_BLOCKED
+        spring = SpringInternalClient(
+            base_url=settings.spring_internal_api_url,
+            api_key=settings.spring_internal_api_key.get_secret_value(),
+            header=settings.internal_token_header,
+        )
     if args.apply:
         if not settings.mongo_configured():
             print("BLOCKED: MONGO_URI is not configured")
@@ -99,9 +121,11 @@ def main() -> int:
         counter = local or approx_token_count
         tokenizer_id = f"{settings.embedding_model}@local-cache" if local else "approx-chars/1.6"
 
+    # Phase 1 (BE spec INT-13): IDs/versions copied from MySQL into verified manifest entries.
+    gateway = ManifestPolicyGateway(manifest.sources) if args.apply else UnconfiguredPolicyGateway()
     deps = IngestionDeps(
         repository=repository,
-        gateway=UnconfiguredPolicyGateway(),
+        gateway=gateway,
         object_stores=build_object_stores(settings)
         if args.apply
         else {d: UnconfiguredObjectStore(b) for d, b in BUCKET_SETTINGS.items()},
@@ -127,6 +151,33 @@ def main() -> int:
         if mongo_client is not None:
             mongo_client.close()
 
+    if spring is not None:
+        by_path = {e.path: e for e in entries}
+        try:
+            for result in results:
+                if result.status not in ("loaded", "skipped"):
+                    continue
+                entry = by_path[result.path]
+                assert entry.policy_document_id is not None and entry.document_version
+                key = (entry.policy_document_id, entry.document_version)
+                body = ingested_report(
+                    entry,
+                    result,
+                    object_key=getattr(gateway, "r2_keys", {}).get(key),
+                    mongo_collection=settings.mongo_collection,
+                    embedding_model=settings.embedding_model,
+                    embedding_revision=settings.embedding_model_revision,
+                    now=datetime.now(SEOUL),
+                )
+                try:
+                    spring.policy_ingested(entry.policy_document_id, body, request_id=run_id)
+                    result.spring_report = "reported"
+                except SpringApiError as exc:
+                    # Chunks stay stored; a rerun is a no-op load and retries the report.
+                    result.spring_report = f"error: {exc}"
+        finally:
+            spring.close()
+
     counts = Counter(r.status for r in results)
     report = {
         "run_id": run_id,
@@ -148,13 +199,19 @@ def main() -> int:
             "mode": report["mode"],
             "counts": report["counts"],
             "files": [
-                {"path": r.path, "status": r.status, "chunks": r.chunks, "reasons": r.reasons}
+                {
+                    "path": r.path,
+                    "status": r.status,
+                    "chunks": r.chunks,
+                    "reasons": r.reasons,
+                    **({"springReport": r.spring_report} if r.spring_report else {}),
+                }
                 for r in results
             ],
         }
     )
     print(f"report: {output_dir / f'{run_id}.json'}")
-    if any(r.status == "failed" for r in results):
+    if any(r.status == "failed" or r.spring_report.startswith("error") for r in results):
         return EXIT_FAILED
     if args.apply and any(r.status not in SUCCESS for r in results):
         return EXIT_BLOCKED

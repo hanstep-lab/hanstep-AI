@@ -21,7 +21,7 @@ from tests.conftest import DATA_ROOT, FakeEmbedder, FakeRepository
 
 pytestmark = pytest.mark.unit
 
-PATH = "visa/recommendations/central/mafra/e74_mafra_2026_20260305.pdf"
+PATH = "visa/recommendations/central/mafra/e74_mafra_20260305.pdf"
 SHA = inspect_file(DATA_ROOT, PATH).sha256
 
 
@@ -34,6 +34,8 @@ def _entry(**overrides: Any) -> SourceEntry:
         "source_url": "https://www.mafra.go.kr/example",
         "source_org": "농림축산식품부",
         "visa_types": ["E-7-4"],
+        "source_type": "notice",
+        "issued_on": "2026-03-05",
         "policy_document_id": 11,
         "document_version": "2026-163",
         "review": {"verified": True},
@@ -54,7 +56,7 @@ class Clock:
 @pytest.fixture
 def gateway() -> InMemoryPolicyGateway:
     gw = InMemoryPolicyGateway()
-    gw.add(PolicyDocumentRecord(11, "2026-163", SHA, "pending", is_current=False))
+    gw.add(PolicyDocumentRecord(11, "2026-163", SHA, "DRAFT"))
     return gw
 
 
@@ -97,6 +99,9 @@ def test_apply_loads_pending_then_rerun_is_noop_and_preserves_approval(
     assert first.inserted == first.chunks == first.embedded
     stored = fake_repository.load_version(11, "2026-163", "BAAI/bge-m3")
     assert all(r.review_status == "pending" and not r.is_active for r in stored)
+    assert all(r.source_type == "notice" for r in stored)
+    # issued_on 2026-03-05 is stored as KST midnight.
+    assert stored[0].issued_at == datetime(2026, 3, 4, 15, 0, tzinfo=UTC)
     assert all(r.page_number is not None for r in stored)
     key = object_key("policy-sources", "visa", SHA, ".pdf")
     assert store.objects[key] == (DATA_ROOT / PATH).read_bytes()
@@ -136,7 +141,7 @@ def test_mysql_hash_mismatch_fails(
     fake_repository: FakeRepository, fake_embedder: FakeEmbedder
 ) -> None:
     gw = InMemoryPolicyGateway()
-    gw.add(PolicyDocumentRecord(11, "2026-163", "b" * 64, "pending", is_current=False))
+    gw.add(PolicyDocumentRecord(11, "2026-163", "b" * 64, "DRAFT"))
     result = process_entry(
         _entry(),
         DATA_ROOT,
@@ -162,7 +167,7 @@ def test_unconfigured_contracts_block_without_writes(
 def test_finance_is_blocked_and_never_written(
     fake_repository: FakeRepository, fake_embedder: FakeEmbedder, gateway: InMemoryPolicyGateway
 ) -> None:
-    path = "finance/shinhan/sol_global_savings.pdf"
+    path = "finance/shinhan/thai_remittance_100baht.pdf"
     entry = _entry(path=path, domain="finance", sha256=inspect_file(DATA_ROOT, path).sha256)
     store = InMemoryObjectStore()
     result = process_entry(
@@ -178,7 +183,7 @@ def test_hwp_is_extracted_directly_without_page_numbers(
 ) -> None:
     path = "visa/guides/e74_central_agency_guide_2026.hwp"
     sha = inspect_file(DATA_ROOT, path).sha256
-    gateway.add(PolicyDocumentRecord(12, "v1", sha, "pending", is_current=False))
+    gateway.add(PolicyDocumentRecord(12, "v1", sha, "DRAFT"))
     entry = _entry(path=path, sha256=sha, policy_document_id=12, document_version="v1")
     result = process_entry(
         entry,

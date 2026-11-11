@@ -48,12 +48,14 @@ class PolicySearchResult(CamelResponse):
     title: str
     source_url: str
     source_org: str
+    source_type: str
     visa_types: list[str]
     score: float
     page_number: int | None = None
     section_title: str | None = None
     effective_from: date | None = None
     effective_to: date | None = None
+    issued_on: date | None = None
 
     @classmethod
     def from_hit(cls, hit: SearchHit) -> PolicySearchResult:
@@ -66,12 +68,14 @@ class PolicySearchResult(CamelResponse):
             title=hit.title,
             source_url=hit.source_url,
             source_org=hit.source_org,
+            source_type=hit.source_type,
             visa_types=hit.visa_types,
             score=hit.score,
             page_number=hit.page_number,
             section_title=hit.section_title,
             effective_from=hit.effective_from,
             effective_to=hit.effective_to,
+            issued_on=hit.issued_on,
         )
 
 

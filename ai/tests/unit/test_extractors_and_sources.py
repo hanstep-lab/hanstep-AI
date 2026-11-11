@@ -176,6 +176,7 @@ def _entry(**overrides: object) -> SourceEntry:
         "source_url": "https://www.moj.go.kr/example",
         "source_org": "법무부",
         "visa_types": ["E-7-4"],
+        "source_type": "notice",
         "policy_document_id": 1,
         "document_version": "v1",
         "review": {"verified": True},
@@ -199,6 +200,7 @@ def test_preflight_passes_complete_visa_entry() -> None:
         ({"sha256": "0" * 64}, "sha256"),
         ({"domain": "finance"}, "finance"),
         ({"visa_types": None}, "visa_types"),
+        ({"source_type": None}, "source_type"),
     ],
 )
 def test_preflight_blocks_unconfirmed_values(overrides: dict[str, object], expected: str) -> None:
@@ -210,3 +212,13 @@ def test_official_url_rules() -> None:
     assert is_official_url("https://www.law.go.kr/x")
     assert not is_official_url("https://abc.r2.cloudflarestorage.com/x")
     assert not is_official_url("ftp://www.law.go.kr/x")
+
+
+def test_source_type_is_required_only_for_visa_documents() -> None:
+    path = "finance/shinhan/thai_remittance_100baht.pdf"
+    finance = _entry(
+        path=path, domain="finance", sha256=inspect_file(DATA_ROOT, path).sha256, source_type=None
+    )
+    _, blockers = preflight(finance, DATA_ROOT)
+    assert not any("source_type" in b for b in blockers)
+    assert any("finance" in b for b in blockers)

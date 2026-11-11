@@ -10,11 +10,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from app.rag.errors import ContractBlockedError
 
-ReviewStatus = Literal["pending", "approved", "rejected"]
+# MySQL policy_documents.review_status (BE schema, API spec: ENUM values as-is).
+MysqlReviewStatus = Literal["DRAFT", "APPROVED", "NEEDS_REVIEW", "RETIRED"]
 
 MISSING_POLICY_CONTRACT = (
     "MySQL policy_documents contract unconfirmed: need Spring internal API method/path for "
@@ -29,13 +30,15 @@ MISSING_JOB_CONTRACT = (
 
 @dataclass(frozen=True)
 class PolicyDocumentRecord:
+    """One ``policy_documents`` row. Each version is its own row (``content_hash`` is unique)."""
+
     policy_document_id: int
-    document_version: str
-    source_sha256: str
-    review_status: ReviewStatus
-    # True when MySQL marks this version as the one users may search.
-    is_current: bool
-    r2_object_key: str | None = None
+    policy_version: str
+    content_hash: str
+    review_status: MysqlReviewStatus
+    # BE's verdict: APPROVED and inside the effective period, by BE rules (R1 search-eligibility).
+    searchable: bool = False
+    object_key: str | None = None
 
 
 class PolicyDocumentGateway(Protocol):
@@ -44,7 +47,7 @@ class PolicyDocumentGateway(Protocol):
         ...
 
     def current_versions(self, policy_document_ids: Iterable[int]) -> dict[int, str]:
-        """Approved, current version per document. Must raise on backend failure."""
+        """Searchable version per document (absent = not searchable). Must raise on failure."""
         ...
 
     def record_r2_object(
@@ -69,6 +72,47 @@ class UnconfiguredPolicyGateway:
         raise ContractBlockedError(MISSING_POLICY_CONTRACT)
 
 
+class ManifestPolicyGateway:
+    """Phase-1 gateway for script loading (BE spec INT-13 note: "1차는 스크립트로 직접 적재").
+
+    Trusts ``policy_document_id`` / ``document_version`` / ``sha256`` that a person copied from
+    MySQL into the manifest (``review.verified=true``). It cannot answer search-time approval
+    checks, so ``current_versions`` stays blocked and search keeps failing closed.
+    """
+
+    def __init__(self, entries: Iterable[Any]) -> None:
+        self._records: dict[tuple[int, str], PolicyDocumentRecord] = {}
+        self.r2_keys: dict[tuple[int, str], str] = {}
+        for entry in entries:
+            if entry.policy_document_id is None or not entry.document_version:
+                continue
+            if not entry.review.verified:
+                continue
+            record = PolicyDocumentRecord(
+                entry.policy_document_id, entry.document_version, entry.sha256, "DRAFT"
+            )
+            self._records[(record.policy_document_id, record.policy_version)] = record
+
+    def get_version(self, policy_document_id: int, document_version: str) -> PolicyDocumentRecord:
+        try:
+            return self._records[(policy_document_id, document_version)]
+        except KeyError as exc:
+            raise LookupError(
+                f"{policy_document_id}/{document_version} not in verified manifest entries"
+            ) from exc
+
+    def current_versions(self, policy_document_ids: Iterable[int]) -> dict[int, str]:
+        raise ContractBlockedError(
+            "search-time approval check needs the Spring search-eligibility API (R1)"
+        )
+
+    def record_r2_object(
+        self, policy_document_id: int, document_version: str, object_key: str
+    ) -> None:
+        # Reported to Spring with INT-13 after the chunks are stored.
+        self.r2_keys[(policy_document_id, document_version)] = object_key
+
+
 class UnconfiguredJobReporter:
     def report(self, job_id: str, payload: dict[str, object]) -> None:
         raise ContractBlockedError(MISSING_JOB_CONTRACT)
@@ -76,14 +120,14 @@ class UnconfiguredJobReporter:
 
 @dataclass
 class InMemoryPolicyGateway:
-    """Test double. Keys are (policy_document_id, document_version)."""
+    """Test double. Keys are (policy_document_id, policy_version)."""
 
     records: dict[tuple[int, str], PolicyDocumentRecord] = field(default_factory=dict)
     r2_keys: dict[tuple[int, str], str] = field(default_factory=dict)
     fail: bool = False
 
     def add(self, record: PolicyDocumentRecord) -> None:
-        self.records[(record.policy_document_id, record.document_version)] = record
+        self.records[(record.policy_document_id, record.policy_version)] = record
 
     def get_version(self, policy_document_id: int, document_version: str) -> PolicyDocumentRecord:
         if self.fail:
@@ -98,9 +142,9 @@ class InMemoryPolicyGateway:
             raise ConnectionError("policy gateway unavailable")
         wanted = set(policy_document_ids)
         return {
-            r.policy_document_id: r.document_version
+            r.policy_document_id: r.policy_version
             for r in self.records.values()
-            if r.policy_document_id in wanted and r.is_current and r.review_status == "approved"
+            if r.policy_document_id in wanted and r.searchable and r.review_status == "APPROVED"
         }
 
     def record_r2_object(
