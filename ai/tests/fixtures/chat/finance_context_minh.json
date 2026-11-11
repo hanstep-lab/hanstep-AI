@@ -1,0 +1,46 @@
+{
+  "_comment": "테스트·fake 모드용 값(INT-06 응답 형식, 데모 Minh). 실제 사용자 데이터가 아니다.",
+  "userId": 1,
+  "latestAnalysis": {
+    "id": 7,
+    "periodFrom": "2025-11-01",
+    "periodTo": "2026-10-31",
+    "status": "COMPLETED",
+    "avgMonthlyIncome": {"amount": 2350000, "currency": "KRW"},
+    "fixedLiving": {"amount": 520000, "currency": "KRW"},
+    "remittance": {"amount": 700000, "currency": "KRW"},
+    "variableExpense": {
+      "avg": {"amount": 454683, "currency": "KRW"},
+      "min": {"amount": 410600, "currency": "KRW"},
+      "max": {"amount": 512400, "currency": "KRW"}
+    },
+    "spare": {"amount": 675317, "currency": "KRW"},
+    "dataQuality": {
+      "observedMonthCount": 12,
+      "missingMonths": [],
+      "partialMonths": [],
+      "warnings": []
+    },
+    "excludedCount": 36,
+    "isMock": true,
+    "reused": false,
+    "createdAt": "2026-11-11T14:30:00+09:00"
+  },
+  "commitments": {
+    "fixedLiving": {"amount": 520000, "currency": "KRW"},
+    "remittance": {"amount": 700000, "currency": "KRW"},
+    "variableExpense": {"amount": 450000, "currency": "KRW"},
+    "mandatorySaving": {"amount": 0, "currency": "KRW"},
+    "deductibleTotal": {"amount": 1670000, "currency": "KRW"}
+  },
+  "goals": [
+    {
+      "id": 1,
+      "goalType": "LUMP_SUM",
+      "targetAmount": {"amount": 6000000, "currency": "KRW"},
+      "targetDate": "2027-09-30",
+      "status": "ACTIVE",
+      "monthlyRequired": {"amount": 600000, "currency": "KRW"}
+    }
+  ]
+}

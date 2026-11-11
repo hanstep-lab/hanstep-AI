@@ -126,6 +126,30 @@ class SpringInternalClient:
             raise SpringApiError(response.status_code, code, message)
         raise SpringApiError(0, "RETRY_EXHAUSTED", path)  # pragma: no cover
 
+    def _get(self, path: str, request_id: str | None, timeout: float) -> Any:
+        """One GET, no retry: callers (chat tools) have their own short time budget."""
+        headers = dict(self._headers)
+        if request_id:
+            headers["X-Request-Id"] = request_id
+        response = self._client.get(path, headers=headers, timeout=timeout)
+        if response.is_success:
+            return response.json()
+        code = "HTTP_ERROR"
+        try:
+            code = str(response.json().get("code", code))
+        except ValueError:
+            pass
+        raise SpringApiError(response.status_code, code, "")
+
+    # INT-06. httpx.TimeoutException on timeout, SpringApiError on non-2xx.
+    def finance_context(
+        self, user_id: int, *, timeout: float, request_id: str | None = None
+    ) -> dict[str, Any]:
+        body = self._get(f"/internal/v1/ai-context/users/{user_id}/finance", request_id, timeout)
+        if not isinstance(body, dict):
+            raise SpringApiError(200, "INVALID_BODY", "")
+        return body
+
     # INT-08
     def job_started(
         self, job_id: int, *, worker_id: str, started_at: datetime, request_id: str | None = None

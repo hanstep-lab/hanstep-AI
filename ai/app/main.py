@@ -16,6 +16,7 @@ from app.api.errors import install_error_handlers
 from app.api.routes import health, internal
 from app.core.config import Settings, configure_logging, get_settings
 from app.integrations.policy_gateway import PolicyDocumentGateway, UnconfiguredPolicyGateway
+from app.integrations.spring_client import SpringInternalClient
 from app.integrations.spring_policy_gateway import SpringPolicyGateway
 from app.rag.embeddings import BgeM3Embedder
 
@@ -28,6 +29,8 @@ class AppState:
     gateway: PolicyDocumentGateway
     embedder: BgeM3Embedder
     mongo: MongoClient[dict[str, Any]] | None = None
+    # Chat tool -> Spring INT-06 client, created on first use in anthropic mode.
+    chat_spring: SpringInternalClient | None = None
     errors: dict[str, str] = field(default_factory=dict)
     # "not_loaded" | "loading" | "loaded" | "error"; readiness reports it.
     model_status: str = "not_loaded"
@@ -89,6 +92,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             state.mongo.close()
         if isinstance(state.gateway, SpringPolicyGateway):
             state.gateway.close()
+        if state.chat_spring is not None:
+            state.chat_spring.close()
 
 
 def create_app() -> FastAPI:
