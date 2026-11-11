@@ -11,7 +11,7 @@ from app.integrations.policy_gateway import (
     UnconfiguredPolicyGateway,
 )
 from app.rag.errors import ValidationFailedError
-from app.rag.publication import activate_version
+from app.rag.publication import REVIEW_STATE_MAP, sync_policy_state, target_state
 from app.rag.retrieval import (
     SearchService,
     SearchUnavailableError,
@@ -37,6 +37,7 @@ def _hit(
         "source_url": "https://www.moj.go.kr/x",
         "source_org": "법무부",
         "visa_types": ["E-7-4"],
+        "source_type": "notice",
         "is_active": active,
         "review_status": status,
         "score": 0.9,
@@ -84,8 +85,8 @@ def test_invalid_top_k_rejected() -> None:
 
 def test_filter_current_drops_stale_and_unapproved_hits() -> None:
     gw = InMemoryPolicyGateway()
-    gw.add(PolicyDocumentRecord(1, "v2", "a" * 64, "approved", is_current=True))
-    gw.add(PolicyDocumentRecord(1, "v1", "a" * 64, "approved", is_current=False))
+    gw.add(PolicyDocumentRecord(1, "v2", "a" * 64, "APPROVED", searchable=True))
+    gw.add(PolicyDocumentRecord(1, "v1", "a" * 64, "RETIRED"))
     hits = [_hit(1, "v2"), _hit(1, "v1"), _hit(1, "v2", active=False), _hit(2, "v1")]
     kept = filter_current(hits, gw)
     assert kept == [hits[0]]
@@ -109,7 +110,7 @@ class FakeCollection:
 
 def test_english_query_uses_same_embedder_and_server_filter() -> None:
     gw = InMemoryPolicyGateway()
-    gw.add(PolicyDocumentRecord(1, "v1", "a" * 64, "approved", is_current=True))
+    gw.add(PolicyDocumentRecord(1, "v1", "a" * 64, "APPROVED", searchable=True))
     # Simulates index lag: a pending chunk still returned by the search index.
     collection = FakeCollection([_hit(1, "v1"), _hit(1, "v1", active=False, status="pending")])
     service = SearchService(
@@ -123,6 +124,10 @@ def test_english_query_uses_same_embedder_and_server_filter() -> None:
     assert len(hits) == 1
     assert collection.pipelines[0][0]["$vectorSearch"]["filter"]["review_status"] == "approved"
     assert collection.pipelines[0][1] == {"$match": {"embedding_model": "BAAI/bge-m3"}}
+    # numCandidates = max(topK * 20, configured floor)
+    assert collection.pipelines[0][0]["$vectorSearch"]["numCandidates"] == 100
+    service.search("q", 8, None)
+    assert collection.pipelines[1][0]["$vectorSearch"]["numCandidates"] == 160
 
 
 class UntouchableClient:
@@ -130,31 +135,56 @@ class UntouchableClient:
         raise AssertionError("activation must not touch MongoDB before checks pass")
 
 
-def _approved_gateway(status: str = "approved", current: bool = True) -> InMemoryPolicyGateway:
-    gw = InMemoryPolicyGateway()
-    gw.add(PolicyDocumentRecord(1, "v2", "a" * 64, status, is_current=current))  # type: ignore[arg-type]
-    return gw
+@pytest.mark.parametrize(
+    ("status", "searchable", "expected"),
+    [
+        ("DRAFT", False, ("pending", False)),
+        ("DRAFT", True, ("pending", False)),  # searchable alone never activates
+        ("NEEDS_REVIEW", True, ("pending", False)),
+        ("APPROVED", True, ("approved", True)),
+        ("APPROVED", False, ("approved", False)),  # approved but not in force yet
+        ("RETIRED", True, ("approved", False)),
+    ],
+)
+def test_target_state_mapping(status: Any, searchable: bool, expected: tuple[str, bool]) -> None:
+    assert target_state(PolicyDocumentRecord(1, "v1", "a" * 64, status, searchable)) == expected
+
+
+def test_mapping_covers_every_mysql_status() -> None:
+    assert set(REVIEW_STATE_MAP) == {"DRAFT", "APPROVED", "NEEDS_REVIEW", "RETIRED"}
+
+
+def _stored(repo: FakeRepository, n: int, sha: str = "a" * 64, start: int = 0) -> None:
+    from app.rag.schemas import ChunkRecord
+    from tests.conftest import record_kwargs
+
+    for i in range(start, start + n):
+        record = ChunkRecord(
+            **record_kwargs(
+                policy_document_id=1, document_version="v2", chunk_index=i, source_sha256=sha
+            )
+        )
+        repo.docs[(1, "v2", i, "BAAI/bge-m3")] = record
 
 
 @pytest.mark.parametrize(
-    ("gateway", "expected_chunks", "sha"),
+    ("setup", "expected_chunks", "record_hash"),
     [
-        (_approved_gateway("pending"), 0, "a" * 64),
-        (_approved_gateway("approved", current=False), 0, "a" * 64),
-        (_approved_gateway(), 0, "b" * 64),
-        (_approved_gateway(), 3, "a" * 64),
+        (lambda r: _stored(r, 2, start=1), None, "a" * 64),  # gap: no chunk 0
+        (lambda r: _stored(r, 2, sha="b" * 64), None, "a" * 64),  # hash differs from MySQL
+        (lambda r: _stored(r, 2), 3, "a" * 64),  # MySQL chunk_count mismatch
     ],
 )
-def test_activation_preconditions(gateway: Any, expected_chunks: int, sha: str) -> None:
+def test_activation_preconditions_block_before_any_write(
+    setup: Any, expected_chunks: int | None, record_hash: str
+) -> None:
     repo = FakeRepository()
+    setup(repo)
     with pytest.raises(ValidationFailedError):
-        activate_version(
+        sync_policy_state(
             UntouchableClient(),  # type: ignore[arg-type]
             repo,  # type: ignore[arg-type]
-            gateway,
-            policy_document_id=1,
-            document_version="v2",
+            PolicyDocumentRecord(1, "v2", record_hash, "APPROVED", searchable=True),
             embedding_model="BAAI/bge-m3",
             expected_chunks=expected_chunks,
-            expected_sha256=sha,
         )

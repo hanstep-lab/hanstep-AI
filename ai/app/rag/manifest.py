@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.rag.schemas import SourceType
 from app.rag.sources import DiscoveredFile, inspect_file
 
 Domain = Literal["visa", "finance"]
@@ -41,6 +42,8 @@ class Review(BaseModel):
     verified: bool = False
     verified_by: str | None = None
     verified_at: date | None = None
+    # Where unverified values came from and what still needs checking.
+    note: str | None = None
 
 
 class Relations(BaseModel):
@@ -56,13 +59,21 @@ class SourceEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     path: str
+    # File name as published by the source, kept for tracing (the stored path is normalized).
+    original_filename: str | None = None
     domain: Domain
     classification_hint: str | None = None
     sha256: str
     title: str | None = None
     source_url: str | None = None
+    # Direct file URL whose bytes were hash-checked against this file (provenance, re-checks).
+    download_url: str | None = None
     source_org: str | None = None
     visa_types: list[str] | None = None
+    # MySQL policy_documents.source_type, lower-cased (law/admin_rule/notice/guide/score_table).
+    source_type: SourceType | None = None
+    # MySQL published_on (발행일), only when stated in the official source.
+    issued_on: date | None = None
     policy_document_id: int | None = Field(default=None, ge=1)
     document_version: str | None = None
     effective_from: date | None = None
@@ -114,7 +125,11 @@ def preflight(entry: SourceEntry, root: Path) -> tuple[DiscoveredFile, list[str]
         )
     if not entry.review.verified:
         blockers.append("official source not reviewed (review.verified=false)")
-    for name in ("title", "source_org", "document_version"):
+    required = ["title", "source_org", "document_version"]
+    if entry.domain == "visa":
+        # policy_documents.source_type; finance uses product_documents.doc_kind instead.
+        required.append("source_type")
+    for name in required:
         if not getattr(entry, name):
             blockers.append(f"{name} unconfirmed")
     if entry.policy_document_id is None:
