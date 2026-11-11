@@ -12,6 +12,7 @@ import json
 from collections.abc import Sequence
 from datetime import date
 from enum import StrEnum
+from typing import Any
 
 from pydantic import Field
 
@@ -45,7 +46,7 @@ from app.visa.e74.rules import (
     default_rule_sets,
     select_rule_set,
 )
-from app.visa.e74.schemas import E74Profile
+from app.visa.e74.schemas import E74Profile, E74Scenario
 
 BASE_CATEGORIES = (RuleCategory.BASE_INCOME, RuleCategory.BASE_KOREAN, RuleCategory.BASE_AGE)
 GATE_CATEGORIES = (RuleCategory.REQUIREMENT, RuleCategory.EXCLUSION)
@@ -112,13 +113,29 @@ class E74Assessment(CamelResponse):
     plan_to_required: ImprovementPlan
 
 
-def request_key(rule_version: str | None, as_of: date, profile: E74Profile) -> str:
-    """누적·재사용 키. 목록 순서가 달라도 같은 키가 나오게 정렬한 뒤 해시한다."""
+def request_key(
+    rule_version: str | None,
+    as_of: date,
+    profile: E74Profile,
+    *,
+    scenario: E74Scenario | None = None,
+) -> str:
+    """누적·재사용 키. 목록 순서가 달라도 같은 키가 나오게 정렬한 뒤 해시한다.
+
+    시나리오 계산은 원래 프로필 + 시나리오로 키를 만든다. 가정을 반영한 프로필이 우연히
+    실제 프로필과 같아져도 기본 계산과 키가 겹치지 않는다. 시나리오가 없으면 키는 예전과 같다.
+    """
     body = profile.model_dump(mode="json", by_alias=True)
     body["employmentHistories"].sort(key=lambda r: r["employmentHistoryId"])
     body["visaEvidences"].sort(key=lambda r: r["visaEvidenceId"])
     body["incomeRecords"].sort(key=lambda r: (r["incomeYear"], r["source"]))
-    payload = {"ruleVersion": rule_version, "asOfDate": as_of.isoformat(), "profile": body}
+    payload: dict[str, Any] = {
+        "ruleVersion": rule_version,
+        "asOfDate": as_of.isoformat(),
+        "profile": body,
+    }
+    if scenario is not None:
+        payload["scenario"] = scenario.model_dump(mode="json", by_alias=True)
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

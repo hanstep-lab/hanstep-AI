@@ -253,3 +253,55 @@ class E74Profile(CamelRequest):
 def _reject_duplicates(name: str, keys: list[object]) -> None:
     if len(keys) != len(set(keys)):
         raise ValueError(f"duplicate {name}")
+
+
+# --- 계산 API 요청 (10단계) ----------------------------------------------------------------
+
+MAX_SCENARIO_EVIDENCES = 10
+MAX_SCENARIO_INCOMES = 5
+
+
+class ScenarioEvidenceIn(CamelRequest):
+    """새로 얻었다고 가정하는 증빙. 발급일은 계산 기준일, 상태는 VERIFIED로 본다."""
+
+    evidence_type: EvidenceType
+    level_value: str | None = Field(default=None, max_length=30)
+    pre_test_score: int | None = Field(default=None, ge=0, le=100)
+    pre_test_assigned_stage: int | None = Field(default=None, ge=0, le=5)
+    related_to_current_job: bool | None = None
+
+
+class ScenarioIncomeIn(CamelRequest):
+    """그 연도 소득을 서류로 확인된 이 금액이라고 가정한다(같은 연도 기존 기록은 대신함)."""
+
+    income_year: int = Field(ge=2000, le=2100)
+    annual_amount: int = Field(ge=0, le=MAX_AMOUNT)
+
+
+class E74Scenario(CamelRequest):
+    """가정 시나리오: 개선 방안을 했다고 치고 같은 엔진으로 다시 계산한다."""
+
+    as_of_date: date | None = Field(
+        default=None, description="이 날짜로 계산(근속·체류 기간이 찰 때까지 기다리는 경우)"
+    )
+    add_evidences: list[ScenarioEvidenceIn] = Field(
+        default_factory=list, max_length=MAX_SCENARIO_EVIDENCES
+    )
+    income_records: list[ScenarioIncomeIn] = Field(
+        default_factory=list, max_length=MAX_SCENARIO_INCOMES
+    )
+
+    @model_validator(mode="after")
+    def _has_assumption(self) -> Self:
+        if self.as_of_date is None and not self.add_evidences and not self.income_records:
+            raise ValueError("scenario needs at least one assumption")
+        _reject_duplicates("scenario incomeYear", [i.income_year for i in self.income_records])
+        return self
+
+
+class E74CalculateRequest(CamelRequest):
+    """POST /internal/v1/visa/e74/calculate 요청. 본인 확인은 Spring이 한다."""
+
+    as_of_date: date = Field(description="계산 기준일. Spring이 정해서 보낸다")
+    profile: E74Profile
+    scenario: E74Scenario | None = None
