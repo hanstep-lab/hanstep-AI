@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.integrations.policy_gateway import UnconfiguredPolicyGateway
-from app.main import AppState, create_app
+from app.main import AppState, _roadmap_writer, create_app
 from app.rag.embeddings import BgeM3Embedder
 from app.visa.roadmap.schemas import RoadmapRequest, RoadmapResponse
 from app.visa.roadmap.service import StepWriter, build_roadmap
@@ -87,6 +88,8 @@ def test_p04_matches_the_screen_numbers() -> None:
     assert [s["estimatedAdditionalScore"] for s in d["steps"]] == [50, 50, 40, None]
     apply = d["steps"][-1]
     assert (apply["availableFrom"], apply["targetDate"]) == ("2026-12-05", "2027-10-04")
+    # 고용기업 추천(필수)이 남아 있어 그 날짜에 바로 신청할 수 있다고 쓰지 않는다.
+    assert apply["description"].startswith("위 필수 단계를 모두 마친 뒤")
     assert d["projectedScore"] == {"afterRequiredSteps": 260, "afterAllSteps": 300}
     assert d["warnings"] == ["DRAFT_RULES", "RULES_EXPIRE"]
     assert d["text"]["source"] == "TEMPLATE" and d["isMock"] is True
@@ -183,6 +186,52 @@ def test_only_one_government_recommendation_is_chosen() -> None:
     assert sum(code in ("REC_CENTRAL", "REC_REGIONAL") for code in codes) == 1
 
 
+def _weak_request() -> dict[str, Any]:
+    """필수 단계가 4개 생기는 프로필: 최소 소득·한국어·계약 미달 + 고용기업 추천 없음."""
+    body = _request()
+    profile = body["profile"]
+    profile["visaEvidences"][0]["levelValue"] = "1"
+    for record in profile["incomeRecords"]:
+        record["annualAmount"] = 20_000_000
+    job = profile["employmentHistories"][0]
+    job.update(contractAnnualSalary=20_000_000, contractEndOn="2027-03-01")
+    return body
+
+
+def test_required_steps_are_never_cut_by_the_step_limit() -> None:
+    d = _dump(_roadmap(_weak_request()))
+    actions = d["steps"][:-1]
+    assert [s["ruleCode"] for s in actions] == [
+        "REC_EMPLOYER",
+        "REQ_MIN_INCOME",
+        "REQ_MIN_KOREAN",
+        "REQ_CONTRACT",
+    ]
+    # 필수 단계가 상한(3)을 넘으면 선택 단계는 넣지 않는다.
+    assert all(s["required"] for s in actions)
+    assert [s["order"] for s in d["steps"]] == [1, 2, 3, 4, 5]
+
+
+def test_apply_step_says_required_steps_come_first() -> None:
+    apply = _dump(_roadmap(_weak_request()))["steps"][-1]
+    assert apply["kind"] == "APPLY"
+    assert apply["availableFrom"] == "2026-12-05"
+    assert apply["description"].startswith("위 필수 단계를 모두 마친 뒤 2026-12-05부터")
+
+
+def test_apply_step_without_required_steps_opens_on_the_date() -> None:
+    body = _request()
+    profile = body["profile"]
+    profile["visaEvidences"].append(
+        {"visaEvidenceId": 2, "evidenceType": "RECOMMENDATION_EMPLOYER", "status": "VERIFIED"}
+    )
+    d = _dump(_roadmap(body))
+    assert not any(s["required"] for s in d["steps"][:-1])
+    assert d["steps"][-1]["description"] == (
+        "2026-12-05부터 체류 만료일(2027-10-04) 전까지 출입국·외국인관서에 신청"
+    )
+
+
 # --- LLM 문장 ------------------------------------------------------------------------------
 
 
@@ -212,13 +261,22 @@ THINKING_REJECTED = _ApiError(
 
 
 class _FakeMessages:
-    def __init__(self, reply: Any, *, errors: list[Exception] | None = None) -> None:
+    def __init__(
+        self,
+        reply: Any,
+        *,
+        errors: list[Exception] | None = None,
+        on_call: Callable[[], None] | None = None,
+    ) -> None:
         self.reply = reply
         self.errors = list(errors or [])  # 앞에서부터 한 호출에 하나씩 올린다
+        self.on_call = on_call  # 호출마다 실행(가짜 시계를 흘려 보낼 때)
         self.calls: list[dict[str, Any]] = []
 
     def create(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
+        if self.on_call is not None:
+            self.on_call()
         if self.errors:
             raise self.errors.pop(0)
         if isinstance(self.reply, Exception):
@@ -228,15 +286,25 @@ class _FakeMessages:
 
 
 class _FakeClient:
-    def __init__(self, reply: Any, *, errors: list[Exception] | None = None) -> None:
-        self.messages = _FakeMessages(reply, errors=errors)
+    def __init__(
+        self,
+        reply: Any,
+        *,
+        errors: list[Exception] | None = None,
+        on_call: Callable[[], None] | None = None,
+    ) -> None:
+        self.messages = _FakeMessages(reply, errors=errors, on_call=on_call)
 
 
 def _writer(
-    reply: Any, *, errors: list[Exception] | None = None
+    reply: Any,
+    *,
+    errors: list[Exception] | None = None,
+    on_call: Callable[[], None] | None = None,
+    **writer_options: Any,
 ) -> tuple[LlmStepWriter, _FakeMessages]:
-    client = _FakeClient(reply, errors=errors)
-    return LlmStepWriter(client, "claude-test"), client.messages
+    client = _FakeClient(reply, errors=errors, on_call=on_call)
+    return LlmStepWriter(client, "claude-test", **writer_options), client.messages
 
 
 def _rewrite(description: str) -> Any:
@@ -406,6 +474,67 @@ def test_other_errors_are_not_retried(error: Exception) -> None:
     d = _dump(_roadmap(_request(), writer))
     assert len(messages.calls) == 1
     assert d["text"]["fallbackReason"] == "LLM_ERROR"
+
+
+class _Clock:
+    """호출마다 정해진 초만큼 흐르는 가짜 시계."""
+
+    def __init__(self, per_call: float) -> None:
+        self.now = 1000.0
+        self.per_call = per_call
+
+    def __call__(self) -> float:
+        return self.now
+
+    def tick(self) -> None:
+        self.now += self.per_call
+
+
+def test_each_call_gets_only_the_time_left_in_the_budget() -> None:
+    clock = _Clock(per_call=4.0)
+    writer, messages = _writer(
+        _rewrite("준비해요."),
+        errors=[THINKING_REJECTED],
+        on_call=clock.tick,
+        timeout_seconds=10.0,
+        clock=clock,
+    )
+    d = _dump(_roadmap(_request(), writer))
+    assert d["text"]["source"] == "LLM"
+    # 첫 호출은 예산 전체, 재시도는 첫 호출이 쓴 4초를 뺀 나머지.
+    assert [c["timeout"] for c in messages.calls] == [10.0, 6.0]
+
+
+def test_no_retry_without_thinking_when_the_budget_is_almost_used(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    clock = _Clock(per_call=8.0)
+    writer, messages = _writer(
+        _rewrite("준비해요."),
+        errors=[THINKING_REJECTED],
+        on_call=clock.tick,
+        timeout_seconds=10.0,
+        clock=clock,
+    )
+    with caplog.at_level(logging.WARNING, logger="app.visa.roadmap.text"):
+        d = _dump(_roadmap(_request(), writer))
+    assert len(messages.calls) == 1
+    assert d["text"]["fallbackReason"] == "LLM_ERROR"
+    assert "LLM call failed: TimeoutError" in caplog.text
+
+
+def test_configured_writer_uses_one_budget_and_no_sdk_retries() -> None:
+    settings = Settings(
+        _env_file=None,  # type: ignore[call-arg]
+        roadmap_llm_text=True,
+        roadmap_llm_timeout_seconds=12.0,
+        anthropic_api_key="sk-ant-test-key",  # type: ignore[arg-type]
+    )
+    writer = _roadmap_writer(settings)
+    assert isinstance(writer, LlmStepWriter)
+    assert writer._timeout == 12.0
+    client: Any = writer._client
+    assert client.max_retries == 0
 
 
 def test_numbers_in_reads_commas_and_dates() -> None:

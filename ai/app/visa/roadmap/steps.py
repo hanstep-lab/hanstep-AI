@@ -37,6 +37,7 @@ from app.visa.e74.schemas import (
     ScenarioIncomeIn,
 )
 
+# 선택 단계를 채우는 상한. 필수(blocking) 단계는 이 수를 넘어도 모두 넣는다.
 MAX_ACTION_STEPS = 3
 
 
@@ -108,7 +109,11 @@ def _group(imp: Improvement, rule_set: RuleSet) -> str:
 
 
 def select_steps(assessment: E74Assessment, rule_set: RuleSet) -> list[Improvement]:
-    """최대 3개. 필수(blocking) → 증빙 제출 → 기준 총점 계획 순서 → 점수 큰 순."""
+    """필수(blocking) → 증빙 제출 → 기준 총점 계획 순서 → 점수 큰 순.
+
+    필수 단계는 몇 개든 모두 넣는다(빠지면 신청할 수 없는데 신청 가능하다고 안내하게 된다).
+    선택 단계는 필수 단계와 합쳐 3개가 될 때까지만 넣는다.
+    """
     plan = {code: i for i, code in enumerate(assessment.plan_to_required.rule_codes)}
     engine_order = {imp.rule_code: i for i, imp in enumerate(assessment.improvements)}
     ranked = sorted(
@@ -124,13 +129,14 @@ def select_steps(assessment: E74Assessment, rule_set: RuleSet) -> list[Improveme
     chosen: list[Improvement] = []
     groups: set[str] = set()
     for imp in ranked:
+        # blocking이 앞에 정렬되어 있으므로, 상한에 닿은 뒤에는 선택 단계만 남는다.
+        if not imp.blocking and len(chosen) >= MAX_ACTION_STEPS:
+            break
         group = _group(imp, rule_set)
         if group in groups:
             continue
         groups.add(group)
         chosen.append(imp)
-        if len(chosen) == MAX_ACTION_STEPS:
-            break
     return chosen
 
 

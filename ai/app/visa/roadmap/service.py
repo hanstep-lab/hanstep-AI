@@ -279,7 +279,9 @@ def build_roadmap(
         applicable = applicable_from(assessment, rule_set)
         chosen = select_steps(assessment, rule_set)
         steps = [_action_step(order, imp, rule_set) for order, imp in enumerate(chosen, start=1)]
-    apply_text = template_apply_text(applicable, expires)
+    apply_text = template_apply_text(
+        applicable, expires, required_steps_pending=any(imp.blocking for imp in chosen)
+    )
     steps.append(
         RoadmapStep(
             order=len(steps) + 1,

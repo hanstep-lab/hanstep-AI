@@ -57,12 +57,15 @@ def _roadmap_writer(settings: Settings) -> StepWriter | None:
         return None
     import anthropic
 
+    budget = settings.roadmap_llm_timeout_seconds
+    # 시간 관리는 LlmStepWriter가 한다(호출마다 남은 시간).
+    # SDK 재시도는 그 시간을 넘기게 하므로 끈다.
     client = anthropic.Anthropic(
         api_key=settings.anthropic_api_key.get_secret_value(),
-        timeout=settings.roadmap_llm_timeout_seconds,
-        max_retries=1,
+        timeout=budget,
+        max_retries=0,
     )
-    return LlmStepWriter(client, settings.agent_model)
+    return LlmStepWriter(client, settings.agent_model, timeout_seconds=budget)
 
 
 def build_state(settings: Settings) -> AppState:

@@ -9,7 +9,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Protocol
@@ -36,6 +37,10 @@ PROMPT_VERSION = "visa-roadmap-text-v3"
 MAX_OUTPUT_TOKENS = 2048
 MAX_TITLE_CHARS = 40
 MAX_DESCRIPTION_CHARS = 300
+# 문장 생성 전체(thinking 거부 후 재시도 포함)에 쓰는 시간. 넘기면 템플릿으로 되돌린다.
+DEFAULT_TIMEOUT_SECONDS = 15.0
+# 남은 시간이 이보다 적으면 thinking 거부 후 재시도를 하지 않는다(응답이 올 수 없는 시간).
+MIN_RETRY_SECONDS = 3.0
 
 # 모의 사전진단이다. 승인 가능성·순위처럼 들리는 표현은 쓰지 않는다.
 FORBIDDEN_PHRASES = ("합격", "불합격", "상위", "가능성", "확률", "보장", "확실")
@@ -120,7 +125,10 @@ def template_step_text(imp: Improvement, rule: Rule, *, required: bool) -> StepT
     return StepText(title=_title(imp, rule), description=description)
 
 
-def template_apply_text(applicable: date | None, expires: date) -> StepText:
+def template_apply_text(
+    applicable: date | None, expires: date, *, required_steps_pending: bool = False
+) -> StepText:
+    """신청 단계 문장. 필수 단계가 남아 있으면 그 날짜에 바로 신청할 수 있다고 쓰지 않는다."""
     title = "E-7-4 전환 신청"
     if applicable is None:
         return StepText(
@@ -132,11 +140,13 @@ def template_apply_text(applicable: date | None, expires: date) -> StepText:
             f"신청 가능일({applicable.isoformat()})보다 체류 만료일({expires.isoformat()})이 "
             "먼저 옴. 체류기간 연장 여부를 먼저 확인해야 함",
         )
-    return StepText(
-        title,
+    window = (
         f"{applicable.isoformat()}부터 체류 만료일({expires.isoformat()}) 전까지 "
-        "출입국·외국인관서에 신청",
+        "출입국·외국인관서에 신청"
     )
+    if required_steps_pending:
+        return StepText(title, f"위 필수 단계를 모두 마친 뒤 {window}")
+    return StepText(title, window)
 
 
 # --- LLM ---------------------------------------------------------------------------------
@@ -269,15 +279,32 @@ def rejects_thinking(exc: Exception) -> bool:
 
 
 class LlmStepWriter:
-    """Claude로 단계 문장을 쓴다. 실패하면 LlmTextError를 올리고 호출 쪽이 템플릿을 쓴다."""
+    """Claude로 단계 문장을 쓴다. 실패하면 LlmTextError를 올리고 호출 쪽이 템플릿을 쓴다.
+
+    ``timeout_seconds``는 write 한 번 전체의 시간이다. 호출마다 남은 시간만 timeout으로 넘기고,
+    클라이언트 자체 재시도는 끄고 쓴다(main._roadmap_writer). 동기 라우트가 스레드풀을 오래
+    잡지 않게 하고, Spring이 먼저 포기한 요청에 LLM 비용을 쓰지 않기 위해서다.
+    """
 
     prompt_version = PROMPT_VERSION
 
-    def __init__(self, client: ClaudeClient, model_id: str) -> None:
+    def __init__(
+        self,
+        client: ClaudeClient,
+        model_id: str,
+        *,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._client = client
         self.model_id = model_id
+        self._timeout = timeout_seconds
+        self._clock = clock
 
-    def _create(self, steps: Sequence[dict[str, Any]], **extra: Any) -> Any:
+    def _create(self, steps: Sequence[dict[str, Any]], deadline: float, **extra: Any) -> Any:
+        remaining = deadline - self._clock()
+        if remaining <= 0:
+            raise TimeoutError("roadmap text time budget used up")
         return self._client.messages.create(
             model=self.model_id,
             max_tokens=MAX_OUTPUT_TOKENS,
@@ -286,25 +313,29 @@ class LlmStepWriter:
                 {"role": "user", "content": json.dumps({"steps": steps}, ensure_ascii=False)}
             ],
             output_config={"format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
+            timeout=remaining,
             **extra,
         )
 
     def write(self, steps: Sequence[dict[str, Any]]) -> dict[int, StepText]:
+        deadline = self._clock() + self._timeout
         try:
             try:
                 # 문장 다듬기라 추론이 필요 없다. 끄지 않으면 모델이 호출마다 thinking 여부를 정해
                 # 응답 시간이 2배 이상 흔들린다(측정: 출력 토큰 약 450 ↔ 1,200).
-                response = self._create(steps, thinking={"type": "disabled"})
+                response = self._create(steps, deadline, thinking={"type": "disabled"})
             except Exception as exc:
                 if not rejects_thinking(exc):
                     raise
+                if deadline - self._clock() < MIN_RETRY_SECONDS:
+                    raise TimeoutError("no time left to retry without thinking") from exc
                 # thinking을 끌 수 없는 모델(Opus 5.5, Fable 등): 설정을 빼고 한 번만 다시 부른다.
                 logger.warning(
                     "roadmap text LLM rejected thinking=disabled (400) for model=%s; "
                     "retrying once without thinking",
                     self.model_id,
                 )
-                response = self._create(steps)
+                response = self._create(steps, deadline)
         except Exception as exc:  # 네트워크·인증·한도·재시도 실패 모두 템플릿으로 되돌린다
             logger.warning("roadmap text LLM call failed: %s", type(exc).__name__)
             raise LlmTextError("LLM_ERROR") from exc
