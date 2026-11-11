@@ -1,0 +1,11 @@
+{
+  "id": "P02",
+  "title": "외국인등록증 OCR만 끝난 신규 사용자: 체류 프로필 외에는 모두 누락(합성 데이터)",
+  "profile": {
+    "visaProfile": {
+      "visaTypeCode": "E-9",
+      "birthDate": "1999-11-03",
+      "evidenceStatus": "DECLARED"
+    }
+  }
+}

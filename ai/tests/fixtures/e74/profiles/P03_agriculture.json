@@ -1,0 +1,94 @@
+{
+  "id": "P03",
+  "title": "농업 특례, 재입국, 귀책 없는 이직, 자기신고 위주, 감점 일부 미신고(합성 데이터)",
+  "profile": {
+    "visaProfile": {
+      "visaTypeCode": "E-9",
+      "birthDate": "1988-02-28",
+      "evidenceStatus": "PARTIALLY_VERIFIED"
+    },
+    "stay": {
+      "currentStayStartedOn": "2023-02-14",
+      "priorStayMonths": 30,
+      "verificationStatus": "DECLARED"
+    },
+    "employments": [
+      {
+        "employmentId": 21,
+        "employerKey": "farm-x",
+        "industryCode": "AGRICULTURE",
+        "workplaceRegionCode": "47820",
+        "isDepopulationArea": true,
+        "startedOn": "2018-03-01",
+        "endedOn": "2020-08-31",
+        "leftWithoutFault": null,
+        "verificationStatus": "DECLARED"
+      },
+      {
+        "employmentId": 22,
+        "employerKey": "farm-y",
+        "industryCode": "AGRICULTURE",
+        "workplaceRegionCode": "44810",
+        "isDepopulationArea": true,
+        "startedOn": "2023-02-20",
+        "endedOn": "2024-06-30",
+        "leftWithoutFault": true,
+        "verificationStatus": "NEEDS_EVIDENCE"
+      },
+      {
+        "employmentId": 23,
+        "employerKey": "farm-z",
+        "industryCode": "AGRICULTURE",
+        "workplaceRegionCode": "44810",
+        "isDepopulationArea": false,
+        "startedOn": "2024-07-01",
+        "endedOn": null,
+        "contractEndOn": "2028-12-31",
+        "contractAnnualSalary": 25200000,
+        "verificationStatus": "DECLARED"
+      }
+    ],
+    "incomes": [
+      {
+        "incomeYear": 2024,
+        "annualAmount": 24600000,
+        "source": "USER_DECLARED",
+        "verificationStatus": "DECLARED"
+      },
+      {
+        "incomeYear": 2025,
+        "annualAmount": 24900000,
+        "source": "TRANSACTION_ESTIMATE",
+        "verificationStatus": "DECLARED"
+      }
+    ],
+    "evidences": [
+      {
+        "evidenceId": 201,
+        "evidenceType": "KIIP_PRE_TEST",
+        "issuedOn": "2025-03-10",
+        "status": "DECLARED",
+        "preTestScore": 55,
+        "preTestAssignedStage": 3
+      },
+      {
+        "evidenceId": 202,
+        "evidenceType": "RECOMMENDATION_EMPLOYER",
+        "status": "DECLARED"
+      },
+      {
+        "evidenceId": 203,
+        "evidenceType": "RECOMMENDATION_PROVINCE",
+        "status": "NEEDS_EVIDENCE"
+      }
+    ],
+    "legalDeclaration": {
+      "finesUnder1mCount": 1,
+      "hasFine1mOrMore": false,
+      "taxStayRestrictionCount": null,
+      "immigrationViolationCount": 0,
+      "hasOverstay3mOrMore": false,
+      "hasCurrentTaxArrears": null
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "id": "P01",
+  "title": "모든 값이 있고 대부분 증빙 확인된 E-9 제조업 근로자(합성 데이터)",
+  "profile": {
+    "visaProfile": {
+      "visaTypeCode": "E-9",
+      "birthDate": "1994-05-12",
+      "evidenceStatus": "VERIFIED"
+    },
+    "stay": {
+      "currentStayStartedOn": "2021-04-01",
+      "priorStayMonths": null,
+      "verificationStatus": "DECLARED"
+    },
+    "employments": [
+      {
+        "employmentId": 11,
+        "employerKey": "emp-a",
+        "industryCode": "MANUFACTURING",
+        "workplaceRegionCode": "46720",
+        "isDepopulationArea": true,
+        "startedOn": "2021-04-05",
+        "endedOn": null,
+        "contractEndOn": "2028-11-30",
+        "contractAnnualSalary": 31000000,
+        "leftWithoutFault": null,
+        "verificationStatus": "VERIFIED"
+      }
+    ],
+    "incomes": [
+      {
+        "incomeYear": 2024,
+        "annualAmount": 31500000,
+        "source": "DOCUMENT",
+        "verificationStatus": "VERIFIED"
+      },
+      {
+        "incomeYear": 2025,
+        "annualAmount": 33800000,
+        "source": "DOCUMENT",
+        "verificationStatus": "VERIFIED"
+      }
+    ],
+    "evidences": [
+      {
+        "evidenceId": 101,
+        "evidenceType": "TOPIK",
+        "levelValue": "3",
+        "issuedOn": "2025-06-20",
+        "expiresOn": "2027-06-20",
+        "status": "VERIFIED"
+      },
+      {
+        "evidenceId": 102,
+        "evidenceType": "RECOMMENDATION_EMPLOYER",
+        "status": "VERIFIED"
+      },
+      {
+        "evidenceId": 103,
+        "evidenceType": "DRIVER_LICENSE",
+        "levelValue": "2종 보통",
+        "issuedOn": "2023-03-02",
+        "status": "VERIFIED"
+      },
+      {
+        "evidenceId": 104,
+        "evidenceType": "NATIONAL_CERTIFICATE",
+        "levelValue": "용접기능사",
+        "issuedOn": "2024-09-13",
+        "status": "DECLARED",
+        "relatedToCurrentJob": true
+      }
+    ],
+    "legalDeclaration": {
+      "finesUnder1mCount": 0,
+      "hasFine1mOrMore": false,
+      "taxStayRestrictionCount": 0,
+      "immigrationViolationCount": 0,
+      "hasOverstay3mOrMore": false,
+      "hasCurrentTaxArrears": false
+    }
+  }
+}
