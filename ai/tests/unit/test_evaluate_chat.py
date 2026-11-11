@@ -349,7 +349,7 @@ def _calc_row(question_id: str, answer: str) -> dict[str, Any]:
         ("T03", "You send about 30% of your income home.", "reference"),
         ("C02", "About 22.1 percent of your income goes to fixed living costs.", "reference"),
         ("C01", "You would have 5,000,000 won.", "wrong_number"),
-        ("T03", "You send about 35% of your income home.", "wrong_number"),
+        ("T03", "You send about 31% of your income home.", "wrong_number"),
         (
             "C01",
             "Your spare money is KRW 675,317 a month. I cannot calculate totals yet.",

@@ -31,6 +31,8 @@ def _check(answer: str, texts: list[str] | None = None) -> Any:
         "Over the last 12 full months your income was KRW 2,350,000.",
         "The analysis covers 2025-11-01 to 2026-10-31.",
         "Your goal is ₩6,000,000 by 2027년 9월 30일.",
+        "The analysis ends on 2026-10-31.",
+        "The analysis ends on October 31.",
     ],
 )
 def test_supported_numbers(answer: str) -> None:
@@ -46,6 +48,10 @@ def test_supported_numbers(answer: str) -> None:
         ("In a year you will save 8,103,804 won.", "8,103,804 won"),
         ("You send 29.8% of your income home.", "29.8%"),
         ("You have about 80만 원 left.", "80만 원"),
+        # date parts (2025, 2026, 10, 31 from the period) never back amounts or percents
+        ("You send 31% of your income home.", "31%"),
+        ("You have KRW 31 left.", "KRW 31"),
+        ("You have KRW 2,000 left.", "KRW 2,000"),
     ],
 )
 def test_unsupported_numbers(answer: str, flagged: str) -> None:

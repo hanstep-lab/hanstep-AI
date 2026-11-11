@@ -43,7 +43,7 @@ import _bootstrap  # noqa: F401
 import httpx
 
 from app.chat.fake_llm import FAKE_MODEL_ID
-from app.chat.number_check import _rounded, _scan, check_answer
+from app.chat.number_check import check_answer, rounded_values, scan_numbers
 from app.chat.tools import FIXTURE, summarize
 from app.core.config import Settings, get_settings
 from app.integrations.spring_client import SpringInternalClient
@@ -310,9 +310,11 @@ def reference_matches(answer: str, ref: dict[str, Any]) -> list[str]:
         accepted = {value, value.quantize(Decimal(1), rounding=ROUND_HALF_UP)}
         kinds = {"percent"}
     else:
-        accepted = {value} | _rounded({value})
+        accepted = {value} | rounded_values({value})
         kinds = {"amount", "number"}
-    return [text for text, found, kind, _ in _scan(answer) if kind in kinds and found in accepted]
+    return [
+        text for text, found, kind, _ in scan_numbers(answer) if kind in kinds and found in accepted
+    ]
 
 
 def reference_check(

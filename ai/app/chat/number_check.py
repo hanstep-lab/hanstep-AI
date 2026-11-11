@@ -2,10 +2,13 @@
 
 Not part of the response flow. The answer text (no thinking) is scanned for numbers with
 thousands separators, decimals, %, currencies (KRW, ₩, won, 원, VND), Korean units (천·만·억),
-"약"/"about" and English k/million. A number is supported when it appears in the tool result
-(amounts, counts, the year/month/day of dates), in the question or history, or equals a
-supported amount rounded half-up to 1,000 or 10,000 won ("약 68만 원" for 675,317).
-Dates and ordinals are reported apart as ambiguous when they are not plainly supported.
+"약"/"about" and English k/million. Allowed numbers come from the tool result (numeric
+values and numbers in its strings) and from the question or history texts. The year, month
+and day of dates found there (periodTo 2026-10-31 -> 2026, 10, 31) are kept apart: they back
+dates, ordinals and unit-less numbers ("October 31") only, never an amount or a percent, so
+"31%" or "KRW 31" is unsupported. An amount or unit-less number is also supported when it
+equals an allowed value (dates excluded) rounded half-up to 1,000 or 10,000 won ("약 68만 원"
+for 675,317). Dates and ordinals are reported apart as ambiguous when not plainly supported.
 """
 
 from __future__ import annotations
@@ -76,7 +79,7 @@ def _norm(value: Decimal) -> str:
     return format(value.normalize(), "f")
 
 
-def _scan(text: str) -> list[tuple[str, Decimal | None, str, list[Decimal]]]:
+def scan_numbers(text: str) -> list[tuple[str, Decimal | None, str, list[Decimal]]]:
     """(matched text, value, kind, date parts) in order of appearance."""
     items: list[tuple[int, str, Decimal | None, str, list[Decimal]]] = []
     taken = [False] * len(text)
@@ -141,25 +144,32 @@ def _walk(value: Any) -> Iterable[Any]:
         yield value
 
 
-def allowed_numbers(tool_results: Iterable[Any], texts: Iterable[str]) -> set[Decimal]:
-    """Numbers in tool results (incl. date parts) and in the question/history texts."""
-    allowed: set[Decimal] = set()
+@dataclass
+class AllowedNumbers:
+    values: set[Decimal] = field(default_factory=set)  # back every kind of number
+    date_parts: set[Decimal] = field(default_factory=set)  # dates, ordinals, unit-less only
+
+
+def allowed_numbers(tool_results: Iterable[Any], texts: Iterable[str]) -> AllowedNumbers:
+    """Numbers in tool results and in the question/history texts, date parts kept apart."""
+    allowed = AllowedNumbers()
     for leaf in _walk(list(tool_results)):
         if isinstance(leaf, bool) or leaf is None:
             continue
         if isinstance(leaf, int | float):
-            allowed.add(Decimal(str(leaf)))
+            allowed.values.add(Decimal(str(leaf)))
         elif isinstance(leaf, str):
             texts = [*texts, leaf]
     for text in texts:
-        for _, value, _, parts in _scan(text):
+        for _, value, kind, parts in scan_numbers(text):
             if value is not None:
-                allowed.add(value)
-            allowed.update(parts)
+                allowed.values.add(value)
+            (allowed.date_parts if kind == "date" else allowed.values).update(parts)
     return allowed
 
 
-def _rounded(values: set[Decimal]) -> set[Decimal]:
+def rounded_values(values: set[Decimal]) -> set[Decimal]:
+    """Each value rounded half-up to 1,000 and 10,000 (when at least that large)."""
     out: set[Decimal] = set()
     for value in values:
         for step in (Decimal(1000), Decimal(10_000)):
@@ -170,15 +180,16 @@ def _rounded(values: set[Decimal]) -> set[Decimal]:
 
 def check_answer(answer: str, tool_results: Iterable[Any], texts: Iterable[str]) -> NumberCheck:
     allowed = allowed_numbers(tool_results, texts)
-    approx = _rounded(allowed)
+    with_dates = allowed.values | allowed.date_parts
+    approx = rounded_values(allowed.values)
     result = NumberCheck()
-    for text, value, kind, parts in _scan(answer):
+    for text, value, kind, parts in scan_numbers(answer):
         if kind in ("date", "ordinal"):
-            status = "supported" if parts and all(p in allowed for p in parts) else "ambiguous"
+            status = "supported" if parts and all(p in with_dates for p in parts) else "ambiguous"
             shown = "-".join(_norm(p) for p in parts)
         else:
             assert value is not None
-            exact = value in allowed
+            exact = value in (with_dates if kind == "number" else allowed.values)
             near = kind != "percent" and value in approx
             status = "supported" if exact or near else "unsupported"
             shown = _norm(value)
