@@ -18,6 +18,8 @@ markdown next to it (same name, .md). Variants run round-robin inside each quest
 repeat, so time-of-day drift spreads evenly. --max-usd stops before a call that would likely
 cross the budget; runs that end in agent.error count too (usage from agent.metrics). With
 --llm-mode fake the run stops at once if the server answers with a real model or real tokens.
+Questions with referenceValues get a referenceCheck (reference / wrong_number / no_value), and
+each row keeps the arrival ms of every delta (deltaTimesMs) for replaying the stream later.
 The API key and internal tokens are never printed or written.
 """
 
@@ -33,6 +35,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -40,7 +43,7 @@ import _bootstrap  # noqa: F401
 import httpx
 
 from app.chat.fake_llm import FAKE_MODEL_ID
-from app.chat.number_check import check_answer
+from app.chat.number_check import _rounded, _scan, check_answer
 from app.chat.tools import FIXTURE, summarize
 from app.core.config import Settings, get_settings
 from app.integrations.spring_client import SpringInternalClient
@@ -212,7 +215,7 @@ def stream_call(
     def ms() -> int:
         return round((time.perf_counter() - started) * 1000)
 
-    result: dict[str, Any] = {"events": [], "timings": {}, "deltas": [], "tools": []}
+    result: dict[str, Any] = {"events": [], "timings": {}, "deltas": [], "deltaMs": [], "tools": []}
     with client.stream("POST", url, json=body, headers=headers, timeout=180) as response:
         result["httpStatus"] = response.status_code
         if response.status_code != 200:
@@ -233,8 +236,10 @@ def stream_call(
         for name, data in iter_sse(lines()):
             result["events"].append(name)
             if name == f"{prefix}.delta":
-                result["timings"].setdefault("firstDeltaMs", ms())
+                at = ms()
+                result["timings"].setdefault("firstDeltaMs", at)
                 result["deltas"].append(data.get("text", ""))
+                result["deltaMs"].append(at)  # arrival per delta, to replay the stream later
             elif name == f"{prefix}.tool_call":
                 result["tools"].append(data)
             elif name == f"{prefix}.metrics":
@@ -294,10 +299,44 @@ def call_spring(
     return stream_call(client, url, body, {**auth, "Accept": "text/event-stream"}, "chat")
 
 
+def reference_matches(answer: str, ref: dict[str, Any]) -> list[str]:
+    """Answer numbers that state the reference value (number_check scan, same rounding rules).
+
+    KRW: exact, or rounded half-up to 1,000 / 10,000 won ("about 8.1 million").
+    percent: the one-decimal value or the value rounded half-up to a whole number (29.8, 30).
+    """
+    value = Decimal(str(ref["value"]))
+    if ref["unit"] == "percent":
+        accepted = {value, value.quantize(Decimal(1), rounding=ROUND_HALF_UP)}
+        kinds = {"percent"}
+    else:
+        accepted = {value} | _rounded({value})
+        kinds = {"amount", "number"}
+    return [text for text, found, kind, _ in _scan(answer) if kind in kinds and found in accepted]
+
+
+def reference_check(
+    answer: str, refs: list[dict[str, Any]], unsupported: list[str]
+) -> dict[str, Any]:
+    """reference: every reference value is in the answer; wrong_number: not, but the answer has
+    numbers the tool result does not support; no_value: neither (e.g. it declined)."""
+    matched = {ref["formula"]: reference_matches(answer, ref) for ref in refs}
+    if all(matched.values()):
+        verdict = "reference"
+    elif unsupported:
+        verdict = "wrong_number"
+    else:
+        verdict = "no_value"
+    return {"verdict": verdict, "matched": matched, "unsupported": unsupported}
+
+
 def score(row: dict[str, Any]) -> None:
-    """Number check and expected-tool match from what the row already holds."""
-    check = check_answer(row.get("answer") or "", [row["toolResult"]], row["contextTexts"])
+    """Number check, reference check and expected-tool match from what the row already holds."""
+    answer = row.get("answer") or ""
+    check = check_answer(answer, [row["toolResult"]], row["contextTexts"])
     row["numberCheck"] = check.to_json()
+    if row.get("referenceValues"):
+        row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
     called = sorted({t.get("toolName") for t in row.get("tools", [])})
     row["toolMatch"] = called == sorted(set(row["expectedTools"]))
 
@@ -323,6 +362,8 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
         "## 측정 조건",
         "",
         f"- 대상: {conditions['target']}, 모드(--llm-mode): {conditions['mode']}",
+        f"- 질문 세트: {(conditions.get('questionSet') or {}).get('file', '-')} "
+        f"({(conditions.get('questionSet') or {}).get('version', '-')})",
         f"- 시작: {conditions['startedAt']}, 상태: {conditions.get('status')}",
         f"- 문항 {len(conditions['questions'])}개, 반복 {conditions['repeats']}, "
         f"설정마다 워밍업 {conditions['warmup']}",
@@ -387,6 +428,24 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
                 if unsupported
                 else ""
             ),
+        ]
+        calc = [r for r in done if r.get("referenceCheck")]
+        if calc:
+            verdicts = [r["referenceCheck"]["verdict"] for r in calc]
+            out.append(
+                f"- 계산 질문 {len(calc)}개: 참조값 포함 {verdicts.count('reference')} / "
+                f"다른 숫자 {verdicts.count('wrong_number')} / 값 없음 {verdicts.count('no_value')}"
+            )
+            for r in calc:
+                check = r["referenceCheck"]
+                found = [t for texts in check["matched"].values() for t in texts]
+                detail = {
+                    "reference": f"참조값 포함 ({', '.join(found)})",
+                    "wrong_number": f"다른 숫자 ({', '.join(check['unsupported'])})",
+                    "no_value": "값 없음",
+                }[check["verdict"]]
+                out.append(f"  - {r['questionId']} #{r['repeat']}: {detail}")
+        out += [
             "",
             "| 문항 | 호출 | 입력 토큰 | 출력 토큰 | 비용(USD) |",
             "|---|---|---|---|---|",
@@ -498,7 +557,8 @@ def main(
     if args.target == "ai" and not settings.internal_token_configured():
         print("BLOCKED: AI_INTERNAL_API_TOKEN is not configured")
         return EXIT_BLOCKED
-    questions = select_questions(load_questions(), args.questions, args.subset, parser)
+    spec = load_questions()
+    questions = select_questions(spec, args.questions, args.subset, parser)
     try:
         variants = load_variants(args.variants, settings)
     except (ValueError, OSError) as exc:
@@ -537,6 +597,7 @@ def main(
         "baseUrl": base_url,
         "userId": args.user_id,
         "variants": [{k: v for k, v in variant.items() if k != "override"} for variant in variants],
+        "questionSet": {"file": QUESTIONS.name, "version": spec.get("version")},
         "questions": [q["id"] for q in questions],
         "repeats": args.repeats,
         "warmup": args.warmup,
@@ -602,7 +663,9 @@ def main(
                 "costUsd": round(cost_usd(usage, model), 6),
                 "tools": result["tools"],
                 "answer": "".join(result["deltas"]),
+                "deltaTimesMs": result["deltaMs"],
                 "expectedTools": question["expectedTools"],
+                "referenceValues": question.get("referenceValues"),
                 "toolResult": context,
                 "contextTexts": [
                     question["text"],

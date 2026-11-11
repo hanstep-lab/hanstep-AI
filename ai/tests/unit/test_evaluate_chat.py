@@ -322,3 +322,81 @@ def test_reference_values_match_fixture() -> None:
             if ref["unit"] == "percent":
                 value = (value * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
             assert value == Decimal(str(ref["value"])), (q["id"], ref)
+
+
+def _calc_row(question_id: str, answer: str) -> dict[str, Any]:
+    question = next(q for q in EVAL.load_questions()["questions"] if q["id"] == question_id)
+    row: dict[str, Any] = {
+        "answer": answer,
+        "toolResult": EVAL.tool_context(_settings(), 1, "fake"),
+        "contextTexts": [question["text"]],
+        "expectedTools": question["expectedTools"],
+        "referenceValues": question["referenceValues"],
+        "tools": [],
+    }
+    EVAL.score(row)
+    return row
+
+
+@pytest.mark.parametrize(
+    ("question_id", "answer", "verdict"),
+    [
+        ("C01", "In 6 months you would have 4,051,902 KRW.", "reference"),
+        ("C01", "That is about 4,050,000 won.", "reference"),
+        ("C01", "That is about 4,052,000 won.", "reference"),
+        ("T02", "You would have about 8.1 million won in a year.", "reference"),
+        ("T03", "You send 29.8% of your income home.", "reference"),
+        ("T03", "You send about 30% of your income home.", "reference"),
+        ("C02", "About 22.1 percent of your income goes to fixed living costs.", "reference"),
+        ("C01", "You would have 5,000,000 won.", "wrong_number"),
+        ("T03", "You send about 35% of your income home.", "wrong_number"),
+        (
+            "C01",
+            "Your spare money is KRW 675,317 a month. I cannot calculate totals yet.",
+            "no_value",
+        ),
+        ("C01", "I cannot calculate that for you yet.", "no_value"),
+    ],  # fmt: skip
+)
+def test_reference_check(question_id: str, answer: str, verdict: str) -> None:
+    check = _calc_row(question_id, answer)["referenceCheck"]
+    assert check["verdict"] == verdict, check
+
+
+def test_reference_check_percent_does_not_match_amount() -> None:
+    # A percent reference needs a percent in the answer: 29.8 without % does not count.
+    assert _calc_row("T03", "That is 29.8 of it.")["referenceCheck"]["verdict"] != "reference"
+
+
+def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
+    output = tmp_path / "run.jsonl"
+    assert _run(_settings(), "--questions", "C01,T03", "--output", str(output)) == 0
+
+    lines = output.read_text(encoding="utf-8").splitlines()
+    conditions = json.loads(lines[0])
+    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.1"}
+    rows = _rows(output)
+    for row in rows:
+        assert len(row["deltaTimesMs"]) == row["events"].count("agent.delta") > 0
+        assert row["deltaTimesMs"] == sorted(row["deltaTimesMs"])
+        assert row["deltaTimesMs"][0] == row["timings"]["firstDeltaMs"]
+        assert row["referenceCheck"]["verdict"] in ("reference", "wrong_number", "no_value")
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    assert "- 질문 세트: eval_questions_v1.json (v1.1)" in summary
+    assert "- 계산 질문 2개: 참조값 포함 " in summary
+
+    # --rescore recomputes the reference check from the saved answer.
+    saved = [json.loads(line) for line in lines[1:]]
+    for row in saved:
+        if row["questionId"] == "T03":
+            row["answer"] = "You send 29.8% of your income home."
+    output.write_text(
+        "\n".join([lines[0], *(json.dumps(r) for r in saved)]) + "\n", encoding="utf-8"
+    )
+    rescored = tmp_path / "rescored.jsonl"
+    assert EVAL.main(["--rescore", str(output), "--output", str(rescored)]) == 0
+    t03 = next(r for r in _rows(rescored) if r["questionId"] == "T03")
+    assert t03["referenceCheck"]["verdict"] == "reference"
+    assert "  - T03 #1: 참조값 포함 (29.8%)" in rescored.with_suffix(".md").read_text(
+        encoding="utf-8"
+    )
