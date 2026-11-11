@@ -263,6 +263,11 @@ def check_llm_texts(
     return texts
 
 
+def _rejects_thinking(exc: Exception) -> bool:
+    """thinking 설정을 거부한 400인지. 상태 코드와 오류 메시지의 "thinking"으로 판단한다."""
+    return getattr(exc, "status_code", None) == 400 and "thinking" in str(exc).lower()
+
+
 class LlmStepWriter:
     """Claude로 단계 문장을 쓴다. 실패하면 LlmTextError를 올리고 호출 쪽이 템플릿을 쓴다."""
 
@@ -272,21 +277,35 @@ class LlmStepWriter:
         self._client = client
         self.model_id = model_id
 
+    def _create(self, steps: Sequence[dict[str, Any]], **extra: Any) -> Any:
+        return self._client.messages.create(
+            model=self.model_id,
+            max_tokens=MAX_OUTPUT_TOKENS,
+            system=SYSTEM_PROMPT,
+            messages=[
+                {"role": "user", "content": json.dumps({"steps": steps}, ensure_ascii=False)}
+            ],
+            output_config={"format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
+            **extra,
+        )
+
     def write(self, steps: Sequence[dict[str, Any]]) -> dict[int, StepText]:
         try:
-            response = self._client.messages.create(
-                model=self.model_id,
-                max_tokens=MAX_OUTPUT_TOKENS,
-                system=SYSTEM_PROMPT,
-                messages=[
-                    {"role": "user", "content": json.dumps({"steps": steps}, ensure_ascii=False)}
-                ],
-                output_config={"format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
+            try:
                 # 문장 다듬기라 추론이 필요 없다. 끄지 않으면 모델이 호출마다 thinking 여부를 정해
                 # 응답 시간이 2배 이상 흔들린다(측정: 출력 토큰 약 450 ↔ 1,200).
-                thinking={"type": "disabled"},
-            )
-        except Exception as exc:  # 네트워크·인증·한도 오류 모두 템플릿으로 되돌린다
+                response = self._create(steps, thinking={"type": "disabled"})
+            except Exception as exc:
+                if not _rejects_thinking(exc):
+                    raise
+                # thinking을 끌 수 없는 모델(Opus 5.5, Fable 등): 설정을 빼고 한 번만 다시 부른다.
+                logger.warning(
+                    "roadmap text LLM rejected thinking=disabled (400) for model=%s; "
+                    "retrying once without thinking",
+                    self.model_id,
+                )
+                response = self._create(steps)
+        except Exception as exc:  # 네트워크·인증·한도·재시도 실패 모두 템플릿으로 되돌린다
             logger.warning("roadmap text LLM call failed: %s", type(exc).__name__)
             raise LlmTextError("LLM_ERROR") from exc
         if getattr(response, "stop_reason", None) != "end_turn":

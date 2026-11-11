@@ -198,13 +198,29 @@ class _Response:
     stop_reason: str = "end_turn"
 
 
+class _ApiError(Exception):
+    """anthropic.APIStatusError처럼 status_code를 가진 오류."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+THINKING_REJECTED = _ApiError(
+    400, '"thinking.type.disabled" is not supported for this model. Use "thinking.type.adaptive"'
+)
+
+
 class _FakeMessages:
-    def __init__(self, reply: Any) -> None:
+    def __init__(self, reply: Any, *, errors: list[Exception] | None = None) -> None:
         self.reply = reply
+        self.errors = list(errors or [])  # 앞에서부터 한 호출에 하나씩 올린다
         self.calls: list[dict[str, Any]] = []
 
     def create(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
+        if self.errors:
+            raise self.errors.pop(0)
         if isinstance(self.reply, Exception):
             raise self.reply
         steps = json.loads(kwargs["messages"][0]["content"])["steps"]
@@ -212,12 +228,14 @@ class _FakeMessages:
 
 
 class _FakeClient:
-    def __init__(self, reply: Any) -> None:
-        self.messages = _FakeMessages(reply)
+    def __init__(self, reply: Any, *, errors: list[Exception] | None = None) -> None:
+        self.messages = _FakeMessages(reply, errors=errors)
 
 
-def _writer(reply: Any) -> tuple[LlmStepWriter, _FakeMessages]:
-    client = _FakeClient(reply)
+def _writer(
+    reply: Any, *, errors: list[Exception] | None = None
+) -> tuple[LlmStepWriter, _FakeMessages]:
+    client = _FakeClient(reply, errors=errors)
     return LlmStepWriter(client, "claude-test"), client.messages
 
 
@@ -345,6 +363,49 @@ def test_description_with_only_a_disclaimer_falls_back() -> None:
 )
 def test_strip_disclaimers(description: str, expected: str, codes: set[str]) -> None:
     assert strip_disclaimers(description) == (expected, codes)
+
+
+def test_rejected_thinking_setting_is_retried_once_without_it(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    writer, messages = _writer(_rewrite("준비해요."), errors=[THINKING_REJECTED])
+    with caplog.at_level(logging.WARNING, logger="app.visa.roadmap.text"):
+        d = _dump(_roadmap(_request(), writer))
+    assert d["text"]["source"] == "LLM"
+    assert len(messages.calls) == 2
+    assert messages.calls[0]["thinking"] == {"type": "disabled"}
+    assert "thinking" not in messages.calls[1]
+    assert "rejected thinking=disabled (400)" in caplog.text
+    assert "retrying once without thinking" in caplog.text
+    assert all(r.levelno == logging.WARNING for r in caplog.records)
+
+
+def test_failed_retry_falls_back_to_template(caplog: pytest.LogCaptureFixture) -> None:
+    writer, messages = _writer(
+        _rewrite("준비해요."), errors=[THINKING_REJECTED, _ApiError(500, "overloaded")]
+    )
+    with caplog.at_level(logging.WARNING, logger="app.visa.roadmap.text"):
+        d = _dump(_roadmap(_request(), writer))
+    assert len(messages.calls) == 2  # 재시도는 한 번만
+    assert d["text"] == {
+        "source": "TEMPLATE",
+        "modelId": None,
+        "promptVersion": None,
+        "fallbackReason": "LLM_ERROR",
+    }
+    assert "retrying once without thinking" in caplog.text
+    assert "LLM call failed: _ApiError" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "error",
+    [_ApiError(400, "invalid json schema"), _ApiError(429, "thinking rate limited")],
+)
+def test_other_errors_are_not_retried(error: Exception) -> None:
+    writer, messages = _writer(_rewrite("준비해요."), errors=[error])
+    d = _dump(_roadmap(_request(), writer))
+    assert len(messages.calls) == 1
+    assert d["text"]["fallbackReason"] == "LLM_ERROR"
 
 
 def test_numbers_in_reads_commas_and_dates() -> None:
