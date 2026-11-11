@@ -261,6 +261,8 @@ def _special_industry_codes(rule_set: RuleSet) -> set[str]:
 
 @dataclass(frozen=True)
 class _KoreanCandidate:
+    """한국어 증빙 하나의 판정 후보. 여러 증빙 중 점수가 가장 높은 후보를 고른다."""
+
     evidence: VisaEvidenceIn
     rule: Rule | None
     detail: dict[str, Any]

@@ -34,6 +34,8 @@ Progress = Callable[[str], None]
 
 
 class Embedder(Protocol):
+    """임베딩 모델 인터페이스(BgeM3Embedder, 테스트에서는 가짜)."""
+
     model_name: str
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]: ...
@@ -43,6 +45,8 @@ class Embedder(Protocol):
 
 @dataclass(frozen=True)
 class IndexedChunk:
+    """인덱스에 넣은 청크 하나와 출처 정보."""
+
     policy_document_id: int | None
     title: str
     source_org: str | None
@@ -55,6 +59,8 @@ class IndexedChunk:
 
 @dataclass(frozen=True)
 class SearchResult:
+    """검색 결과 한 건: 순위, 유사도, 청크."""
+
     rank: int
     score: float
     chunk: IndexedChunk
@@ -62,6 +68,8 @@ class SearchResult:
 
 @dataclass
 class TestIndex:
+    """이 PC 메모리에 올린 테스트 전용 검색 인덱스(청크와 벡터)."""
+
     chunks: list[IndexedChunk]
     vectors: np.ndarray
     skipped: list[tuple[str, str]] = field(default_factory=list)

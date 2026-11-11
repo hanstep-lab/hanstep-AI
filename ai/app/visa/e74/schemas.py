@@ -32,6 +32,8 @@ VISA_CODE_PATTERN = r"^[A-Z]-\d{1,2}(-\d{1,2})?$"
 
 
 class CamelRequest(BaseModel):
+    """요청 모델 공통 설정."""
+
     # 금융 분석·정책 검색 API와 같은 규칙: camelCase만 받고 모르는 필드는 거부한다.
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=False, extra="forbid")
 
@@ -63,7 +65,7 @@ class IncomeSource(StrEnum):
 
 
 class EvidenceType(StrEnum):
-    """visa_evidence.evidence_type."""
+    """증빙 종류(visa_evidence.evidence_type)."""
 
     TOPIK = "TOPIK"
     KIIP = "KIIP"

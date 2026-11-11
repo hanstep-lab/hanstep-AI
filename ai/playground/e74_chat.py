@@ -122,10 +122,14 @@ TOOLS: list[dict[str, Any]] = [
 
 
 class MessagesApi(Protocol):
+    """이 화면이 쓰는 messages API 부분. 테스트에서 가짜로 바꾼다."""
+
     def create(self, **kwargs: Any) -> Any: ...
 
 
 class ClaudeClient(Protocol):
+    """anthropic.Anthropic과 같은 모양의 클라이언트."""
+
     @property
     def messages(self) -> MessagesApi: ...
 
@@ -145,6 +149,8 @@ class ToolContext:
 
 @dataclass(frozen=True)
 class ToolCall:
+    """도구 호출 한 번의 입력과 결과(화면 표시용)."""
+
     name: str
     input: dict[str, Any]
     output: str
@@ -153,6 +159,8 @@ class ToolCall:
 
 @dataclass
 class ChatTurn:
+    """사용자 메시지 하나의 처리 결과: 답변, 도구 호출, 토큰 사용량, 종료 사유."""
+
     text: str
     stop_reason: str
     tool_calls: list[ToolCall]

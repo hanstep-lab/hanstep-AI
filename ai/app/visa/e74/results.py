@@ -17,11 +17,13 @@ from app.visa.e74.rules import Rule, RuleCategory
 
 
 class CamelResponse(BaseModel):
+    """응답 모델 공통 설정: camelCase로 내보내고, 만든 뒤에는 바꿀 수 없다."""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, frozen=True)
 
 
 class ItemStatus(StrEnum):
-    """e74_assessment_items.status."""
+    """항목 판정 상태(e74_assessment_items.status)."""
 
     MET = "MET"
     NOT_MET = "NOT_MET"
@@ -38,6 +40,8 @@ class MissingInput(CamelResponse):
 
 
 class ItemResult(CamelResponse):
+    """규칙 하나의 판정 결과(e74_assessment_items 한 행)."""
+
     rule_code: str | None = Field(description="적용된 규칙. 판정하지 못했으면 null")
     category: RuleCategory
     status: ItemStatus

@@ -57,6 +57,8 @@ SCORED = (
 
 
 class ImprovementKind(StrEnum):
+    """개선 방안 종류: 요건 해결, 증빙 제출, 기간 대기, 등급 올리기, 가점 얻기."""
+
     FIX_REQUIREMENT = "FIX_REQUIREMENT"
     SUBMIT_EVIDENCE = "SUBMIT_EVIDENCE"
     WAIT_UNTIL = "WAIT_UNTIL"
@@ -65,6 +67,8 @@ class ImprovementKind(StrEnum):
 
 
 class Improvement(CamelResponse):
+    """점수를 올리거나 요건을 채우는 방법 하나(누가, 몇 점, 어떤 서류)."""
+
     rule_code: str
     kind: ImprovementKind
     actor: RuleActor = Field(
@@ -80,6 +84,8 @@ class Improvement(CamelResponse):
 
 
 class ScoreGap(CamelResponse):
+    """기준 총점까지 부족한 점수."""
+
     required: int | None
     points_needed: int | None = Field(description="기준 − 확정 총점(0 이상)")
     points_needed_after_evidence: int | None = Field(description="기준 − 가능 총점(0 이상)")
@@ -95,6 +101,8 @@ class ImprovementPlan(CamelResponse):
 
 @dataclass(frozen=True)
 class ImprovementAnalysis:
+    """개선 방안 분석 결과: 부족 점수, 방안 목록, 기준 총점까지의 계획."""
+
     score_gap: ScoreGap
     improvements: tuple[Improvement, ...]
     plan: ImprovementPlan

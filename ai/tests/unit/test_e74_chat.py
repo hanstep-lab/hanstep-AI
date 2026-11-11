@@ -34,6 +34,8 @@ pytestmark = pytest.mark.unit
 
 @dataclass
 class Block:
+    """가짜 응답 콘텐츠 블록(text 또는 tool_use)."""
+
     type: str
     text: str = ""
     id: str = ""
@@ -43,18 +45,24 @@ class Block:
 
 @dataclass
 class Usage:
+    """가짜 토큰 사용량."""
+
     input_tokens: int = 10
     output_tokens: int = 5
 
 
 @dataclass
 class Response:
+    """가짜 messages.create 응답."""
+
     content: list[Block]
     stop_reason: str
     usage: Usage = field(default_factory=Usage)
 
 
 class FakeMessages:
+    """준비한 응답을 차례로 돌려주고 받은 요청을 기록하는 가짜 messages API."""
+
     def __init__(self, responses: list[Response]) -> None:
         self.responses = responses
         self.requests: list[dict[str, Any]] = []
@@ -66,6 +74,8 @@ class FakeMessages:
 
 
 class FakeClient:
+    """가짜 Claude 클라이언트."""
+
     def __init__(self, responses: list[Response]) -> None:
         self.messages = FakeMessages(responses)
 
@@ -114,7 +124,7 @@ def test_turn_runs_tools_and_returns_final_text() -> None:
     results = second[-1]["content"]
     assert second[-1]["role"] == "user" and [r["tool_use_id"] for r in results] == ["t1", "t2"]
     assert client.messages.requests[0]["model"] == "claude-haiku-5-5"
-    assert len(history) == 4  # user, assistant(tool_use), user(tool_result), assistant
+    assert len(history) == 4  # 사용자 → 어시스턴트(tool_use) → 사용자(tool_result) → 어시스턴트
 
 
 def test_history_carries_into_next_turn() -> None:

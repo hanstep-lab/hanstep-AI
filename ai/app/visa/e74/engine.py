@@ -90,11 +90,15 @@ class MissingInputSummary(CamelResponse):
 
 
 class ReviewNote(CamelResponse):
+    """사람 확인이 필요한 항목과 그 이유."""
+
     rule_code: str | None
     note: str
 
 
 class E74Assessment(CamelResponse):
+    """E-7-4 계산 결과 전체. 채팅 Tool과 계산 API가 같은 모양으로 쓴다."""
+
     rule_version: str | None
     as_of_date: date
     request_key: str

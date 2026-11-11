@@ -344,6 +344,8 @@ def _min_income(rule: Rule, c: MinAverageIncome, scores: ScoreItems) -> ItemResu
 
 @dataclass(frozen=True)
 class Totals:
+    """점수 항목 합계: 확정 총점과 가능 총점."""
+
     confirmed: int
     potential: int
     # 모르는 항목(가능 점수 null)이 없는지. 감점을 모르면 확정 총점도 확정할 수 없다.

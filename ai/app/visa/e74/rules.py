@@ -27,13 +27,15 @@ class RuleSetError(ValueError):
 
 
 class RuleModel(BaseModel):
+    """규칙 데이터 공통 설정: camelCase만 받고 모르는 필드는 거부한다."""
+
     model_config = ConfigDict(
         alias_generator=to_camel, populate_by_name=False, extra="forbid", frozen=True
     )
 
 
 class RuleCategory(StrEnum):
-    """e74_rules.category."""
+    """규칙 분류(e74_rules.category)."""
 
     BASE_INCOME = "BASE_INCOME"
     BASE_KOREAN = "BASE_KOREAN"
@@ -102,6 +104,8 @@ class AgeRange(RuleModel):
 
 
 class EvidencePresent(RuleModel):
+    """해당 종류의 증빙이 있으면 충족(추천서 가점 등)."""
+
     kind: Literal["EVIDENCE_PRESENT"]
     evidence_type: EvidenceType
 
@@ -131,6 +135,8 @@ class Qualification(RuleModel):
 
 
 class DriverLicense(RuleModel):
+    """인정하는 종류의 국내 운전면허가 있으면 충족."""
+
     kind: Literal["DRIVER_LICENSE"]
     accepted_classes: tuple[str, ...] = Field(min_length=1)
 
