@@ -26,7 +26,7 @@ def _make_client() -> TestClient:
         ai_internal_api_token=TOKEN,  # type: ignore[arg-type]
     )
     app = create_app()
-    # No lifespan: no MongoDB, no model download.
+    # lifespan 없이 띄운다: MongoDB 연결과 모델 다운로드를 하지 않는다.
     app.state.rag = AppState(
         settings=settings, gateway=UnconfiguredPolicyGateway(), embedder=BgeM3Embedder()
     )

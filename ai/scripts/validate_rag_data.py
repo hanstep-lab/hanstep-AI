@@ -1,7 +1,7 @@
-"""Validate stored chunks against the manifest and the confirmed contract (read-only).
+"""저장된 청크를 manifest와 확정된 계약 기준으로 검증한다(읽기 전용).
 
-Checks per manifest entry: chunk count/contiguity, ChunkRecord validation (types, 1024-dim
-finite vectors, is_active => approved), source hash, and global duplicates/active conflicts.
+manifest 항목별 검사: 청크 수/연속성, ChunkRecord 검증(타입, 1024차원 유한 벡터,
+is_active => approved), 원본 해시. 전체 범위 검사: 중복, 활성 버전 충돌.
 
     uv run python scripts/validate_rag_data.py --manifest specs/rag/sources.json \
         --output artifacts/rag/validation.json

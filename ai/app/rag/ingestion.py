@@ -1,7 +1,7 @@
-"""Manual-document ingestion: preflight -> extract -> chunk -> (R2, MySQL check, embed, upsert).
+"""수동 문서 적재: preflight -> 추출 -> 청킹 -> (R2, MySQL 확인, 임베딩, upsert).
 
-New chunks are always written as ``pending``/inactive. Activation happens only in
-:mod:`app.rag.publication` after MySQL approval.
+새 청크는 항상 ``pending``/비활성 상태로 기록한다. 활성화는 MySQL 승인 뒤
+:mod:`app.rag.publication`에서만 일어난다.
 """
 
 from __future__ import annotations
@@ -36,6 +36,8 @@ ResultStatus = Literal[
 
 @dataclass
 class SourceResult:
+    """매니페스트 소스 항목 하나의 적재 처리 결과."""
+
     path: str
     domain: str
     status: ResultStatus
@@ -51,15 +53,17 @@ class SourceResult:
     r2: str = ""
     chunk_fingerprint: str = ""
     sample_chunks: list[dict[str, object]] = field(default_factory=list)
-    # INT-13 delivery: "", "reported" or "error: ..."
+    # INT-13 전달 결과: "", "reported" 또는 "error: ..."
     spring_report: str = ""
 
 
 @dataclass
 class IngestionDeps:
+    """적재 파이프라인에 주입하는 저장소·연동·임베딩 의존성 묶음."""
+
     repository: ChunkRepository | None
     gateway: PolicyDocumentGateway
-    # Per domain: visa -> policy bucket, finance -> product bucket.
+    # 도메인별: visa -> 정책 버킷, finance -> 상품 버킷.
     object_stores: Mapping[str, ObjectStore]
     embedder: Embedder | None
     token_counter: TokenCounter
@@ -71,7 +75,7 @@ class IngestionDeps:
 
 
 def seoul_midnight_utc(day: date) -> datetime:
-    """Effective dates are calendar days in Korea; store the KST midnight as a UTC Date."""
+    """시행일은 한국 달력 날짜다. KST 자정을 UTC Date로 저장한다."""
     return datetime.combine(day, time.min, tzinfo=SEOUL).astimezone(UTC)
 
 
@@ -199,12 +203,12 @@ def _apply(
     if deps.repository is None or deps.embedder is None:
         raise ContractBlockedError("MongoDB and embedding model are required for --apply")
 
-    # 1. MySQL is the source of truth: the version must already be registered with this hash.
+    # 1. MySQL이 기준 원본이다. 해당 버전이 이 해시로 이미 등록돼 있어야 한다.
     record = deps.gateway.get_version(entry.policy_document_id, entry.document_version)
     if record.content_hash != entry.sha256:
         raise ValidationFailedError("MySQL source_sha256 differs from the file on disk")
 
-    # 2. Keep the original in private R2 and verify the round trip.
+    # 2. 원본을 비공개 R2에 보관하고 왕복(round trip)을 검증한다.
     key = object_key(deps.r2_prefix, entry.domain, entry.sha256, Path(entry.path).suffix)
     store = deps.object_stores.get(entry.domain)
     if store is None:
@@ -215,7 +219,7 @@ def _apply(
     if record.object_key != key:
         deps.gateway.record_r2_object(entry.policy_document_id, entry.document_version, key)
 
-    # 3. Decide noop/resume/insert before spending any embedding calls.
+    # 3. 임베딩 호출을 쓰기 전에 noop/resume/insert를 결정한다.
     repo = deps.repository
     existing = repo.existing_chunks(
         entry.policy_document_id, entry.document_version, deps.embedding_model
@@ -244,7 +248,7 @@ def _apply(
     if write.errors:
         raise ValidationFailedError("; ".join(write.errors[:5]))
 
-    # 4. Read back and verify id/version/hash/count/text.
+    # 4. 다시 읽어 id/version/hash/count/text를 검증한다.
     stored = repo.load_version(
         entry.policy_document_id, entry.document_version, deps.embedding_model
     )
@@ -269,7 +273,7 @@ def ingested_report(
     embedding_revision: str,
     now: datetime,
 ) -> PolicyIngestedReport:
-    """INT-13 body for a document whose chunks are fully stored (loaded or already present)."""
+    """청크가 모두 저장된(loaded 또는 이미 존재) 문서의 INT-13 본문."""
     if result.status not in ("loaded", "skipped") or entry.document_version is None:
         raise ValidationFailedError(f"{entry.path} is not fully ingested ({result.status})")
     return PolicyIngestedReport(

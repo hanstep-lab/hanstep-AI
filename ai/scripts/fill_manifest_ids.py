@@ -1,11 +1,12 @@
-"""Fill policy_document_id / document_version into the manifest from a MySQL export.
+"""MySQL export를 읽어 manifest에 policy_document_id / document_version을 채운다.
 
-Input is the output of
+입력은 아래 쿼리의 결과다.
     SELECT id, policy_version, content_hash FROM policy_documents WHERE content_hash IN (...);
-as TSV (mysql client default, header optional) or JSON [{"id", "policyVersion", "contentHash"}].
-Rows are matched by content_hash == manifest sha256; nothing is guessed from file names.
+형식은 TSV(mysql 클라이언트 기본, 헤더는 선택)
+또는 JSON [{"id", "policyVersion", "contentHash"}]이다.
+행은 content_hash == manifest sha256으로 맞춘다. 파일 이름으로는 아무것도 추측하지 않는다.
 
-Default prints the planned changes. --write updates the manifest file.
+기본은 바뀔 내용만 출력한다. --write를 주면 manifest 파일을 고친다.
 
     uv run python scripts/fill_manifest_ids.py --manifest specs/rag/sources.json \
         --export ids.tsv [--write]

@@ -56,7 +56,7 @@ def test_non_ole_input_fails() -> None:
 
 def test_decode_para_text_skips_control_payloads() -> None:
     text = "가".encode("utf-16-le")
-    extended = struct.pack("<H", 11) + b"\x00" * 14  # table anchor, 8 WCHARs
+    extended = struct.pack("<H", 11) + b"\x00" * 14  # 표 앵커, WCHAR 8개
     tab = struct.pack("<H", 9) + b"\x00" * 14
     end = struct.pack("<H", 13)
     data = text + extended + text + tab + "나".encode("utf-16-le") + end
@@ -77,10 +77,10 @@ def test_parse_records_builds_tree() -> None:
 @pytest.mark.parametrize(
     "stream",
     [
-        b"\x01\x02",  # truncated header
-        struct.pack("<I", 66 | (10 << 20)) + b"abc",  # size beyond stream
-        _record(66, 0, b"") + _record(67, 2, b""),  # level skips a generation
-        _record(67, 1, b""),  # child without parent
+        b"\x01\x02",  # 잘린 헤더
+        struct.pack("<I", 66 | (10 << 20)) + b"abc",  # 스트림 길이를 넘는 크기
+        _record(66, 0, b"") + _record(67, 2, b""),  # 레벨이 한 세대를 건너뜀
+        _record(67, 1, b""),  # 부모 없는 자식
     ],
 )
 def test_parse_records_rejects_malformed_streams(stream: bytes) -> None:

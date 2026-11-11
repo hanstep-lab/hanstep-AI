@@ -1,9 +1,9 @@
-"""Create/verify the chunk collection validator, unique index and Atlas vector index.
+"""청크 컬렉션 validator, 고유 인덱스, Atlas 벡터 인덱스를 만들거나 확인한다.
 
---dry-run (default): print the definitions; touch nothing.
---check:             connect and report missing/match/drift without writing.
---apply:             create what is missing, wait until queryable, run a real search smoke
-                     test. Drift is reported; nothing is ever dropped or rebuilt.
+--dry-run (기본):    정의를 출력만 하고 아무것도 건드리지 않는다.
+--check:             접속해서 missing/match/drift 상태를 쓰기 없이 보고한다.
+--apply:             없는 것을 만들고, 조회 가능해질 때까지 기다린 뒤 실제 검색 스모크
+                     테스트를 돌린다. drift는 보고만 하며, 절대 삭제하거나 다시 만들지 않는다.
 
     uv run python scripts/create_atlas_indexes.py --dry-run
     uv run python scripts/create_atlas_indexes.py --apply --wait-timeout 180

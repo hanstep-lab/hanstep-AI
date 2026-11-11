@@ -26,7 +26,7 @@ def _make_client(token: str = TOKEN) -> TestClient:
         ai_internal_api_token=token,  # type: ignore[arg-type]
     )
     app = create_app()
-    # No lifespan: no MongoDB, no model download.
+    # lifespan 없이 띄운다: MongoDB 연결과 모델 다운로드를 하지 않는다.
     app.state.rag = AppState(
         settings=settings, gateway=UnconfiguredPolicyGateway(), embedder=BgeM3Embedder()
     )
@@ -66,9 +66,9 @@ INTERNAL_ROUTES = [("post", SEARCH, {"query": "E-7-4"})]
         {},
         {"X-Internal-Token": "wrong"},
         {"X-Internal-Token": ""},
-        # The outbound Spring key must not open the inbound API.
+        # Spring으로 나가는 호출용 키로 들어오는 API가 열리면 안 된다.
         {"X-Internal-Token": SPRING_KEY},
-        # Right token in the wrong header.
+        # 올바른 토큰을 잘못된 헤더에 넣은 경우.
         {"X-Internal-Api-Key": TOKEN},
     ],
 )
@@ -99,7 +99,7 @@ def test_old_paths_are_gone(client: TestClient, path: str) -> None:
 
 
 def test_ready_reports_unconfigured_gateway_even_with_spring_env(client: TestClient) -> None:
-    # The fixture state wires the unconfigured gateway explicitly.
+    # fixture 상태가 미설정 게이트웨이를 명시적으로 연결한다.
     checks = client.get("/health/ready").json()["checks"]
     assert checks["policy_gateway"] == "blocked"
 
@@ -131,7 +131,7 @@ def test_health_needs_no_token(client: TestClient) -> None:
         {"query": "q", "topK": 0},
         {"query": "q", "topK": 21},
         {"query": "x" * 1001},
-        {"query": "q", "top_k": 5},  # snake_case is rejected: JSON is camelCase
+        {"query": "q", "top_k": 5},  # snake_case는 거부한다: JSON은 camelCase다
         {"query": "q", "filter": {"isActive": False}},
         {"query": "q", "pipeline": []},
         {"query": "q", "domain": "finance"},
@@ -146,7 +146,7 @@ def test_search_rejects_invalid_or_filter_override(
     assert payload["code"] == "VALIDATION_ERROR"
     assert payload["details"]["fields"]
     assert payload["requestId"].startswith("req_")
-    assert "x" * 50 not in response.text  # submitted values are not echoed
+    assert "x" * 50 not in response.text  # 제출한 값을 응답에 되풀이하지 않는다
 
 
 def test_error_envelope_reuses_caller_request_id(client: TestClient) -> None:
@@ -187,7 +187,7 @@ def test_search_response_is_camel_case() -> None:
             "issued_at": datetime(2026, 5, 31, 15, 0, tzinfo=UTC),
             "score": 0.8,
             "page_number": 3,
-            "effective_from": datetime(2026, 5, 31, 15, 0, tzinfo=UTC),  # KST 2026-06-01
+            "effective_from": datetime(2026, 5, 31, 15, 0, tzinfo=UTC),  # KST 기준 2026-06-01
         }
     )
     body = PolicySearchResult.from_hit(hit).model_dump(mode="json", by_alias=True)

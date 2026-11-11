@@ -1,4 +1,4 @@
-"""Rule 4: classify kept transactions into income / fixed / remittance / variable."""
+"""규칙 4: 제외되지 않은 거래를 소득 / 고정지출 / 송금 / 변동지출로 분류한다."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ VARIABLE_CATEGORIES = frozenset({"FOOD", "TRANSPORT", "LIVING"})
 
 
 class Bucket(StrEnum):
+    """거래 분류: 소득, 고정지출, 송금, 변동지출."""
+
     INCOME = "INCOME"
     FIXED = "FIXED"
     REMITTANCE = "REMITTANCE"
@@ -19,7 +21,7 @@ class Bucket(StrEnum):
 
 
 def classify(tx: TransactionIn) -> tuple[Bucket, str | None]:
-    """Return the bucket and, for an unrecognized expense category, that category code."""
+    """분류를 돌려준다. 모르는 지출 카테고리면 그 카테고리 코드도 함께 돌려준다."""
     if tx.direction is Direction.INCOME:
         return Bucket.INCOME, None
     if tx.transaction_kind is TransactionKind.LOAN_REPAYMENT:

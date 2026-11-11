@@ -1,4 +1,4 @@
-"""Make ``app`` importable when a script is run as ``python scripts/<name>.py`` from ai/."""
+"""ai/에서 ``python scripts/<name>.py``로 스크립트를 실행할 때 ``app``을 import할 수 있게 한다."""
 
 import sys
 from pathlib import Path
