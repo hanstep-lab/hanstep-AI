@@ -32,7 +32,7 @@ from app.visa.e74.schemas import EvidenceType
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSION = "visa-roadmap-text-v2"
+PROMPT_VERSION = "visa-roadmap-text-v3"
 MAX_OUTPUT_TOKENS = 2048
 MAX_TITLE_CHARS = 40
 MAX_DESCRIPTION_CHARS = 300
@@ -50,7 +50,17 @@ FORBIDDEN_PHRASE_CODES = {
     "확실": "CERTAINTY",
 }
 
+# 안내·면책 문장 패턴(규칙 코드 → 구절). 화면이 고정 문구로 표시하므로 LLM 문장에서 지운다.
+# "승인 신청"처럼 정상 설명을 지우지 않게 단어가 아니라 구절로 잡는다.
+DISCLAIMER_PATTERNS: dict[str, tuple[str, ...]] = {
+    "DISCLAIMER_MOCK": ("모의 사전진단", "모의 진단", "사전진단 결과"),
+    "DISCLAIMER_APPROVAL": ("승인 여부", "승인될", "승인되지", "승인 가능", "승인을 보장"),
+    "DISCLAIMER_VARIES": ("달라질 수 있",),
+    "DISCLAIMER_GUARANTEE": ("보장하지", "보장되지", "보장할 수 없"),
+}
+
 _NUMBER = re.compile(r"\d[\d,]*")
+_SENTENCE_END = re.compile(r"(?<=[.!?。])\s+")
 
 
 @dataclass(frozen=True)
@@ -150,7 +160,6 @@ SYSTEM_PROMPT = "\n".join(
         "- 입력에 없는 요건·서류·기관을 더하지 않아요.",
         "- 이 결과는 모의 사전진단이에요. "
         "승인 가능성, 합격, 순위(상위 몇 %), 기준 점수를 말하지 않아요.",
-        "- 안내·면책 문구(승인 여부, 결과 보장 등)는 쓰지 않아요. 화면이 고정 문구로 표시해요.",
         "- 이모지와 마크다운을 쓰지 않아요.",
         "- order는 입력과 같게, 모든 단계를 빠짐없이 돌려줘요.",
     ]
@@ -195,13 +204,47 @@ class LlmTextError(Exception):
         self.rule_codes = rule_codes
 
 
+def strip_disclaimers(description: str) -> tuple[str, set[str]]:
+    """면책 패턴이 있는 문장을 지운 설명과 지운 패턴의 규칙 코드."""
+    kept: list[str] = []
+    removed: set[str] = set()
+    for sentence in _SENTENCE_END.split(description.strip()):
+        codes = {
+            code
+            for code, phrases in DISCLAIMER_PATTERNS.items()
+            if any(p in sentence for p in phrases)
+        }
+        if codes:
+            removed |= codes
+        else:
+            kept.append(sentence)
+    return " ".join(kept).strip(), removed
+
+
+def _without_disclaimers(texts: dict[int, StepText]) -> dict[int, StepText]:
+    """면책 문장을 지운다. 지우고 나서 설명이 비면 LlmTextError(DISCLAIMER_ONLY)."""
+    cleaned: dict[int, StepText] = {}
+    removed: set[str] = set()
+    for order, text in texts.items():
+        description, codes = strip_disclaimers(text.description)
+        removed |= codes
+        if not description:
+            raise LlmTextError("DISCLAIMER_ONLY", tuple(sorted(removed)))
+        cleaned[order] = StepText(text.title, description)
+    if removed:
+        # 규칙 코드만 남긴다(문장 원문은 남기지 않음).
+        logger.info("roadmap text disclaimers removed: rules=%s", ",".join(sorted(removed)))
+    return cleaned
+
+
 def check_llm_texts(
     steps: Sequence[dict[str, Any]], texts: dict[int, StepText]
 ) -> dict[int, StepText]:
-    """단계 데이터에 없는 숫자, 금지 표현, 빠진 단계가 있으면 LlmTextError."""
+    """면책 문장을 지운 뒤, 단계 데이터에 없는 숫자·금지 표현·빠진 단계가 있으면 LlmTextError."""
     allowed = numbers_in(json.dumps(steps, ensure_ascii=False))
     if set(texts) != {s["order"] for s in steps}:
         raise LlmTextError("INVALID_OUTPUT")
+    texts = _without_disclaimers(texts)
     for text in texts.values():
         if (
             not text.title.strip()
@@ -239,6 +282,9 @@ class LlmStepWriter:
                     {"role": "user", "content": json.dumps({"steps": steps}, ensure_ascii=False)}
                 ],
                 output_config={"format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
+                # 문장 다듬기라 추론이 필요 없다. 끄지 않으면 모델이 호출마다 thinking 여부를 정해
+                # 응답 시간이 2배 이상 흔들린다(측정: 출력 토큰 약 450 ↔ 1,200).
+                thinking={"type": "disabled"},
             )
         except Exception as exc:  # 네트워크·인증·한도 오류 모두 템플릿으로 되돌린다
             logger.warning("roadmap text LLM call failed: %s", type(exc).__name__)

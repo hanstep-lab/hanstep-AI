@@ -23,6 +23,7 @@ from app.visa.roadmap.text import (
     SYSTEM_PROMPT,
     LlmStepWriter,
     numbers_in,
+    strip_disclaimers,
 )
 from tests.unit._e74_cases import profile_json
 
@@ -297,9 +298,53 @@ def test_every_forbidden_phrase_has_a_rule_code() -> None:
     assert set(FORBIDDEN_PHRASE_CODES) == set(FORBIDDEN_PHRASES)
 
 
-def test_prompt_leaves_disclaimers_to_the_screen() -> None:
-    assert "안내·면책 문구(승인 여부, 결과 보장 등)는 쓰지 않아요" in SYSTEM_PROMPT
-    assert "화면이 고정 문구로 표시해요" in SYSTEM_PROMPT
+def test_prompt_does_not_carry_the_disclaimer_rule() -> None:
+    # 면책 문장은 프롬프트가 아니라 코드에서 지운다.
+    assert "면책" not in SYSTEM_PROMPT
+
+
+def test_llm_call_turns_thinking_off() -> None:
+    writer, messages = _writer(_rewrite("준비해요."))
+    _roadmap(_request(), writer)
+    assert messages.calls[0]["thinking"] == {"type": "disabled"}
+
+
+def test_disclaimer_sentences_are_removed_and_llm_text_is_kept(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    disclaimer = "이 결과는 모의 사전진단이라 실제 승인 여부는 달라질 수 있어요."
+    writer, _ = _writer(_rewrite(f"2026-12-05부터 준비해요. {disclaimer}"))
+    with caplog.at_level(logging.INFO, logger="app.visa.roadmap.text"):
+        d = _dump(_roadmap(_request(), writer))
+    assert d["text"]["source"] == "LLM"
+    assert all(s["description"] == "2026-12-05부터 준비해요." for s in d["steps"])
+    assert "rules=DISCLAIMER_APPROVAL,DISCLAIMER_MOCK,DISCLAIMER_VARIES" in caplog.text
+    assert disclaimer not in caplog.text
+
+
+def test_forbidden_word_inside_a_disclaimer_is_removed_not_fallen_back() -> None:
+    writer, _ = _writer(_rewrite("서류를 준비해요. 결과를 보장하지는 않아요."))
+    d = _dump(_roadmap(_request(), writer))
+    assert d["text"]["source"] == "LLM"
+    assert d["steps"][0]["description"] == "서류를 준비해요."
+
+
+def test_description_with_only_a_disclaimer_falls_back() -> None:
+    writer, _ = _writer(_rewrite("실제 승인 여부는 달라질 수 있어요."))
+    d = _dump(_roadmap(_request(), writer))
+    assert d["text"]["fallbackReason"] == "DISCLAIMER_ONLY"
+
+
+@pytest.mark.parametrize(
+    ("description", "expected", "codes"),
+    [
+        ("2026-12-05부터 승인 신청을 해요.", "2026-12-05부터 승인 신청을 해요.", set()),
+        ("준비해요. 모의 진단 결과예요!", "준비해요.", {"DISCLAIMER_MOCK"}),
+        ("준비해요. 승인될지는 몰라요.", "준비해요.", {"DISCLAIMER_APPROVAL"}),
+    ],
+)
+def test_strip_disclaimers(description: str, expected: str, codes: set[str]) -> None:
+    assert strip_disclaimers(description) == (expected, codes)
 
 
 def test_numbers_in_reads_commas_and_dates() -> None:
