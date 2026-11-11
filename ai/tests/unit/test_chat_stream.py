@@ -50,6 +50,9 @@ def _settings(**overrides: Any) -> Settings:
     values: dict[str, Any] = {
         "ai_internal_api_token": TOKEN,
         "chat_fake_delta_delay_ms": 0,
+        # 기본값(AGENT_MODEL)이 바뀌어도 테스트가 흔들리지 않게 고정한다.
+        # override 테스트가 haiku로 바꾸므로 기본은 그와 다른 모델로 둔다.
+        "agent_model": "claude-sonnet-5-5",
         **overrides,
     }
     return Settings(_env_file=None, **values)  # type: ignore[call-arg]
