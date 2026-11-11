@@ -1,0 +1,425 @@
+{
+  "ruleVersion": "E74-2026-v1",
+  "effectiveFrom": "2026-03-01",
+  "effectiveTo": "2027-01-01",
+  "requiredTotalScore": 200,
+  "sourcePolicyVersion": "E74-SELECTION-2026-20260601",
+  "approvalStatus": "DRAFT",
+  "note": "2026년 숙련기능인력(E-7-4) 선발 계획 개선본(2026-06-01)의 붙임1 점수표와 본문 요건. 해석이 합의되지 않은 항목은 reviewNote(정의서 열린 질문 번호). 팀 확인 전이라 DRAFT.",
+  "rules": [
+    {
+      "ruleCode": "INCOME_25_30",
+      "category": "BASE_INCOME",
+      "condition": {"kind": "INCOME_RANGE", "minAmount": 25000000, "maxAmount": 30000000},
+      "points": 50,
+      "sourcePage": "p12",
+      "description": "최근 2년 연간 평균소득 2,500만원 이상 3,000만원 미만"
+    },
+    {
+      "ruleCode": "INCOME_30_35",
+      "category": "BASE_INCOME",
+      "condition": {"kind": "INCOME_RANGE", "minAmount": 30000000, "maxAmount": 35000000},
+      "points": 65,
+      "sourcePage": "p12",
+      "description": "최근 2년 연간 평균소득 3,000만원 이상 3,500만원 미만"
+    },
+    {
+      "ruleCode": "INCOME_35_40",
+      "category": "BASE_INCOME",
+      "condition": {"kind": "INCOME_RANGE", "minAmount": 35000000, "maxAmount": 40000000},
+      "points": 80,
+      "sourcePage": "p12",
+      "description": "최근 2년 연간 평균소득 3,500만원 이상 4,000만원 미만"
+    },
+    {
+      "ruleCode": "INCOME_40_45",
+      "category": "BASE_INCOME",
+      "condition": {"kind": "INCOME_RANGE", "minAmount": 40000000, "maxAmount": 45000000},
+      "points": 95,
+      "sourcePage": "p12",
+      "description": "최근 2년 연간 평균소득 4,000만원 이상 4,500만원 미만"
+    },
+    {
+      "ruleCode": "INCOME_45_50",
+      "category": "BASE_INCOME",
+      "condition": {"kind": "INCOME_RANGE", "minAmount": 45000000, "maxAmount": 50000000},
+      "points": 110,
+      "sourcePage": "p12",
+      "description": "최근 2년 연간 평균소득 4,500만원 이상 5,000만원 미만"
+    },
+    {
+      "ruleCode": "INCOME_50_PLUS",
+      "category": "BASE_INCOME",
+      "condition": {"kind": "INCOME_RANGE", "minAmount": 50000000},
+      "points": 120,
+      "sourcePage": "p12",
+      "description": "최근 2년 연간 평균소득 5,000만원 이상"
+    },
+    {
+      "ruleCode": "INCOME_24_25_AGRI_FISHERY",
+      "category": "BASE_INCOME",
+      "condition": {
+        "kind": "INCOME_RANGE",
+        "minAmount": 24000000,
+        "maxAmount": 25000000,
+        "industryCodes": ["AGRICULTURE", "LIVESTOCK", "FISHERY", "COASTAL_SHIPPING"]
+      },
+      "points": 50,
+      "industryType": "AGRI_FISHERY",
+      "sourcePage": "p3, p12",
+      "description": "농·축산업, 어업·내항상선 종사자 평균소득 2,400만원 이상 2,500만원 미만",
+      "reviewNote": "Q1: 점수표는 2,500만원부터이고 특례는 최소 기준만 2,400만원으로 명시. 50점 인정 여부 미합의"
+    },
+    {
+      "ruleCode": "KOREAN_L2",
+      "category": "BASE_KOREAN",
+      "condition": {
+        "kind": "KOREAN_LEVEL",
+        "topikLevelMin": 2,
+        "topikLevelMax": 2,
+        "kiipStageMin": 2,
+        "kiipStageMax": 2,
+        "preTestScoreMin": 41,
+        "preTestScoreMax": 60,
+        "preTestMinAssignedStage": 3,
+        "preTestValidityMonths": 24
+      },
+      "points": 50,
+      "sourcePage": "p3, p8, p12",
+      "description": "TOPIK 2급, 사회통합프로그램 2단계 이수, 사전평가 41~60점(3단계 이상 배정)"
+    },
+    {
+      "ruleCode": "KOREAN_L3",
+      "category": "BASE_KOREAN",
+      "condition": {
+        "kind": "KOREAN_LEVEL",
+        "topikLevelMin": 3,
+        "topikLevelMax": 3,
+        "kiipStageMin": 3,
+        "kiipStageMax": 3,
+        "preTestScoreMin": 61,
+        "preTestScoreMax": 80,
+        "preTestMinAssignedStage": 3,
+        "preTestValidityMonths": 24
+      },
+      "points": 80,
+      "sourcePage": "p8, p12",
+      "description": "TOPIK 3급, 사회통합프로그램 3단계 이수, 사전평가 61~80점"
+    },
+    {
+      "ruleCode": "KOREAN_L4_PLUS",
+      "category": "BASE_KOREAN",
+      "condition": {
+        "kind": "KOREAN_LEVEL",
+        "topikLevelMin": 4,
+        "kiipStageMin": 4,
+        "preTestScoreMin": 81,
+        "preTestMinAssignedStage": 3,
+        "preTestValidityMonths": 24
+      },
+      "points": 120,
+      "sourcePage": "p8, p12",
+      "description": "TOPIK 4급 이상, 사회통합프로그램 4단계 이상 이수, 사전평가 81점 이상"
+    },
+    {
+      "ruleCode": "AGE_19_26",
+      "category": "BASE_AGE",
+      "condition": {"kind": "AGE_RANGE", "minAge": 19, "maxAge": 26},
+      "points": 40,
+      "sourcePage": "p12",
+      "description": "신청일 기준 만 19~26세"
+    },
+    {
+      "ruleCode": "AGE_27_33",
+      "category": "BASE_AGE",
+      "condition": {"kind": "AGE_RANGE", "minAge": 27, "maxAge": 33},
+      "points": 60,
+      "sourcePage": "p12",
+      "description": "신청일 기준 만 27~33세"
+    },
+    {
+      "ruleCode": "AGE_34_40",
+      "category": "BASE_AGE",
+      "condition": {"kind": "AGE_RANGE", "minAge": 34, "maxAge": 40},
+      "points": 30,
+      "sourcePage": "p12",
+      "description": "신청일 기준 만 34~40세"
+    },
+    {
+      "ruleCode": "AGE_41_PLUS",
+      "category": "BASE_AGE",
+      "condition": {"kind": "AGE_RANGE", "minAge": 41},
+      "points": 10,
+      "sourcePage": "p12",
+      "description": "신청일 기준 만 41세 이상"
+    },
+    {
+      "ruleCode": "REC_CENTRAL",
+      "category": "BONUS",
+      "condition": {"kind": "EVIDENCE_PRESENT", "evidenceType": "RECOMMENDATION_MINISTRY"},
+      "points": 30,
+      "exclusiveGroup": "REC_GOV",
+      "actor": "GOVERNMENT",
+      "sourcePage": "p1, p4, p12",
+      "description": "중앙부처 추천(고용부·산업부·농식품부·해수부·국토부·중기부). 광역지자체 추천과 중복 시 하나만"
+    },
+    {
+      "ruleCode": "REC_REGIONAL",
+      "category": "BONUS",
+      "condition": {"kind": "EVIDENCE_PRESENT", "evidenceType": "RECOMMENDATION_PROVINCE"},
+      "points": 30,
+      "exclusiveGroup": "REC_GOV",
+      "actor": "GOVERNMENT",
+      "sourcePage": "p1, p4, p12",
+      "description": "광역지자체 추천(17개 시·도). 중앙부처 추천과 중복 시 하나만"
+    },
+    {
+      "ruleCode": "REC_EMPLOYER",
+      "category": "BONUS",
+      "condition": {"kind": "EVIDENCE_PRESENT", "evidenceType": "RECOMMENDATION_EMPLOYER"},
+      "points": 50,
+      "actor": "EMPLOYER",
+      "sourcePage": "p3, p12",
+      "description": "고용기업 추천(필수요건이면서 가점)"
+    },
+    {
+      "ruleCode": "TENURE_3Y",
+      "category": "BONUS",
+      "condition": {"kind": "TENURE", "minMonths": 36},
+      "points": 20,
+      "sourcePage": "p4, p10",
+      "description": "현 근무처 3년 이상 계속 근무. 같은 사업장 재고용 기간과 귀책 없는 이직 직전 근무처 기간 합산"
+    },
+    {
+      "ruleCode": "REGION_3Y",
+      "category": "BONUS",
+      "condition": {"kind": "REGION_WORK", "minMonths": 36, "lookbackMonths": 120},
+      "points": 20,
+      "sourcePage": "p4, p10",
+      "description": "최근 10년 내 인구감소지역 또는 읍·면지역 3년 이상 근무(서로 합산, 겹친 기간은 한 번)"
+    },
+    {
+      "ruleCode": "QUALIFICATION",
+      "category": "BONUS",
+      "condition": {
+        "kind": "QUALIFICATION",
+        "certificateGrades": ["기사", "산업기사", "기능사"],
+        "degreeLevels": ["전문학사", "학사", "석사", "박사"],
+        "requireJobRelated": true
+      },
+      "points": 20,
+      "sourcePage": "p4, p10, p12",
+      "description": "현재 근무 분야 관련 국내 자격증(기사·산업기사·기능사) 또는 국내 전문학사 이상 학위(독학사·학점은행제 인정)"
+    },
+    {
+      "ruleCode": "DRIVER_LICENSE",
+      "category": "BONUS",
+      "condition": {
+        "kind": "DRIVER_LICENSE",
+        "acceptedClasses": ["1종 대형", "1종 보통", "1종 특수", "2종 보통"]
+      },
+      "points": 10,
+      "sourcePage": "p5",
+      "description": "국내 경찰청 발급 운전면허 제2종 보통 이상"
+    },
+    {
+      "ruleCode": "PEN_FINE_UNDER_1M",
+      "category": "PENALTY",
+      "condition": {
+        "kind": "DECLARED_COUNT_PENALTY",
+        "declarationField": "finesUnder1mCount",
+        "pointsByCount": [5, 10, 20]
+      },
+      "points": -20,
+      "sourcePage": "p5, p12",
+      "description": "최근 10년 내 벌금 100만원 미만 형: 1회 5점, 2회 10점, 3회 이상 20점"
+    },
+    {
+      "ruleCode": "PEN_TAX_RESTRICTION",
+      "category": "PENALTY",
+      "condition": {
+        "kind": "DECLARED_COUNT_PENALTY",
+        "declarationField": "taxStayRestrictionCount",
+        "pointsByCount": [5, 10, 15]
+      },
+      "points": -15,
+      "sourcePage": "p5, p12",
+      "description": "최근 10년 내 조세 체납으로 체류허가 제한: 1회 5점, 2회 10점, 3회 이상 15점"
+    },
+    {
+      "ruleCode": "PEN_IMMIGRATION",
+      "category": "PENALTY",
+      "condition": {
+        "kind": "DECLARED_COUNT_PENALTY",
+        "declarationField": "immigrationViolationCount",
+        "pointsByCount": [5, 10, 15]
+      },
+      "points": -15,
+      "sourcePage": "p5, p12",
+      "description": "최근 10년 내 출입국관리법 위반 행정처분(과태료 포함, 3회 이하): 1회 5점, 2회 10점, 3회 15점"
+    },
+    {
+      "ruleCode": "EXC_FINE_1M_PLUS",
+      "category": "EXCLUSION",
+      "condition": {"kind": "DECLARED_FLAG", "declarationField": "hasFine1mOrMore"},
+      "points": null,
+      "sourcePage": "p5, p12",
+      "description": "최근 10년 내 벌금 100만원 이상의 형"
+    },
+    {
+      "ruleCode": "EXC_TAX_ARREARS",
+      "category": "EXCLUSION",
+      "condition": {"kind": "DECLARED_FLAG", "declarationField": "hasCurrentTaxArrears"},
+      "points": null,
+      "sourcePage": "p5, p12",
+      "description": "현재 조세 체납(완납하면 신청 가능)"
+    },
+    {
+      "ruleCode": "EXC_IMMIGRATION_4PLUS",
+      "category": "EXCLUSION",
+      "condition": {
+        "kind": "DECLARED_COUNT_AT_LEAST",
+        "declarationField": "immigrationViolationCount",
+        "minCount": 4
+      },
+      "points": null,
+      "sourcePage": "p5, p12",
+      "description": "최근 10년 내 출입국관리법 4회 이상 위반"
+    },
+    {
+      "ruleCode": "EXC_OVERSTAY_3M",
+      "category": "EXCLUSION",
+      "condition": {"kind": "DECLARED_FLAG", "declarationField": "hasOverstay3mOrMore"},
+      "points": null,
+      "sourcePage": "p5, p12",
+      "description": "최근 10년 내 3개월 이상 불법체류"
+    },
+    {
+      "ruleCode": "EXC_PUBLIC_SAFETY",
+      "category": "EXCLUSION",
+      "condition": {"kind": "MANUAL_REVIEW"},
+      "points": null,
+      "actor": "GOVERNMENT",
+      "sourcePage": "p5, p12",
+      "description": "대한민국의 이익이나 공공의 안전 등을 해칠 염려(심사관 판단, 엔진 판정 대상 아님)"
+    },
+    {
+      "ruleCode": "EXC_SOCIAL_ORDER",
+      "category": "EXCLUSION",
+      "condition": {"kind": "MANUAL_REVIEW"},
+      "points": null,
+      "actor": "GOVERNMENT",
+      "sourcePage": "p5, p12",
+      "description": "경제·사회질서나 선량한 풍속 등을 해칠 염려(심사관 판단, 엔진 판정 대상 아님)"
+    },
+    {
+      "ruleCode": "REQ_STAY_PERIOD",
+      "category": "REQUIREMENT",
+      "condition": {
+        "kind": "STAY_PERIOD",
+        "visaTypes": ["E-9", "E-10", "H-2"],
+        "minMonths": 48,
+        "lookbackMonths": 120,
+        "nonCapitalSpecialMinMonths": 36,
+        "capitalAreaSidoCodes": ["11", "28", "41"]
+      },
+      "points": null,
+      "sourcePage": "p2, p7, p12",
+      "description": "최근 10년간 E-9·E-10·H-2로 합계 4년 이상 체류. 특례: 비수도권 3년 이상 체류 + 광역지자체 추천(Q8, 검토 필요)"
+    },
+    {
+      "ruleCode": "REQ_CURRENT_EMPLOYMENT",
+      "category": "REQUIREMENT",
+      "condition": {"kind": "CURRENT_EMPLOYMENT", "visaTypes": ["E-9", "E-10", "H-2"]},
+      "points": null,
+      "sourcePage": "p2, p12",
+      "description": "현재 근무처에서 외국인등록을 하고 합법적으로 정상 근무 중"
+    },
+    {
+      "ruleCode": "REQ_CONTRACT",
+      "category": "REQUIREMENT",
+      "condition": {"kind": "CONTRACT", "minAnnualSalary": 26000000, "minContractMonths": 24},
+      "points": null,
+      "actor": "EMPLOYER",
+      "sourcePage": "p3, p7, p12",
+      "description": "현재 근무처와 향후 2년 이상 E-7-4 고용계약, 연봉 2,600만원 이상(기본급·수당 포함 총 지급액)"
+    },
+    {
+      "ruleCode": "REQ_CONTRACT_AGRI_FISHERY",
+      "category": "REQUIREMENT",
+      "condition": {
+        "kind": "CONTRACT",
+        "minAnnualSalary": 25000000,
+        "minContractMonths": 24,
+        "industryCodes": ["AGRICULTURE", "LIVESTOCK", "FISHERY", "COASTAL_SHIPPING"]
+      },
+      "points": null,
+      "industryType": "AGRI_FISHERY",
+      "actor": "EMPLOYER",
+      "sourcePage": "p3, p12",
+      "description": "농·축산업, 어업·내항상선 종사자는 연봉 요건 2,500만원 이상"
+    },
+    {
+      "ruleCode": "REQ_EMPLOYER_REC",
+      "category": "REQUIREMENT",
+      "condition": {
+        "kind": "EMPLOYER_RECOMMENDATION",
+        "evidenceType": "RECOMMENDATION_EMPLOYER",
+        "minTenureMonths": 12
+      },
+      "points": null,
+      "actor": "EMPLOYER",
+      "sourcePage": "p1, p3, p12",
+      "description": "현재 1년 이상 근무 중인 기업의 추천(귀책 없는 이직이면 직전 근무처와 합산)"
+    },
+    {
+      "ruleCode": "REQ_MIN_INCOME",
+      "category": "REQUIREMENT",
+      "condition": {
+        "kind": "MIN_AVERAGE_INCOME",
+        "minAmount": 25000000,
+        "incomeYears": 2,
+        "latestYearRequiredFromMonth": 6,
+        "fallbackYearFrom": 2021,
+        "fallbackYearTo": 2025
+      },
+      "points": null,
+      "sourcePage": "p3, p7, p8, p12",
+      "description": "최근 2년 연간 평균소득 2,500만원 이상(평균소득 점수 50점 이상). 재입국 공백 시 2021~2025년 중 높은 2개년"
+    },
+    {
+      "ruleCode": "REQ_MIN_INCOME_AGRI_FISHERY",
+      "category": "REQUIREMENT",
+      "condition": {
+        "kind": "MIN_AVERAGE_INCOME",
+        "minAmount": 24000000,
+        "industryCodes": ["AGRICULTURE", "LIVESTOCK", "FISHERY", "COASTAL_SHIPPING"]
+      },
+      "points": null,
+      "industryType": "AGRI_FISHERY",
+      "sourcePage": "p3, p12",
+      "description": "농·축산업, 어업·내항상선 종사자는 평균소득 2,400만원 이상"
+    },
+    {
+      "ruleCode": "REQ_MIN_KOREAN",
+      "category": "REQUIREMENT",
+      "condition": {
+        "kind": "MIN_KOREAN",
+        "minPoints": 50,
+        "deferralUntil": "2026-12-31",
+        "deferralMinTotalWithoutKorean": 150
+      },
+      "points": null,
+      "sourcePage": "p3, p4, p12, p14",
+      "description": "한국어 점수 50점 이상. 2026-12-31까지 한국어 외 총점 150점 이상이면 최초 연장 때까지 유예"
+    },
+    {
+      "ruleCode": "REQ_TOTAL_SCORE",
+      "category": "REQUIREMENT",
+      "condition": {"kind": "TOTAL_SCORE"},
+      "points": null,
+      "sourcePage": "p3, p12",
+      "description": "300점 만점(가점 제외)에서 가점 포함 총점 200점 이상"
+    }
+  ]
+}
