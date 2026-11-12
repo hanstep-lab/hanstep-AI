@@ -41,10 +41,12 @@ RETRYABLE_FAILURES: frozenset[str] = frozenset(
 class SpringApiError(Exception):
     """Spring 내부 API 호출 실패. HTTP 상태와 Spring 오류 코드를 담는다."""
 
-    def __init__(self, status: int, code: str, message: str) -> None:
+    def __init__(self, status: int, code: str, message: str, reason: str | None = None) -> None:
         super().__init__(f"Spring {status} {code}: {message}")
         self.status = status
         self.code = code
+        # 오류 본문의 details.reason(예: NO_VISA_PROFILE). 주지 않는 API도 있다.
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -152,6 +154,43 @@ class SpringInternalClient:
         if not isinstance(body, dict):
             raise SpringApiError(200, "INVALID_BODY", "")
         return body
+
+    # 채팅 도구 calculate_e74_score: MySQL 프로필로 E-7-4 계산·저장(hanstep-backend #51).
+    # 도구 시간 예산이 짧아 재시도하지 않는다. httpx.TimeoutException(시간 초과),
+    # SpringApiError(2xx가 아님, details.reason 포함)를 그대로 올린다.
+    def e74_assessment(
+        self,
+        user_id: int,
+        body: dict[str, Any],
+        *,
+        timeout: float,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        headers = dict(self._headers)
+        if request_id:
+            headers["X-Request-Id"] = request_id
+        response = self._client.post(
+            f"/internal/v1/ai-context/users/{user_id}/e74-assessments",
+            json=body,
+            headers=headers,
+            timeout=timeout,
+        )
+        if not response.is_success:
+            code, message, reason = "HTTP_ERROR", "", None
+            try:
+                payload = response.json()
+                code = str(payload.get("code", code))
+                message = str(payload.get("message", ""))
+                details = payload.get("details")
+                if isinstance(details, dict) and details.get("reason"):
+                    reason = str(details["reason"])
+            except (ValueError, AttributeError):
+                pass
+            raise SpringApiError(response.status_code, code, message, reason)
+        data = response.json()
+        if not isinstance(data, dict):
+            raise SpringApiError(response.status_code, "INVALID_BODY", "")
+        return data
 
     # INT-08
     def job_started(

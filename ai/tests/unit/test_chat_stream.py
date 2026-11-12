@@ -180,7 +180,7 @@ def test_stream_order_and_format() -> None:
     assert "KRW 675,317" in done["content"]
     assert done["blocks"] is None
     assert done["modelId"] == FAKE_MODEL_ID
-    assert done["promptVersion"] == "chat-v1"
+    assert done["promptVersion"] == "chat-v2"
     assert done["usage"] == {
         "inputTokens": 0,
         "outputTokens": 0,
@@ -201,7 +201,7 @@ def test_metrics_event_only_with_header() -> None:
     assert names[-2:] == ["agent.metrics", "agent.done"]
     metrics = events[-2][1]
     assert metrics["config"]["model"] == "claude-sonnet-5-5"
-    assert metrics["config"]["promptVersion"] == "chat-v1"
+    assert metrics["config"]["promptVersion"] == "chat-v2"
     assert [c["stopReason"] for c in metrics["calls"]] == ["tool_use", "end_turn"]
     assert set(metrics["calls"][0]) == {
         "model",
@@ -230,7 +230,7 @@ def test_config_override_ignored_unless_allowed() -> None:
         "thinking": "disabled",
         "effort": "low",
         "maxTokens": 2000,
-        "promptVersion": "chat-v1",
+        "promptVersion": "chat-v2",
     }
 
 
