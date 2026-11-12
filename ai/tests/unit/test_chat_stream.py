@@ -217,6 +217,14 @@ def test_metrics_event_only_with_header() -> None:
     assert "agent.metrics" not in _names(parse_sse(_post(client, _body()).text))
 
 
+def test_prompt_version_setting_is_reported() -> None:
+    events = parse_sse(
+        _post(_client(chat_prompt_version="v1.1"), _body(), **{"X-Chat-Metrics": "1"}).text
+    )
+    assert events[-2][1]["config"]["promptVersion"] == "chat-v1.1"
+    assert events[-1][1]["promptVersion"] == "chat-v1.1"
+
+
 def test_config_override_ignored_unless_allowed() -> None:
     override = json.dumps({"model": "claude-haiku-5-5", "thinking": "disabled", "effort": "low"})
     headers = {"X-Chat-Metrics": "1", "X-Chat-Config": override}

@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.alias_generators import to_camel
 
+from app.chat.prompts import PROMPT_VERSIONS
 from app.core.config import ChatEffort, ChatThinking, Settings, check_chat_config
 
 MAX_HISTORY = 6
@@ -49,6 +50,7 @@ class LlmConfig:
     effort: str
     max_tokens: int
     judgment_facts: bool = False
+    prompt_version: str = "v1"  # a PROMPT_VERSIONS key
 
     @classmethod
     def from_settings(cls, settings: Settings) -> LlmConfig:
@@ -58,6 +60,7 @@ class LlmConfig:
             effort=settings.chat_effort,
             max_tokens=settings.chat_max_tokens,
             judgment_facts=settings.chat_judgment_facts,
+            prompt_version=settings.chat_prompt_version,
         )
 
     def with_override(self, raw_json: str) -> LlmConfig:
@@ -73,12 +76,16 @@ class LlmConfig:
         check_chat_config(config.model, config.thinking, config.effort)
         return config
 
-    def to_json(self, prompt_version: str) -> dict[str, Any]:
+    @property
+    def prompt_version_id(self) -> str:
+        return PROMPT_VERSIONS[self.prompt_version]
+
+    def to_json(self) -> dict[str, Any]:
         return {
             "model": self.model,
             "thinking": self.thinking,
             "effort": self.effort or None,
             "maxTokens": self.max_tokens,
-            "promptVersion": prompt_version,
+            "promptVersion": self.prompt_version_id,
             "judgmentFacts": self.judgment_facts,
         }

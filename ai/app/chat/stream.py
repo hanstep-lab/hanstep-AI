@@ -28,7 +28,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from app.chat.graph import build_graph
-from app.chat.prompts import PROMPT_VERSION, system_prompt
+from app.chat.prompts import system_prompt
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.tools import FinanceTool
 
@@ -72,8 +72,8 @@ class ChatRunOptions:
     model_id: str | None = None  # defaults to config.model
 
 
-def build_messages(request: ChatStreamRequest) -> list[BaseMessage]:
-    messages: list[BaseMessage] = [SystemMessage(system_prompt(request.language))]
+def build_messages(request: ChatStreamRequest, prompt_version: str = "v1") -> list[BaseMessage]:
+    messages: list[BaseMessage] = [SystemMessage(system_prompt(request.language, prompt_version))]
     for item in request.history:
         if item.role == "USER":
             messages.append(HumanMessage(item.content))
@@ -108,7 +108,7 @@ async def run_chat(
     async def produce() -> None:
         try:
             async for item in graph.astream(
-                {"messages": build_messages(request), "tool_calls_done": 0},
+                {"messages": build_messages(request, config.prompt_version), "tool_calls_done": 0},
                 stream_mode="custom",
             ):
                 await queue.put(item)
@@ -137,7 +137,7 @@ async def run_chat(
         return _event(
             "agent.metrics",
             {
-                "config": config.to_json(PROMPT_VERSION),
+                "config": config.to_json(),
                 "calls": [{k: c.get(k) for k in _CALL_METRIC_FIELDS} for c in calls],
                 # Run start -> first text of the final answer call (after any tool results).
                 # Same clock as done.timings.firstDeltaMs; equal to it when no text came earlier.
@@ -221,7 +221,7 @@ async def run_chat(
                         "content": content,
                         "blocks": None,
                         "modelId": options.model_id or config.model,
-                        "promptVersion": PROMPT_VERSION,
+                        "promptVersion": config.prompt_version_id,
                         "latencyMs": total_ms,
                         "usage": {
                             "inputTokens": sum(c["inputTokens"] for c in calls),
