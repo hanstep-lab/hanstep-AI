@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -310,9 +310,10 @@ def _fixture_value(name: str) -> Decimal:
 def test_reference_values_match_fixture() -> None:
     """Hand-written referenceValues equal the formula computed from the chat fixture."""
     spec = EVAL.load_questions()
-    assert spec["version"] == "v1.2"
+    assert spec["version"] == "v1.3"
     assert spec["latencySubset"] == ["F01", "F03", "F07", "F09", "H01"]
-    with_refs = [q for q in spec["questions"] if q.get("referenceValues")]
+    # Hold-out formulas are prose copied as is (see test_holdout_values_match_fixture).
+    with_refs = [q for q in spec["questions"] if q.get("referenceValues") and "source" not in q]
     assert [q["id"] for q in with_refs] == ["T02", "T03"] + [f"C0{i}" for i in range(1, 8)]
     for q in with_refs:
         assert q["expectBehavior"] == "calculation_needed"
@@ -327,7 +328,7 @@ def test_reference_values_match_fixture() -> None:
 
 def test_judgment_questions_load() -> None:
     spec = EVAL.load_questions()
-    judgment = [q for q in spec["questions"] if q["category"] == "judgment"]
+    judgment = [q for q in spec["questions"] if q["category"] == "judgment" and "source" not in q]
     assert [q["id"] for q in judgment] == [f"J{i:02d}" for i in range(1, 11)]
     for q in judgment:
         assert q["history"] == []
@@ -417,7 +418,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
 
     lines = output.read_text(encoding="utf-8").splitlines()
     conditions = json.loads(lines[0])
-    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.2"}
+    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.3"}
     rows = _rows(output)
     for row in rows:
         assert len(row["deltaTimesMs"]) == row["events"].count("agent.delta") > 0
@@ -425,7 +426,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
         assert row["deltaTimesMs"][0] == row["timings"]["firstDeltaMs"]
         assert row["referenceCheck"]["verdict"] in ("reference", "wrong_number", "no_value")
     summary = output.with_suffix(".md").read_text(encoding="utf-8")
-    assert "- 질문 세트: eval_questions_v1.json (v1.2)" in summary
+    assert "- 질문 세트: eval_questions_v1.json (v1.3)" in summary
     assert "- 계산 질문 2개: 참조값 포함 " in summary
 
     # --rescore recomputes the reference check from the saved answer.
@@ -541,3 +542,66 @@ def test_judgment_variants_run_and_are_shown(tmp_path: Path) -> None:
     summary = output.with_suffix(".md").read_text(encoding="utf-8")
     assert "haiku-base(model=claude-haiku-5-5" in summary
     assert "judgmentFacts=True, promptVersion=v1.1)" in summary
+
+
+HOLDOUT_IDS = [f"X{i:02d}" for i in range(1, 13)]
+
+
+def test_question_set_v1_3_with_holdout() -> None:
+    spec = EVAL.load_questions()
+    ids = [q["id"] for q in spec["questions"]]
+    assert spec["version"] == "v1.3"
+    assert len(ids) == 49 and len(set(ids)) == 49
+    assert spec["holdoutSubset"] == HOLDOUT_IDS
+    assert [q["id"] for q in spec["questions"] if q.get("source") == "holdout_v1"] == HOLDOUT_IDS
+    by_id = {q["id"]: q for q in spec["questions"]}
+    for qid in HOLDOUT_IDS:
+        q = by_id[qid]
+        assert q["history"] == [] and q["expectedTools"] == ["get_financial_analysis"]
+        assert q["expectedConclusion"]
+        if q["category"] == "judgment":
+            assert q["expectBehavior"] == "judgment" and q["calculationNote"]
+        else:
+            assert q["category"] == "calculation"
+            assert q["expectBehavior"] == "calculation_needed"
+    judgment = [q for q in HOLDOUT_IDS if by_id[q]["category"] == "judgment"]
+    assert judgment == ["X01", "X02", "X03", "X04", "X05", "X06"]
+    with_refs = [q for q in HOLDOUT_IDS if by_id[q].get("referenceValues")]
+    assert with_refs == ["X07", "X08", "X10", "X11", "X12"]
+    # X09 has no unit: not in the reference check, graded by a person instead.
+    x09 = by_id["X09"]
+    assert (x09["expectedValue"], x09["unit"], x09["humanGraded"]) == (3, None, True)
+    assert "referenceValues" not in x09
+
+
+def test_holdout_values_match_fixture() -> None:
+    v = _fixture_value
+    spare, income = v("spare"), v("avgMonthlyIncome")
+    fixed, remittance = v("fixedLiving"), v("remittance")
+    avg, low = v("variableExpense.avg"), v("variableExpense.min")
+    by_id = {q["id"]: q for q in EVAL.load_questions()["questions"]}
+    expected = {
+        "X07": fixed + remittance + avg,
+        "X08": avg * 12,
+        "X10": (spare * 100 / income).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP),
+        "X11": (spare - avg * Decimal("0.1")).quantize(Decimal(1), rounding=ROUND_HALF_UP),
+        "X12": avg - low,
+    }
+    for qid, value in expected.items():
+        assert Decimal(str(by_id[qid]["referenceValues"][0]["value"])) == value, qid
+    # X09: half of spare a month, months to reach 900,000 rounded up.
+    months = (Decimal(900_000) / (spare / 2)).to_integral_value(rounding=ROUND_CEILING)
+    assert by_id["X09"]["expectedValue"] == months
+
+
+def test_holdout_questions_in_grading_list_and_reference_check(tmp_path: Path) -> None:
+    output = tmp_path / "run.jsonl"
+    assert _run(_settings(), "--questions", "X01,X07,X09", "--output", str(output)) == 0
+    rows = {r["questionId"]: r for r in _rows(output)}
+    assert all(r["source"] == "holdout_v1" for r in rows.values())
+    assert rows["X01"]["expectedConclusion"] and "referenceCheck" not in rows["X01"]
+    assert rows["X07"]["expectedConclusion"] is None and "referenceCheck" in rows["X07"]
+    assert rows["X09"]["expectedConclusion"] and "referenceCheck" not in rows["X09"]
+    section = output.with_suffix(".md").read_text(encoding="utf-8").split("## 판단형", 1)[1]
+    assert "| X01 | 1 |" in section and "| X09 | 1 |" in section
+    assert "| X07 |" not in section

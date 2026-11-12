@@ -718,7 +718,14 @@ def main(
                 "deltaTimesMs": result["deltaMs"],
                 "expectedTools": question["expectedTools"],
                 "referenceValues": question.get("referenceValues"),
-                "expectedConclusion": question.get("expectedConclusion"),
+                # Listed for a person to grade: judgment questions and humanGraded ones only
+                # (other calculation questions keep their conclusion in the spec, not here).
+                "expectedConclusion": (
+                    question.get("expectedConclusion")
+                    if question["category"] == "judgment" or question.get("humanGraded")
+                    else None
+                ),
+                "source": question.get("source"),
                 "judgmentFacts": bool(variant.get("judgmentFacts")),
                 "toolResult": context,
                 "contextTexts": [
