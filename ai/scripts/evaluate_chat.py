@@ -20,6 +20,16 @@ cross the budget; runs that end in agent.error count too (usage from agent.metri
 --llm-mode fake the run stops at once if the server answers with a real model or real tokens.
 Questions with referenceValues get a referenceCheck (reference / wrong_number / no_value), and
 each row keeps the arrival ms of every delta (deltaTimesMs) for replaying the stream later.
+Judgment questions (expectedConclusion) are listed with their full answers for a person to grade,
+in the .md only: stdout gets the summary without answers (they can hold a user's finances).
+Their numbers are counted apart from the unsupported-number count, since a right answer may
+calculate one. Expected conclusions are worked out on the demo fixture; a run whose tool data
+differs from it is marked. --rescore re-runs the checks but keeps the expectedConclusion and
+referenceValues saved in each row (the basis that run was graded on).
+With judgmentFacts on, the number check also allows the judgment facts the server added
+(app/chat/judgment.py on the same summary and question).
+With --target ai the run stops if the server's model, judgmentFacts or prompt version differ
+from the variant (e.g. X-Chat-Config ignored because CHAT_ALLOW_CONFIG_OVERRIDE is off).
 The API key and internal tokens are never printed or written.
 """
 
@@ -43,11 +53,13 @@ import _bootstrap  # noqa: F401
 import httpx
 
 from app.chat.fake_llm import FAKE_MODEL_ID
+from app.chat.judgment import judgment_facts
 from app.chat.number_check import check_answer, rounded_values, scan_numbers
+from app.chat.prompts import PROMPT_VERSIONS
 from app.chat.tools import FIXTURE, summarize
 from app.core.config import Settings, get_settings
 from app.integrations.spring_client import SpringInternalClient
-from app.rag.cli import EXIT_BLOCKED, EXIT_OK
+from app.rag.cli import EXIT_BLOCKED, EXIT_FAILED, EXIT_OK
 
 AI_ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
@@ -146,10 +158,12 @@ def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]
         return [
             {
                 "name": "server-default",
-                "model": settings.agent_model,
+                "model": settings.chat_model_id,
                 "thinking": settings.chat_thinking,
                 "effort": settings.chat_effort,
                 "maxTokens": settings.chat_max_tokens,
+                "judgmentFacts": settings.chat_judgment_facts,
+                "promptVersion": settings.chat_prompt_version,
                 "override": False,
             }
         ]
@@ -158,8 +172,10 @@ def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]
     if not variants or any(not n for n in names) or len(set(names)) != len(names):
         raise ValueError("--variants needs a non-empty list with unique names")
     for v in variants:
-        v.setdefault("model", settings.agent_model)
+        v.setdefault("model", settings.chat_model_id)
         v.setdefault("maxTokens", settings.chat_max_tokens)
+        v.setdefault("judgmentFacts", settings.chat_judgment_facts)
+        v.setdefault("promptVersion", settings.chat_prompt_version)
         v["override"] = True
     return variants
 
@@ -167,8 +183,19 @@ def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]
 def config_header(variant: dict[str, Any]) -> str | None:
     if not variant.get("override"):
         return None
-    keys = ("model", "thinking", "effort", "maxTokens")
+    keys = ("model", "thinking", "effort", "maxTokens", "judgmentFacts", "promptVersion")
     return json.dumps({k: variant[k] for k in keys if variant.get(k) is not None})
+
+
+def _summary(context: dict[str, Any]) -> dict[str, Any]:
+    if context.get("latestAnalysis") is None:
+        return {"analysis": None}
+    return summarize(context)
+
+
+def fixture_context() -> dict[str, Any]:
+    """The demo fixture summary the expected conclusions and reference values are worked out on."""
+    return _summary(json.loads(FIXTURE.read_text(encoding="utf-8")))
 
 
 def tool_context(settings: Settings, user_id: int, llm_mode: str) -> dict[str, Any]:
@@ -183,11 +210,28 @@ def tool_context(settings: Settings, user_id: int, llm_mode: str) -> dict[str, A
             context = client.finance_context(user_id, timeout=10)
         finally:
             client.close()
-    else:
-        context = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    if context.get("latestAnalysis") is None:
-        return {"analysis": None}
-    return summarize(context)
+        return _summary(context)
+    return fixture_context()
+
+
+def config_mismatch(
+    variant: dict[str, Any], answered_by: str | None, metrics: dict[str, Any] | None, fake: bool
+) -> list[str]:
+    """What the server ran that differs from the variant (empty when it matches or is unknown)."""
+    config = (metrics or {}).get("config") or {}
+    problems = []
+    actual = [config.get("model")] + ([] if fake else [answered_by])
+    for model in dict.fromkeys(m for m in actual if m):
+        if not model.startswith(variant["model"]):
+            problems.append(f"model {model} != {variant['model']}")
+    facts = config.get("judgmentFacts")
+    if facts is not None and facts != bool(variant.get("judgmentFacts")):
+        problems.append(f"judgmentFacts {facts} != {bool(variant.get('judgmentFacts'))}")
+    wanted = PROMPT_VERSIONS.get(str(variant.get("promptVersion")))
+    version = config.get("promptVersion")
+    if version is not None and wanted is not None and version != wanted:
+        problems.append(f"promptVersion {version} != {wanted}")
+    return problems
 
 
 def iter_sse(lines: Iterator[str]) -> Iterator[tuple[str, dict[str, Any]]]:
@@ -335,7 +379,13 @@ def reference_check(
 def score(row: dict[str, Any]) -> None:
     """Number check, reference check and expected-tool match from what the row already holds."""
     answer = row.get("answer") or ""
-    check = check_answer(answer, [row["toolResult"]], row["contextTexts"])
+    tool_results = [row["toolResult"]]
+    if row.get("judgmentFacts"):
+        # Same function as the server, on the same summary and this turn's message.
+        facts = judgment_facts(row["toolResult"], row["contextTexts"][0])
+        if facts is not None:
+            tool_results.append(facts)
+    check = check_answer(answer, tool_results, row["contextTexts"])
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
@@ -357,7 +407,26 @@ def _stat(values: list[float]) -> str:
     return text
 
 
-def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> str:
+def measured_rows(rows: list[dict[str, Any]], variant: str) -> list[dict[str, Any]]:
+    """The rows a variant's summary counts: every non-warmup call, errors included."""
+    return [r for r in rows if r["variant"] == variant and not r["warmup"]]
+
+
+def is_graded(row: dict[str, Any]) -> bool:
+    """Graded by a person; a right answer may calculate a number the tool result lacks."""
+    return bool(row.get("expectedConclusion"))
+
+
+def unsupported_detail(rows: list[dict[str, Any]]) -> str:
+    return "; ".join(
+        f"{r['questionId']}: {', '.join(r['numberCheck']['unsupported'])}" for r in rows
+    )
+
+
+def render_summary(
+    conditions: dict[str, Any], rows: list[dict[str, Any]], *, answers: bool = True
+) -> str:
+    """Summary markdown. answers=False leaves out the judgment answers (for stdout)."""
     out = [
         "# 챗봇 측정 요약",
         "",
@@ -373,15 +442,22 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
         "- 설정: "
         + "; ".join(
             f"{v['name']}(model={v.get('model')}, thinking={v.get('thinking')}, "
-            f"effort={v.get('effort') or '-'}, maxTokens={v.get('maxTokens')})"
+            f"effort={v.get('effort') or '-'}, maxTokens={v.get('maxTokens')}, "
+            f"judgmentFacts={v.get('judgmentFacts')}, promptVersion={v.get('promptVersion')})"
             for v in conditions["variants"]
         ),
     ]
     if conditions["target"] == "spring":
         out.append("- spring 대상은 지연만 기록(토큰은 ai 대상에서 잰다).")
         out.append("- spring 대상은 H 문항의 history 를 보내지 못한다(대화 기록은 MySQL 에 있음).")
+    if conditions.get("error"):
+        out.append(f"- 실패: {conditions['error']}")
+    if conditions.get("unfinishedQuestions"):
+        out.append(f"- 다 돌지 못한 문항: {', '.join(conditions['unfinishedQuestions'])}")
+    if conditions.get("contextMatchesFixture") is False:
+        out.append(FIXTURE_WARNING)
     for variant in conditions["variants"]:
-        mine = [r for r in rows if r["variant"] == variant["name"] and not r["warmup"]]
+        mine = measured_rows(rows, variant["name"])
         if not mine:
             continue
         done = [r for r in mine if r["status"] == "done"]
@@ -400,7 +476,9 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
         pre_tool = [r for r in measured if (r["metrics"].get("preToolTextChars") or 0) > 0]
         total = [r["timings"]["doneMs"] for r in done if "doneMs" in r["timings"]]
         calls = [c for r in mine for c in (r.get("metrics") or {}).get("calls", [])]
-        unsupported = [r for r in done if r["numberCheck"]["unsupported"]]
+        unsupported = [r for r in done if r["numberCheck"]["unsupported"] and not is_graded(r)]
+        graded_done = [r for r in done if is_graded(r)]
+        graded_numbers = [r for r in graded_done if r["numberCheck"]["unsupported"]]
         max_token_stops = sum(1 for c in calls if c.get("stopReason") == "max_tokens")
         out += [
             "",
@@ -420,17 +498,16 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
                 else "-"
             ),
             f"- 도구 선택 일치: {sum(1 for r in mine if r.get('toolMatch')) / len(mine):.0%}",
-            f"- 근거 없는 숫자가 있는 답변: {len(unsupported)}/{len(done)}"
-            + (
-                " — "
-                + "; ".join(
-                    f"{r['questionId']}: {', '.join(r['numberCheck']['unsupported'])}"
-                    for r in unsupported
-                )
-                if unsupported
-                else ""
-            ),
+            f"- 근거 없는 숫자가 있는 답변(사람 채점 문항 제외): "
+            f"{len(unsupported)}/{len(done) - len(graded_done)}"
+            + (" — " + unsupported_detail(unsupported) if unsupported else ""),
         ]
+        if graded_done:
+            out.append(
+                f"- 사람 채점 문항에서 도구 결과에 없는 숫자(계산한 답일 수 있음, 판단형 표에서 "
+                f"확인): {len(graded_numbers)}/{len(graded_done)}"
+                + (" — " + unsupported_detail(graded_numbers) if graded_numbers else "")
+            )
         calc = [r for r in done if r.get("referenceCheck")]
         if calc:
             verdicts = [r["referenceCheck"]["verdict"] for r in calc]
@@ -447,6 +524,7 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
                     "no_value": "값 없음",
                 }[check["verdict"]]
                 out.append(f"  - {r['questionId']} #{r['repeat']}: {detail}")
+        out += source_split_table(mine)
         out += [
             "",
             "| 문항 | 호출 | 입력 토큰 | 출력 토큰 | 비용(USD) |",
@@ -461,7 +539,90 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
                 f"{sum(u.get('outputTokens', 0) for u in usage) / n:.0f} | "
                 f"{sum(r.get('costUsd', 0) for r in q_rows) / n:.5f} |"
             )
+    if answers:
+        out += judgment_section(conditions, rows)
+    elif any(is_graded(r) and not r["warmup"] for r in rows):
+        out += ["", "판단형 답변 전문은 요약 .md 파일에만 남긴다."]
     return "\n".join(out) + "\n"
+
+
+HOLDOUT_SOURCE = "holdout_v1"
+FIXTURE_WARNING = (
+    "- 주의: 이 run의 도구 데이터가 데모 fixture와 다르다. 기대 결론·참조값은 fixture 기준이라 "
+    "채점 기준이 맞지 않을 수 있다."
+)
+
+
+def source_split_table(mine: list[dict[str, Any]]) -> list[str]:
+    """Existing questions vs hold-out (source holdout_v1), from saved fields only (rescore-safe).
+
+    Counts only; the verdicts are the ones score() already made.
+    """
+    out = [
+        "",
+        "| 구분 | 판단형 채점 목록 | 계산 참조값 (포함 / 다른 숫자 / 값 없음) | "
+        "근거 없는 숫자, 채점 문항 제외 (답변 / 숫자 수) | "
+        "채점 문항의 표에 없는 숫자 (답변 / 숫자 수) |",
+        "|---|---|---|---|---|",
+    ]
+    for label, group in (
+        ("기존 문항", [r for r in mine if r.get("source") != HOLDOUT_SOURCE]),
+        ("hold-out", [r for r in mine if r.get("source") == HOLDOUT_SOURCE]),
+    ):
+        done = [r for r in group if r["status"] == "done"]
+        graded = sum(1 for r in group if is_graded(r))
+        verdicts = [r["referenceCheck"]["verdict"] for r in done if r.get("referenceCheck")]
+        cells = []
+        for part in ([r for r in done if not is_graded(r)], [r for r in done if is_graded(r)]):
+            unsupported = [r["numberCheck"]["unsupported"] for r in part]
+            cells.append(
+                f"{sum(1 for u in unsupported if u)}/{len(part)} / "
+                f"{sum(len(u) for u in unsupported)}"
+            )
+        out.append(
+            f"| {label} | {graded} | {len(verdicts)}개: {verdicts.count('reference')} / "
+            f"{verdicts.count('wrong_number')} / {verdicts.count('no_value')} | "
+            f"{cells[0]} | {cells[1]} |"
+        )
+    return out
+
+
+def _cell(text: str) -> str:
+    """One markdown table cell: line breaks become spaces, pipes are escaped."""
+    return " ".join(text.split()).replace("|", "\\|")
+
+
+def judgment_section(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> list[str]:
+    """Judgment answers next to the expected conclusion, for a person to grade (no auto score)."""
+    blocks: list[list[str]] = []
+    for variant in conditions["variants"]:
+        mine = [r for r in measured_rows(rows, variant["name"]) if is_graded(r)]
+        if not mine:
+            continue
+        block = [
+            "",
+            f"### {variant['name']}",
+            "",
+            "| 문항 | 회차 | 기대 결론 | 답변 |",
+            "|---|---|---|---|",
+        ]
+        for r in mine:
+            answer = r.get("answer") or ""
+            if r["status"] != "done":
+                answer = f"(오류 {r.get('errorCode') or r['status']}) {answer}"
+            block.append(
+                f"| {r['questionId']} | {r['repeat']} | {_cell(r['expectedConclusion'])} | "
+                f"{_cell(answer)} |"
+            )
+        blocks.append(block)
+    if not blocks:
+        return []
+    out = ["", "## 판단형 문항(사람 채점)"]
+    if conditions.get("contextMatchesFixture") is False:
+        out += ["", FIXTURE_WARNING]
+    for block in blocks:
+        out += block
+    return out
 
 
 def write_jsonl(path: Path, conditions: dict[str, Any], rows: list[dict[str, Any]]) -> None:
@@ -580,6 +741,7 @@ def main(
         print(
             f"  {v['name']}: model={v['model']} thinking={v.get('thinking')} "
             f"effort={v.get('effort') or '-'} maxTokens={v['maxTokens']} "
+            f"judgmentFacts={v.get('judgmentFacts')} promptVersion={v.get('promptVersion')} "
             f"(<= ${estimates[v['name']]:.4f}/call)"
         )
     print(
@@ -588,11 +750,22 @@ def main(
         f"(호출당 LLM {EST_LLM_CALLS}회·출력 maxTokens 가정), 상한 ${args.max_usd}",
         flush=True,
     )
+    if planned_max > args.max_usd:
+        tail = ", ".join(q["id"] for q in questions[-3:])
+        print(
+            "WARN: 예상 최대가 상한보다 큽니다. 문항 순서대로 돌기 때문에 "
+            f"뒤쪽 문항({tail} 등)부터 잘릴 수 있습니다. "
+            "--max-usd를 올리거나 --questions로 나눠 실행하세요.",
+            flush=True,
+        )
     if not fake and not args.yes and confirm("계속할까요? [y/N] ").strip().lower() != "y":
         print("cancelled")
         return EXIT_OK
 
     context = tool_context(settings, args.user_id, args.llm_mode)
+    matches_fixture = context == fixture_context()
+    if not matches_fixture:
+        print("WARN: " + FIXTURE_WARNING[len("- 주의: ") :], flush=True)
     conditions: dict[str, Any] = {
         "target": args.target,
         "mode": args.llm_mode,
@@ -607,8 +780,11 @@ def main(
         "startedAt": datetime.now(UTC).isoformat(),
         "status": "running",
         "spentUsd": 0.0,
+        "contextMatchesFixture": matches_fixture,
     }
     rows: list[dict[str, Any]] = []
+    # Highest paid cost seen per variant; until one is seen the estimate is used (a call that
+    # failed at no cost says nothing about the next one).
     observed: dict[str, float] = {}
     owns_client = client is None
     http = client or httpx.Client()
@@ -628,14 +804,24 @@ def main(
         conditions["spentUsd"] = round(sum(r.get("costUsd", 0) for r in rows), 6)
         write_jsonl(args.output, conditions, rows)
 
+    def unfinished() -> list[str]:
+        per_question = len(variants) * args.repeats
+        counts = {q["id"]: 0 for q in questions}
+        for r in rows:
+            if not r["warmup"]:
+                counts[r["questionId"]] += 1
+        return [qid for qid, n in counts.items() if n < per_question]
+
     try:
         for variant, question, repeat, warmup in schedule:
             spent = sum(r.get("costUsd", 0) for r in rows)
             next_cost = observed.get(variant["name"], estimates[variant["name"]])
             if spent + next_cost > args.max_usd:
                 print(f"budget stop: spent ${spent:.4f} + next ~${next_cost:.4f} > ${args.max_usd}")
+                conditions["unfinishedQuestions"] = unfinished()
+                print(f"다 돌지 못한 문항: {', '.join(conditions['unfinishedQuestions'])}")
                 save("budget_stopped")
-                print(render_summary(conditions, rows))
+                print(render_summary(conditions, rows, answers=False))
                 return EXIT_OK
             if args.target == "ai":
                 result = call_ai(http, base_url, token, question, variant, args.user_id)
@@ -668,6 +854,15 @@ def main(
                 "deltaTimesMs": result["deltaMs"],
                 "expectedTools": question["expectedTools"],
                 "referenceValues": question.get("referenceValues"),
+                # Listed for a person to grade: judgment questions and humanGraded ones only
+                # (other calculation questions keep their conclusion in the spec, not here).
+                "expectedConclusion": (
+                    question.get("expectedConclusion")
+                    if question["category"] == "judgment" or question.get("humanGraded")
+                    else None
+                ),
+                "source": question.get("source"),
+                "judgmentFacts": bool(variant.get("judgmentFacts")),
                 "toolResult": context,
                 "contextTexts": [
                     question["text"],
@@ -676,7 +871,8 @@ def main(
             }
             score(row)
             rows.append(row)
-            observed[variant["name"]] = max(observed.get(variant["name"], 0.0), row["costUsd"])
+            if row["costUsd"] > 0:
+                observed[variant["name"]] = max(observed.get(variant["name"], 0.0), row["costUsd"])
             save("running")
             print(progress_line(len(rows), total_calls, row, conditions["spentUsd"]), flush=True)
             used_tokens = any((usage or {}).get(k) for k in USAGE_KEYS)
@@ -688,16 +884,35 @@ def main(
                 )
                 save("mode_mismatch")
                 return EXIT_BLOCKED
+            mismatch = (
+                config_mismatch(variant, answered_by, metrics, fake) if args.target == "ai" else []
+            )
+            if mismatch:
+                print(
+                    f"STOP: 서버가 {variant['name']} 설정대로 돌지 않았습니다"
+                    f"({'; '.join(mismatch)}). "
+                    "--variants를 쓰면 서버를 CHAT_ALLOW_CONFIG_OVERRIDE=true로 띄우세요."
+                )
+                save("config_mismatch")
+                return EXIT_BLOCKED
     except KeyboardInterrupt:
         save("interrupted")
         print(f"interrupted after {len(rows)}/{total_calls} calls")
         return EXIT_INTERRUPTED
+    except httpx.HTTPError as exc:
+        # The exception text can hold the URL only; no token or answer is in it.
+        conditions["error"] = f"{type(exc).__name__}: {exc}"
+        conditions["unfinishedQuestions"] = unfinished()
+        save("failed")
+        print(f"FAILED after {len(rows)}/{total_calls} calls: {conditions['error']}")
+        print(render_summary(conditions, rows, answers=False))
+        return EXIT_FAILED
     finally:
         if owns_client:
             http.close()
 
     save("completed")
-    print(render_summary(conditions, rows))
+    print(render_summary(conditions, rows, answers=False))
     print(json.dumps({"output": str(args.output), "summary": str(args.output.with_suffix(".md"))}))
     return EXIT_OK
 

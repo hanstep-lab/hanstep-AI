@@ -19,6 +19,7 @@ from app.chat.fake_llm import FAKE_MODEL_ID, FakeChatModel
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import ChatRunOptions, run_chat
 from app.chat.tools import (
+    ChatTool,
     ChatToolset,
     FinanceContextSource,
     FinanceTool,
@@ -37,6 +38,10 @@ from app.integrations.spring_client import SpringInternalClient
 from app.rag.retrieval import SearchService
 
 router = APIRouter(prefix="/agent/chat", tags=["chat"])
+
+# 비자 도구(정책 검색·E-7-4 점수)를 설명하는 프롬프트 버전. 이 버전에서만 비자 도구를 붙인다.
+# v1·v1.1은 금융 도구만 붙어서 그 버전으로 잰 측정 조건이 그대로 남는다.
+VISA_PROMPT_VERSIONS = frozenset({"v2"})
 
 
 @dataclass(frozen=True)
@@ -140,21 +145,28 @@ async def chat_stream(
     settings: Settings = request.app.state.rag.settings
     rid = request_id(request)
     # 사용자 id·요청 id는 요청마다 고정한다(LLM 인자로 바꿀 수 없음).
-    tool = ChatToolset(
+    tools: list[ChatTool] = [
         FinanceTool(
             source,
             user_id=body.user_id,
             request_id=rid,
             timeout=settings.chat_tool_timeout_seconds,
-        ),
-        VisaTools(
-            e74_source=e74,
-            search_source=search,
-            user_id=body.user_id,
-            request_id=rid,
-            timeout=settings.chat_tool_timeout_seconds,
-        ),
-    )
+            message=body.message,
+            judgment_facts=setup.config.judgment_facts,
+        )
+    ]
+    # 비자 도구는 그 도구를 설명하는 프롬프트 버전에서만 붙인다.
+    if setup.config.prompt_version in VISA_PROMPT_VERSIONS:
+        tools.append(
+            VisaTools(
+                e74_source=e74,
+                search_source=search,
+                user_id=body.user_id,
+                request_id=rid,
+                timeout=settings.chat_tool_timeout_seconds,
+            )
+        )
+    tool = ChatToolset(*tools)
     options = ChatRunOptions(
         max_tool_calls=settings.chat_max_tool_calls,
         run_timeout_seconds=settings.chat_run_timeout_seconds,

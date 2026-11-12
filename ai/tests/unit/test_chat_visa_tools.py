@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
 from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGenerationChunk
@@ -21,7 +22,10 @@ from app.chat.stream import ChatRunOptions, run_chat
 from app.chat.tools import TOOL_NAME, ChatToolset, FinanceTool, FixtureFinanceContext
 from app.chat.visa_tools import VisaTools, kst_today
 from app.core.config import Settings
+from app.integrations.policy_gateway import UnconfiguredPolicyGateway
 from app.integrations.spring_client import SpringApiError, SpringInternalClient
+from app.main import AppState, create_app
+from app.rag.embeddings import BgeM3Embedder
 from app.rag.errors import ValidationFailedError
 from app.rag.retrieval import SearchHit, SearchUnavailableError
 from app.visa.tools import (
@@ -333,7 +337,8 @@ async def _run_e74_chat() -> list[tuple[str, dict[str, Any]]]:
         FinanceTool(FixtureFinanceContext(), user_id=185, request_id="req_v", timeout=5),
         _tools(FakeE74Source()),
     )
-    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    # 비자 규칙이 있는 v2(기본값 v1.1은 금융 도구만 쓴다).
+    settings = Settings(_env_file=None, chat_prompt_version="v2")  # type: ignore[call-arg]
     events = []
     async for event in run_chat(
         ChatStreamRequest.model_validate(body),
@@ -369,3 +374,50 @@ def test_stream_carries_visa_tool_call_sources_and_score_card() -> None:
     blocks = by_name["agent.done"]["blocks"]
     assert [b["type"] for b in blocks] == ["E74_SCORE_CARD"]
     assert by_name["agent.done"]["promptVersion"] == "chat-v2"
+
+
+# --- 라우트: 프롬프트 버전별 도구 ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("version", "names"),
+    [
+        ("v1.1", [TOOL_NAME]),  # 측정에 쓴 버전은 금융 도구만(측정 조건 유지)
+        ("v2", [TOOL_NAME, SEARCH_VISA_POLICIES, CALCULATE_E74_SCORE]),
+    ],
+)
+def test_route_attaches_visa_tools_only_for_v2(
+    monkeypatch: pytest.MonkeyPatch, version: str, names: list[str]
+) -> None:
+    seen: list[list[str]] = []
+
+    def spy(*tools: Any) -> ChatToolset:
+        toolset = ChatToolset(*tools)
+        seen.append([schema["name"] for schema in toolset.schemas])
+        return toolset
+
+    monkeypatch.setattr("app.api.routes.chat.ChatToolset", spy)
+    token = "f" * 40
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None,
+        ai_internal_api_token=token,
+        chat_fake_delta_delay_ms=0,
+        chat_prompt_version=version,
+    )
+    app = create_app()
+    app.state.rag = AppState(
+        settings=settings, gateway=UnconfiguredPolicyGateway(), embedder=BgeM3Embedder()
+    )
+    body = {
+        "runId": "run_" + "b" * 32,
+        "userId": 185,
+        "sessionId": 1,
+        "language": "en",
+        "history": [],
+        "message": "hi",
+    }
+    response = TestClient(app).post(
+        "/internal/v1/agent/chat/stream", json=body, headers={"X-Internal-Token": token}
+    )
+    assert response.status_code == 200
+    assert seen == [names]
