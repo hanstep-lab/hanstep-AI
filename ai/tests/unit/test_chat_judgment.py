@@ -179,3 +179,54 @@ async def test_tool_result_adds_facts_when_on() -> None:
     assert content == SUMMARY  # every existing key and value stays
     assert facts == judgment_facts(SUMMARY, message)
     assert facts["scenarios"][0]["value"] == 475_317
+
+
+@pytest.mark.parametrize(
+    ("message", "amounts", "months"),
+    [
+        ("If I spend 200,000 won more this month, is that okay?", [200_000], []),
+        ("이번 달에 20만 원 더 쓰면 괜찮아?", [200_000], []),
+        ("이번 달 20만원 더 보내도 돼?", [200_000], []),
+        ("1.5만 원짜리 구독을 추가해도 될까?", [15_000], []),
+        ("Can I spend ₩300,000 extra?", [300_000], []),
+        ("How much can I save in a year?", [], [12]),
+        ("Can I save it for one year?", [], [12]),
+        ("1년 동안 모으면 얼마야?", [], [12]),
+        ("What about half a year?", [], [6]),
+        ("반년이면?", [], [6]),
+        ("In 2 years?", [], [24]),
+        ("2년이면?", [], [24]),
+        ("6개월 동안 70만 원씩 보내면?", [700_000], [6]),
+    ],
+)
+def test_amount_and_period_forms(message: str, amounts: list[int], months: list[int]) -> None:
+    assert message_amounts(message) == amounts
+    assert message_months(message) == months
+
+
+def test_same_amount_or_period_in_several_forms_counts_once() -> None:
+    assert message_amounts("20만 원, 그러니까 200,000 won, 20만원") == [200_000]
+    assert message_months("1 year, 12 months, 1년, a year, 12개월") == [12]
+    assert message_months("half a year or 6 months, 반년") == [6]
+    scenarios = _facts("20만 원 (200,000 won) for 1 year / 12 months")["scenarios"]
+    assert [s["formula"] for s in scenarios] == ["spare - 200000", "spare * 12"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["In 6 years?", "10년이면?", "2026년에는?", "2026 year plan", "1.5 years", "0년"],
+)
+def test_year_periods_out_of_range_are_ignored(message: str) -> None:
+    assert message_months(message) == []
+
+
+def test_man_won_amount_that_is_not_whole_won_is_ignored() -> None:
+    assert message_amounts("1.23456만 원이면?") == []
+    assert message_amounts("1.2345만 원이면?") == [12_345]
+
+
+def test_note_applies_to_man_won_amounts() -> None:
+    [amount, period] = _facts("6개월 동안 70만 원씩 보내면?")["scenarios"]
+    assert amount["value"] == SPARE - 700_000
+    assert amount["note"].startswith("700,000 KRW equals the usual remittance")
+    assert period["value"] == SPARE * 6

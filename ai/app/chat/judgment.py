@@ -21,7 +21,13 @@ SPARE_DEFINITION = (
 )
 MIN_PLAIN_AMOUNT = 10_000  # a number without a currency counts as an amount from here
 MAX_MONTHS = 60
-_PERIOD = re.compile(r"(?<![\d,.])(\d{1,2})\s*(?:months?\b|개월|달)", re.IGNORECASE)
+# Periods -> months. "N년" with 1-2 digits only, so a calendar year like "2026년" is not one.
+_PERIODS = (
+    (re.compile(r"(?<![\d,.])(\d{1,2})\s*(?:months?\b|개월|달)", re.IGNORECASE), 1),
+    (re.compile(r"(?<![\d,.])(\d{1,2})\s*(?:years?\b|년)", re.IGNORECASE), 12),
+)
+_HALF_YEAR = re.compile(r"\bhalf\s+a\s+year\b|반년", re.IGNORECASE)
+_ONE_YEAR = re.compile(r"(?<!half )\b(?:a|one)\s+year\b", re.IGNORECASE)
 # Monthly items an amount in the message may simply repeat (the same money, not extra money).
 _KNOWN_ITEMS = (
     ("remittance", "remittance"),
@@ -103,10 +109,18 @@ def message_amounts(message: str) -> list[int]:
 
 
 def message_months(message: str) -> list[int]:
-    """Periods like "6 months", "6개월", "6달" (1 to 60)."""
+    """Periods in months, in order of appearance, each once (1 to 60 months).
+
+    "6 months", "6개월", "6달"; "2 years", "2년", "a year", "one year" (x 12); "half a year",
+    "반년" (6). The same period written twice ("1 year", "12 months") counts once.
+    """
+    found: list[tuple[int, int]] = []  # (position, months)
+    for pattern, scale in _PERIODS:
+        found += [(m.start(), int(m.group(1)) * scale) for m in pattern.finditer(message)]
+    found += [(m.start(), 6) for m in _HALF_YEAR.finditer(message)]
+    found += [(m.start(), 12) for m in _ONE_YEAR.finditer(message)]
     months: list[int] = []
-    for match in _PERIOD.finditer(message):
-        n = int(match.group(1))
+    for _, n in sorted(found):
         if 1 <= n <= MAX_MONTHS and n not in months:
             months.append(n)
     return months
