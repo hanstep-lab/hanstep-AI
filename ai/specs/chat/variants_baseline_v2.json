@@ -1,0 +1,16 @@
+[
+  {
+    "name": "baseline-sonnet",
+    "model": "claude-sonnet-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000
+  },
+  {
+    "name": "haiku-default",
+    "model": "claude-haiku-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000
+  }
+]

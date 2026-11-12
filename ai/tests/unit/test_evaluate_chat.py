@@ -14,6 +14,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.chat.number_check import scan_numbers
 from app.core.config import Settings
 from app.integrations.policy_gateway import UnconfiguredPolicyGateway
 from app.main import AppState, create_app
@@ -309,7 +310,7 @@ def _fixture_value(name: str) -> Decimal:
 def test_reference_values_match_fixture() -> None:
     """Hand-written referenceValues equal the formula computed from the chat fixture."""
     spec = EVAL.load_questions()
-    assert spec["version"] == "v1.1"
+    assert spec["version"] == "v1.2"
     assert spec["latencySubset"] == ["F01", "F03", "F07", "F09", "H01"]
     with_refs = [q for q in spec["questions"] if q.get("referenceValues")]
     assert [q["id"] for q in with_refs] == ["T02", "T03"] + [f"C0{i}" for i in range(1, 8)]
@@ -322,6 +323,48 @@ def test_reference_values_match_fixture() -> None:
             if ref["unit"] == "percent":
                 value = (value * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
             assert value == Decimal(str(ref["value"])), (q["id"], ref)
+
+
+def test_judgment_questions_load() -> None:
+    spec = EVAL.load_questions()
+    judgment = [q for q in spec["questions"] if q["category"] == "judgment"]
+    assert [q["id"] for q in judgment] == [f"J{i:02d}" for i in range(1, 11)]
+    for q in judgment:
+        assert q["history"] == []
+        assert q["expectedTools"] == ["get_financial_analysis"]
+        assert q["expectBehavior"] == "judgment"
+        assert q["expectedConclusion"].strip()
+    # F07 stays for comparison with earlier runs (same text as J01).
+    by_id = {q["id"]: q for q in spec["questions"]}
+    assert by_id["F07"]["text"] == by_id["J01"]["text"]
+    assert by_id["F07"]["category"] == "finance"
+
+
+def test_judgment_conclusion_numbers_match_fixture() -> None:
+    """Numbers in expectedConclusion equal the values computed from the chat fixture."""
+    v = _fixture_value
+    spare = v("spare")
+    assert spare == (
+        v("avgMonthlyIncome") - v("fixedLiving") - v("remittance") - v("variableExpense.avg")
+    )
+    expected = {
+        "J01": {spare, v("remittance")},
+        "J03": {spare, v("remittance")},
+        "J05": {spare},
+        "J06": {spare - 200_000},
+        "J07": {Decimal(1_000_000), spare, 1_000_000 - spare},
+        "J08": {Decimal(500_000), spare},
+        "J09": {Decimal(800_000), spare},
+        "J10": {spare - 100_000},
+    }
+    by_id = {q["id"]: q for q in EVAL.load_questions()["questions"]}
+    for qid in [f"J{i:02d}" for i in range(1, 11)]:
+        found = {
+            value
+            for _, value, kind, _ in scan_numbers(by_id[qid]["expectedConclusion"])
+            if kind in ("amount", "number")
+        }
+        assert found == expected.get(qid, set()), qid
 
 
 def _calc_row(question_id: str, answer: str) -> dict[str, Any]:
@@ -374,7 +417,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
 
     lines = output.read_text(encoding="utf-8").splitlines()
     conditions = json.loads(lines[0])
-    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.1"}
+    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.2"}
     rows = _rows(output)
     for row in rows:
         assert len(row["deltaTimesMs"]) == row["events"].count("agent.delta") > 0
@@ -382,7 +425,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
         assert row["deltaTimesMs"][0] == row["timings"]["firstDeltaMs"]
         assert row["referenceCheck"]["verdict"] in ("reference", "wrong_number", "no_value")
     summary = output.with_suffix(".md").read_text(encoding="utf-8")
-    assert "- 질문 세트: eval_questions_v1.json (v1.1)" in summary
+    assert "- 질문 세트: eval_questions_v1.json (v1.2)" in summary
     assert "- 계산 질문 2개: 참조값 포함 " in summary
 
     # --rescore recomputes the reference check from the saved answer.
@@ -400,3 +443,40 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
     assert "  - T03 #1: 참조값 포함 (29.8%)" in rescored.with_suffix(".md").read_text(
         encoding="utf-8"
     )
+
+
+def test_judgment_answers_listed_for_grading(tmp_path: Path) -> None:
+    output = tmp_path / "run.jsonl"
+    assert _run(_settings(), "--questions", "F01,J01,J07", "--output", str(output)) == 0
+
+    rows = {r["questionId"]: r for r in _rows(output)}
+    conclusions = {q["id"]: q.get("expectedConclusion") for q in EVAL.load_questions()["questions"]}
+    assert rows["F01"]["expectedConclusion"] is None
+    for qid in ("J01", "J07"):
+        assert rows[qid]["expectedConclusion"] == conclusions[qid]
+        assert "referenceCheck" not in rows[qid]  # graded by a person, not automatically
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    section = summary.split("## 판단형 문항(사람 채점)", 1)[1]
+    assert "### server-default" in section
+    assert "| 문항 | 회차 | 기대 결론 | 답변 |" in section
+    j01 = " ".join(rows["J01"]["answer"].split())
+    assert f"| J01 | 1 | {conclusions['J01']} | {j01} |" in section
+    assert "| F01 |" not in section
+
+    # --rescore keeps the section; line breaks and pipes in an answer stay inside one cell.
+    lines = output.read_text(encoding="utf-8").splitlines()
+    saved = [json.loads(line) for line in lines[1:]]
+    for row in saved:
+        if row["questionId"] == "J07":
+            row["answer"] = "Yes on average.\n\nYou would be short | about 324,683 KRW."
+    output.write_text(
+        "\n".join([lines[0], *(json.dumps(r) for r in saved)]) + "\n", encoding="utf-8"
+    )
+    rescored = tmp_path / "rescored.jsonl"
+    assert EVAL.main(["--rescore", str(output), "--output", str(rescored)]) == 0
+    text = rescored.with_suffix(".md").read_text(encoding="utf-8")
+    assert "## 판단형 문항(사람 채점)" in text
+    assert (
+        f"| J07 | 1 | {conclusions['J07']} | "
+        "Yes on average. You would be short \\| about 324,683 KRW. |"
+    ) in text
