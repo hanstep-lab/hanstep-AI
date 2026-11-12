@@ -462,6 +462,7 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
                     "no_value": "값 없음",
                 }[check["verdict"]]
                 out.append(f"  - {r['questionId']} #{r['repeat']}: {detail}")
+        out += source_split_table(mine)
         out += [
             "",
             "| 문항 | 호출 | 입력 토큰 | 출력 토큰 | 비용(USD) |",
@@ -478,6 +479,36 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
             )
     out += judgment_section(conditions, rows)
     return "\n".join(out) + "\n"
+
+
+HOLDOUT_SOURCE = "holdout_v1"
+
+
+def source_split_table(mine: list[dict[str, Any]]) -> list[str]:
+    """Existing questions vs hold-out (source holdout_v1), from saved fields only (rescore-safe).
+
+    Counts only; the verdicts are the ones score() already made.
+    """
+    out = [
+        "",
+        "| 구분 | 판단형 채점 목록 | 계산 참조값 (포함 / 다른 숫자 / 값 없음) | "
+        "근거 없는 숫자 (답변 / 숫자 수) |",
+        "|---|---|---|---|",
+    ]
+    for label, group in (
+        ("기존 문항", [r for r in mine if r.get("source") != HOLDOUT_SOURCE]),
+        ("hold-out", [r for r in mine if r.get("source") == HOLDOUT_SOURCE]),
+    ):
+        done = [r for r in group if r["status"] == "done"]
+        graded = sum(1 for r in group if r.get("expectedConclusion"))
+        verdicts = [r["referenceCheck"]["verdict"] for r in done if r.get("referenceCheck")]
+        unsupported = [r["numberCheck"]["unsupported"] for r in done]
+        out.append(
+            f"| {label} | {graded} | {len(verdicts)}개: {verdicts.count('reference')} / "
+            f"{verdicts.count('wrong_number')} / {verdicts.count('no_value')} | "
+            f"{sum(1 for u in unsupported if u)}/{len(done)} / {sum(len(u) for u in unsupported)} |"
+        )
+    return out
 
 
 def _cell(text: str) -> str:

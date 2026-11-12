@@ -605,3 +605,56 @@ def test_holdout_questions_in_grading_list_and_reference_check(tmp_path: Path) -
     section = output.with_suffix(".md").read_text(encoding="utf-8").split("## 판단형", 1)[1]
     assert "| X01 | 1 |" in section and "| X09 | 1 |" in section
     assert "| X07 |" not in section
+
+
+def _fake_row(qid: str, answer: str, status: str = "done", repeat: int = 1) -> dict[str, Any]:
+    q = next(q for q in EVAL.load_questions()["questions"] if q["id"] == qid)
+    row: dict[str, Any] = {
+        "variant": "v", "questionId": qid, "category": q["category"], "repeat": repeat,
+        "warmup": False, "status": status, "errorCode": None if status == "done" else "X",
+        "timings": {}, "serverTimings": {}, "usage": None, "metrics": None, "costUsd": 0,
+        "tools": [], "answer": answer, "expectedTools": q["expectedTools"],
+        "referenceValues": q.get("referenceValues"),
+        "expectedConclusion": (
+            q.get("expectedConclusion")
+            if q["category"] == "judgment" or q.get("humanGraded") else None
+        ),
+        "source": q.get("source"), "judgmentFacts": False,
+        "toolResult": EVAL.tool_context(_settings(), 1, "fake"), "contextTexts": [q["text"]],
+    }  # fmt: skip
+    EVAL.score(row)
+    return row
+
+
+def test_summary_splits_existing_and_holdout(tmp_path: Path) -> None:
+    rows = [
+        _fake_row("J01", "Yes, about 675,317 KRW remains."),
+        _fake_row("C01", "You would have 4,051,902 KRW."),  # reference
+        _fake_row("C04", "About 9,000,000 KRW a year."),  # wrong_number
+        _fake_row("X01", "Yes, 375,317 KRW is left."),  # judgment, number not in the tool result
+        _fake_row("X02", "", status="error"),  # judgment row that failed: still listed
+        _fake_row("X07", "About 1,674,683 KRW goes out."),  # reference
+        _fake_row("X10", "I cannot calculate that yet."),  # no_value
+        _fake_row("X09", "About 3 months."),  # humanGraded, no reference check; 3 is unsupported
+    ]
+    conditions = {
+        "target": "ai", "mode": "fake", "questions": [], "repeats": 1, "warmup": 0,
+        "maxUsd": 1, "startedAt": "t", "status": "completed",
+        "variants": [{"name": "v", "model": "m"}],
+    }  # fmt: skip
+    table = [
+        "| 구분 | 판단형 채점 목록 | 계산 참조값 (포함 / 다른 숫자 / 값 없음) | "
+        "근거 없는 숫자 (답변 / 숫자 수) |",
+        "|---|---|---|---|",
+        "| 기존 문항 | 1 | 2개: 1 / 1 / 0 | 2/3 / 2 |",
+        "| hold-out | 3 | 2개: 1 / 0 / 1 | 3/4 / 3 |",
+    ]
+    summary = EVAL.render_summary(conditions, rows)
+    assert "\n".join(table) in summary
+
+    # Same table from the saved JSONL after --rescore (no calls).
+    output = tmp_path / "run.jsonl"
+    EVAL.write_jsonl(output, conditions, rows)
+    rescored = tmp_path / "rescored.jsonl"
+    assert EVAL.main(["--rescore", str(output), "--output", str(rescored)]) == 0
+    assert "\n".join(table) in rescored.with_suffix(".md").read_text(encoding="utf-8")
