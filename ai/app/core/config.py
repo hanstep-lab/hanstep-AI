@@ -79,6 +79,8 @@ class Settings(BaseSettings):
     # 않도록 발신 키와 따로 둔다.
     ai_internal_api_token: SecretStr = SecretStr("")
     internal_token_header: str = "X-Internal-Token"
+    # 개발용 Streamlit 채팅의 '운영 경로' 검색이 부르는 ai-server 주소(playground/live_search.py).
+    playground_ai_server_url: str = "http://localhost:8000"
 
     r2_endpoint_url: str = ""
     r2_access_key_id: SecretStr = SecretStr("")
