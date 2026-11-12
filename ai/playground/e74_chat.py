@@ -224,7 +224,11 @@ def execute_tool(name: str, tool_input: dict[str, Any], ctx: ToolContext) -> tup
     """도구 실행 결과(JSON 문자열)와 오류 여부. 오류도 Claude에게 돌려줘 루프를 멈추지 않는다."""
     if name == "search_visa_policies":
         if ctx.search is None:
-            return "검색 인덱스가 아직 없음. 화면에서 '검색 인덱스 만들기'를 먼저 실행해야 함", True
+            return (
+                "검색 인덱스가 아직 없음. 화면의 검색 방식을 '운영 경로'로 바꾸거나 "
+                "'검색 인덱스 만들기'를 먼저 실행해야 함",
+                True,
+            )
         query = str(tool_input.get("query", "")).strip()
         if not query:
             return "query가 비어 있음", True
