@@ -9,7 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic.alias_generators import to_camel
 
 from app.chat.prompts import PROMPT_VERSIONS
-from app.core.config import ChatEffort, ChatThinking, Settings, check_chat_config
+from app.core.config import (
+    ChatEffort,
+    ChatPromptVersion,
+    ChatThinking,
+    Settings,
+    check_chat_config,
+)
 
 MAX_HISTORY = 6
 
@@ -41,6 +47,8 @@ class ConfigOverride(_CamelRequest):
     thinking: ChatThinking | None = None
     effort: ChatEffort | None = None
     max_tokens: int | None = Field(default=None, ge=1, le=64000)
+    judgment_facts: bool | None = None
+    prompt_version: ChatPromptVersion | None = None
 
 
 @dataclass(frozen=True)

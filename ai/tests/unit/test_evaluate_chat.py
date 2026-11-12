@@ -480,3 +480,64 @@ def test_judgment_answers_listed_for_grading(tmp_path: Path) -> None:
         f"| J07 | 1 | {conclusions['J07']} | "
         "Yes on average. You would be short \\| about 324,683 KRW. |"
     ) in text
+
+
+def test_config_header_sends_judgment_facts_and_prompt_version() -> None:
+    variant = {"name": "x", "model": "claude-haiku-5-5", "thinking": "model_default",
+               "effort": "", "maxTokens": 2000, "judgmentFacts": True, "promptVersion": "v1.1",
+               "override": True}  # fmt: skip
+    assert json.loads(EVAL.config_header(variant)) == {
+        "model": "claude-haiku-5-5",
+        "thinking": "model_default",
+        "effort": "",
+        "maxTokens": 2000,
+        "judgmentFacts": True,
+        "promptVersion": "v1.1",
+    }
+    assert EVAL.config_header({**variant, "override": False}) is None
+
+
+@pytest.mark.parametrize("facts_on", [False, True])
+def test_judgment_fact_numbers_are_allowed_only_when_on(facts_on: bool) -> None:
+    question = next(q for q in EVAL.load_questions()["questions"] if q["id"] == "J06")
+    row: dict[str, Any] = {
+        # 475,317 is a scenario value, 28.7% and 8,103,804 are derived values.
+        "answer": "Yes. About 475,317 KRW would remain (28.7% spare share, 8,103,804 a year).",
+        "toolResult": EVAL.tool_context(_settings(), 1, "fake"),
+        "contextTexts": [question["text"]],
+        "expectedTools": question["expectedTools"],
+        "judgmentFacts": facts_on,
+        "tools": [],
+    }
+    EVAL.score(row)
+    unsupported = row["numberCheck"]["unsupported"]
+    assert unsupported == ([] if facts_on else ["About 475,317 KRW", "28.7%", "8,103,804"])
+
+
+def test_judgment_variants_run_and_are_shown(tmp_path: Path) -> None:
+    variants = Path(EVAL.AI_ROOT) / "specs" / "chat" / "variants_judgment_v1.json"
+    loaded = EVAL.load_variants(variants, _settings())
+    assert [(v["name"], v["model"], v["judgmentFacts"], v["promptVersion"]) for v in loaded] == [
+        ("haiku-base", "claude-haiku-5-5", False, "v1"),
+        ("haiku-facts", "claude-haiku-5-5", True, "v1"),
+        ("haiku-facts-prompt", "claude-haiku-5-5", True, "v1.1"),
+        ("sonnet-facts-prompt", "claude-sonnet-5-5", True, "v1.1"),
+    ]
+    assert all(v["maxTokens"] == 2000 and v["thinking"] == "model_default" for v in loaded)
+    assert all(v["effort"] == "" for v in loaded)
+
+    output = tmp_path / "run.jsonl"
+    code = _run(
+        _settings(chat_allow_config_override=True),
+        "--questions", "J06", "--variants", str(variants), "--output", str(output),
+    )  # fmt: skip
+    assert code == 0
+    rows = {r["variant"]: r for r in _rows(output)}
+    for name, facts, version in [("haiku-base", False, "chat-v1"),
+                                 ("haiku-facts-prompt", True, "chat-v1.1")]:  # fmt: skip
+        assert rows[name]["judgmentFacts"] is facts
+        assert rows[name]["metrics"]["config"]["judgmentFacts"] is facts
+        assert rows[name]["metrics"]["config"]["promptVersion"] == version
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    assert "haiku-base(model=claude-haiku-5-5" in summary
+    assert "judgmentFacts=True, promptVersion=v1.1)" in summary

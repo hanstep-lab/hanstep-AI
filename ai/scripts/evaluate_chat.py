@@ -21,6 +21,8 @@ cross the budget; runs that end in agent.error count too (usage from agent.metri
 Questions with referenceValues get a referenceCheck (reference / wrong_number / no_value), and
 each row keeps the arrival ms of every delta (deltaTimesMs) for replaying the stream later.
 Judgment questions (expectedConclusion) are listed with their full answers for a person to grade.
+With judgmentFacts on, the number check also allows the judgment facts the server added
+(app/chat/judgment.py on the same summary and question).
 The API key and internal tokens are never printed or written.
 """
 
@@ -44,6 +46,7 @@ import _bootstrap  # noqa: F401
 import httpx
 
 from app.chat.fake_llm import FAKE_MODEL_ID
+from app.chat.judgment import judgment_facts
 from app.chat.number_check import check_answer, rounded_values, scan_numbers
 from app.chat.tools import FIXTURE, summarize
 from app.core.config import Settings, get_settings
@@ -151,6 +154,8 @@ def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]
                 "thinking": settings.chat_thinking,
                 "effort": settings.chat_effort,
                 "maxTokens": settings.chat_max_tokens,
+                "judgmentFacts": settings.chat_judgment_facts,
+                "promptVersion": settings.chat_prompt_version,
                 "override": False,
             }
         ]
@@ -161,6 +166,8 @@ def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]
     for v in variants:
         v.setdefault("model", settings.chat_model_id)
         v.setdefault("maxTokens", settings.chat_max_tokens)
+        v.setdefault("judgmentFacts", settings.chat_judgment_facts)
+        v.setdefault("promptVersion", settings.chat_prompt_version)
         v["override"] = True
     return variants
 
@@ -168,7 +175,7 @@ def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]
 def config_header(variant: dict[str, Any]) -> str | None:
     if not variant.get("override"):
         return None
-    keys = ("model", "thinking", "effort", "maxTokens")
+    keys = ("model", "thinking", "effort", "maxTokens", "judgmentFacts", "promptVersion")
     return json.dumps({k: variant[k] for k in keys if variant.get(k) is not None})
 
 
@@ -336,7 +343,13 @@ def reference_check(
 def score(row: dict[str, Any]) -> None:
     """Number check, reference check and expected-tool match from what the row already holds."""
     answer = row.get("answer") or ""
-    check = check_answer(answer, [row["toolResult"]], row["contextTexts"])
+    tool_results = [row["toolResult"]]
+    if row.get("judgmentFacts"):
+        # Same function as the server, on the same summary and this turn's message.
+        facts = judgment_facts(row["toolResult"], row["contextTexts"][0])
+        if facts is not None:
+            tool_results.append(facts)
+    check = check_answer(answer, tool_results, row["contextTexts"])
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
@@ -374,7 +387,8 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
         "- 설정: "
         + "; ".join(
             f"{v['name']}(model={v.get('model')}, thinking={v.get('thinking')}, "
-            f"effort={v.get('effort') or '-'}, maxTokens={v.get('maxTokens')})"
+            f"effort={v.get('effort') or '-'}, maxTokens={v.get('maxTokens')}, "
+            f"judgmentFacts={v.get('judgmentFacts')}, promptVersion={v.get('promptVersion')})"
             for v in conditions["variants"]
         ),
     ]
@@ -615,6 +629,7 @@ def main(
         print(
             f"  {v['name']}: model={v['model']} thinking={v.get('thinking')} "
             f"effort={v.get('effort') or '-'} maxTokens={v['maxTokens']} "
+            f"judgmentFacts={v.get('judgmentFacts')} promptVersion={v.get('promptVersion')} "
             f"(<= ${estimates[v['name']]:.4f}/call)"
         )
     print(
@@ -704,6 +719,7 @@ def main(
                 "expectedTools": question["expectedTools"],
                 "referenceValues": question.get("referenceValues"),
                 "expectedConclusion": question.get("expectedConclusion"),
+                "judgmentFacts": bool(variant.get("judgmentFacts")),
                 "toolResult": context,
                 "contextTexts": [
                     question["text"],

@@ -663,3 +663,34 @@ def test_chat_config_is_checked_against_the_model_chat_uses() -> None:
         agent_model="claude-sonnet-5-5", chat_model="claude-haiku-5-5", chat_thinking="disabled"
     )
     assert ok.chat_model_id == "claude-haiku-5-5"
+
+
+def test_judgment_and_prompt_override_only_when_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, Any] = {}
+
+    def spy(*args: Any, **kwargs: Any) -> FinanceTool:
+        seen.update(kwargs)
+        return FinanceTool(*args, **kwargs)
+
+    monkeypatch.setattr("app.api.routes.chat.FinanceTool", spy)
+    override = json.dumps({"judgmentFacts": True, "promptVersion": "v1.1"})
+    headers = {"X-Chat-Metrics": "1", "X-Chat-Config": override}
+
+    ignored = parse_sse(_post(_client(), _body(), **headers).text)
+    assert ignored[-2][1]["config"]["judgmentFacts"] is False
+    assert ignored[-2][1]["config"]["promptVersion"] == "chat-v1"
+    assert ignored[-1][1]["promptVersion"] == "chat-v1"
+    assert seen["judgment_facts"] is False
+
+    applied = parse_sse(_post(_client(chat_allow_config_override=True), _body(), **headers).text)
+    assert applied[-2][1]["config"]["judgmentFacts"] is True
+    assert applied[-2][1]["config"]["promptVersion"] == "chat-v1.1"
+    assert applied[-1][1]["promptVersion"] == "chat-v1.1"
+    assert seen["judgment_facts"] is True
+
+    bad = _post(
+        _client(chat_allow_config_override=True),
+        _body(),
+        **{"X-Chat-Config": json.dumps({"promptVersion": "v2"})},
+    )
+    assert bad.status_code == 400

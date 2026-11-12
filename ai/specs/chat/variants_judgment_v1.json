@@ -1,0 +1,38 @@
+[
+  {
+    "name": "haiku-base",
+    "model": "claude-haiku-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000,
+    "judgmentFacts": false,
+    "promptVersion": "v1"
+  },
+  {
+    "name": "haiku-facts",
+    "model": "claude-haiku-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000,
+    "judgmentFacts": true,
+    "promptVersion": "v1"
+  },
+  {
+    "name": "haiku-facts-prompt",
+    "model": "claude-haiku-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000,
+    "judgmentFacts": true,
+    "promptVersion": "v1.1"
+  },
+  {
+    "name": "sonnet-facts-prompt",
+    "model": "claude-sonnet-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000,
+    "judgmentFacts": true,
+    "promptVersion": "v1.1"
+  }
+]
