@@ -537,6 +537,32 @@ def test_configured_writer_uses_one_budget_and_no_sdk_retries() -> None:
     assert client.max_retries == 0
 
 
+@pytest.mark.parametrize(
+    ("overrides", "model"),
+    [
+        ({}, "claude-haiku-5-5"),  # 기본값
+        ({"agent_model": "claude-sonnet-5-5"}, "claude-sonnet-5-5"),  # 예전 .env: AGENT_MODEL만
+        ({"agent_model": "claude-sonnet-5-5", "roadmap_text_model": "  "}, "claude-sonnet-5-5"),
+        (
+            {"agent_model": "claude-sonnet-5-5", "roadmap_text_model": "claude-haiku-5-5"},
+            "claude-haiku-5-5",
+        ),
+    ],
+)
+def test_writer_uses_roadmap_text_model(overrides: dict[str, str], model: str) -> None:
+    settings = Settings(
+        _env_file=None,  # type: ignore[call-arg]
+        roadmap_llm_text=True,
+        anthropic_api_key="sk-ant-test-key",  # type: ignore[arg-type]
+        chat_model="claude-opus-5-5",  # 채팅 모델은 로드맵 문장에 쓰이지 않는다
+        **overrides,
+    )
+    assert settings.roadmap_text_model_id == model
+    writer = _roadmap_writer(settings)
+    assert isinstance(writer, LlmStepWriter)
+    assert writer.model_id == model
+
+
 def test_numbers_in_reads_commas_and_dates() -> None:
     assert numbers_in("2,500만원, 2026-12-05, +50점") == {2500, 2026, 12, 5, 50}
 
