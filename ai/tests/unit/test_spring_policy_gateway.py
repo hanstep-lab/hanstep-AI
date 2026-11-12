@@ -60,6 +60,32 @@ def test_current_versions_keeps_only_searchable_and_sends_token() -> None:
     }
 
 
+def test_current_versions_splits_more_than_max_ids_into_calls() -> None:
+    calls: list[list[int]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        ids = [int(i) for i in request.url.params["ids"].split(",")]
+        calls.append(ids)
+        return httpx.Response(200, json={"documents": [_doc(i, f"v{i}", i != 3) for i in ids]})
+
+    current = _gateway(handler).current_versions(range(45, 0, -1))
+
+    assert [len(c) for c in calls] == [20, 20, 5]
+    assert sorted(i for c in calls for i in c) == list(range(1, 46))
+    assert current == {i: f"v{i}" for i in range(1, 46) if i != 3}
+
+
+def test_current_versions_fails_when_any_split_call_fails() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.params["ids"].startswith("21,"):
+            return httpx.Response(500)
+        ids = [int(i) for i in request.url.params["ids"].split(",")]
+        return httpx.Response(200, json={"documents": [_doc(i, f"v{i}", True) for i in ids]})
+
+    with pytest.raises(SpringGatewayError):
+        _gateway(handler).current_versions(range(1, 26))
+
+
 def test_no_ids_means_no_call() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("must not call Spring")

@@ -86,12 +86,17 @@ class SpringPolicyGateway:
     # --- PolicyDocumentGateway --------------------------------------------------------
 
     def current_versions(self, policy_document_ids: Iterable[int]) -> dict[int, str]:
-        """문서별 검색 가능 버전. 없으면 "보여 주지 않음"을 뜻한다."""
-        return {
-            doc["policyDocumentId"]: str(doc["policyVersion"])
-            for doc in self.eligibility(policy_document_ids)
-            if doc["searchable"] and doc.get("policyVersion")
-        }
+        """문서별 검색 가능 버전. 없으면 "보여 주지 않음"을 뜻한다.
+
+        Spring은 한 번에 ``MAX_IDS``개까지 받으므로 나눠 부른다. 하나라도 실패하면 전체가 실패한다.
+        """
+        ids = sorted({int(i) for i in policy_document_ids})
+        current: dict[int, str] = {}
+        for start in range(0, len(ids), MAX_IDS):
+            for doc in self.eligibility(ids[start : start + MAX_IDS]):
+                if doc["searchable"] and doc.get("policyVersion"):
+                    current[doc["policyDocumentId"]] = str(doc["policyVersion"])
+        return current
 
     def get_version(self, policy_document_id: int, document_version: str) -> PolicyDocumentRecord:
         # AI-R1에는 content_hash가 없어 원본 파일을 검증할 수 없다. 적재는 계속 manifest
