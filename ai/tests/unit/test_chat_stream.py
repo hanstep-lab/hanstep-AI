@@ -231,6 +231,7 @@ def test_config_override_ignored_unless_allowed() -> None:
         "effort": "low",
         "maxTokens": 2000,
         "promptVersion": "chat-v1",
+        "judgmentFacts": False,
     }
 
 
@@ -605,3 +606,21 @@ async def test_call_separator_on_graph_output(
     assert [data["text"] for name, data in events if name == "agent.delta"] == texts
     assert events[-1][0] == "agent.done"
     assert events[-1][1]["content"] == "".join(texts)
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_route_builds_tool_with_this_message_and_flag(
+    monkeypatch: pytest.MonkeyPatch, enabled: bool
+) -> None:
+    seen: dict[str, Any] = {}
+
+    def spy(*args: Any, **kwargs: Any) -> FinanceTool:
+        seen.update(kwargs)
+        return FinanceTool(*args, **kwargs)
+
+    monkeypatch.setattr("app.api.routes.chat.FinanceTool", spy)
+    body = _body(message="Can I send 200,000 won more?")
+    names = _names(parse_sse(_post(_client(chat_judgment_facts=enabled), body).text))
+    assert names[-1] == "agent.done"
+    assert seen["message"] == "Can I send 200,000 won more?"
+    assert seen["judgment_facts"] is enabled

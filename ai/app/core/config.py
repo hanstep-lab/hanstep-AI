@@ -112,6 +112,8 @@ class Settings(BaseSettings):
     chat_tool_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
     chat_run_timeout_seconds: float = Field(default=60.0, gt=0, le=600)
     chat_fake_delta_delay_ms: int = Field(default=30, ge=0, le=5000)
+    # Add code-computed judgment facts (judgmentFacts) to the finance tool result.
+    chat_judgment_facts: bool = False
     # Measurement only: honour the per-request X-Chat-Config header.
     chat_allow_config_override: bool = False
 

@@ -48,6 +48,7 @@ class LlmConfig:
     thinking: str
     effort: str
     max_tokens: int
+    judgment_facts: bool = False
 
     @classmethod
     def from_settings(cls, settings: Settings) -> LlmConfig:
@@ -56,6 +57,7 @@ class LlmConfig:
             thinking=settings.chat_thinking,
             effort=settings.chat_effort,
             max_tokens=settings.chat_max_tokens,
+            judgment_facts=settings.chat_judgment_facts,
         )
 
     def with_override(self, raw_json: str) -> LlmConfig:
@@ -78,4 +80,5 @@ class LlmConfig:
             "effort": self.effort or None,
             "maxTokens": self.max_tokens,
             "promptVersion": prompt_version,
+            "judgmentFacts": self.judgment_facts,
         }
