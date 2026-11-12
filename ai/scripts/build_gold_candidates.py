@@ -1,7 +1,8 @@
 """검색 평가 gold set 라벨링 표를 만든다(질의별 후보 청크와 원문).
 
 읽기 전용이다. MongoDB에서 청크와 임베딩을 읽고 질의만 로컬에서 임베딩한다. 승인·활성 여부와
-관계없이 적재된 전체 청크에서 고르므로, 승인 전에도 라벨링을 할 수 있다. 후보는 정답이 아니다.
+관계없이 고르므로 승인 전에도 라벨링을 할 수 있다. 다만 벡터 공간이 같아야 비교할 수 있으므로
+설정의 임베딩 모델(``EMBEDDING_MODEL``)로 적재된 청크만 쓴다. 후보는 정답이 아니다.
 사람이 원문을 읽고 ``specs/rag/evaluation.json``에 gold를 채운다.
 
     uv run python scripts/build_gold_candidates.py --cases specs/rag/evaluation.json \
@@ -57,11 +58,15 @@ def main() -> int:
     )
     try:
         collection = client[settings.mongo_database][settings.mongo_collection]
-        chunks = list(collection.find({}, _SKIP_FIELDS))
+        # 검색(retrieval.build_pipeline)처럼 다른 모델의 벡터는 섞지 않는다.
+        chunks = list(collection.find({"embedding_model": settings.embedding_model}, _SKIP_FIELDS))
     finally:
         client.close()
     if not chunks:
-        print("BLOCKED: no chunks stored; run ingest_rag_documents.py --apply first")
+        print(
+            f"BLOCKED: no chunks stored for {settings.embedding_model}; "
+            "run ingest_rag_documents.py --apply first"
+        )
         return EXIT_BLOCKED
     chunk_vectors = [c.pop("embedding") for c in chunks]
 

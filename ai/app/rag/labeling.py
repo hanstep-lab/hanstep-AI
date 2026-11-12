@@ -107,7 +107,7 @@ def render_markdown(
         "되는 청크만 고르고, 후보에 없으면 맨 아래 '문서별 청크 목록'에서 찾으세요.",
         "- '대체됨'으로 표시된 문서는 이전 버전입니다. 같은 내용이 대체한 문서에 있으면 "
         "그쪽을 고르세요.",
-        "- `kind`가 answerable이 아닌 질의는 문서에 답이 없어야 하는 질의입니다. "
+        "- `kind`가 unanswerable인 질의는 문서에 답이 없어야 하는 질의입니다. "
         "후보가 실제로 답을 담고 있지 않은지 확인만 하세요.",
         "- 고른 뒤 `specs/rag/evaluation.json`의 해당 케이스에 `gold`를 채우고 `status`를 "
         "`ready`로 바꿉니다.",
@@ -152,10 +152,16 @@ def render_markdown(
                 "",
             ]
 
+    # gold 키가 (문서, 버전, chunk)이므로 버전별로 따로 나열한다. 섞으면 없는 조합을 고르게 된다.
     lines += ["## 문서별 청크 목록", ""]
-    for doc_id in sorted({c["policy_document_id"] for c in chunks}):
+    versions = sorted({(c["policy_document_id"], c["document_version"]) for c in chunks})
+    for doc_id, version in versions:
         docs = sorted(
-            (c for c in chunks if c["policy_document_id"] == doc_id),
+            (
+                c
+                for c in chunks
+                if c["policy_document_id"] == doc_id and c["document_version"] == version
+            ),
             key=lambda c: c["chunk_index"],
         )
         first = docs[0]

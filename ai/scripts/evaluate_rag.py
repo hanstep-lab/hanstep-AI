@@ -6,6 +6,7 @@
 검색은 운영과 같은 경로(Spring 승인 확인 포함)를 거친다. Spring 설정이 없으면 BLOCKED로 끝난다.
 리포트에 측정 조건(승인·활성 문서와 청크 수, 모델 revision, top_k, numCandidates, 질문 수)을
 남긴다. ``kind``가 unanswerable인 질문은 Recall·MRR에서 빼고 상위 1위 점수와 문서 id만 남긴다.
+``kind``가 answerable·unanswerable이 아니면 검색하지 않고 FAILED로 끝난다.
 
     uv run python scripts/evaluate_rag.py --cases specs/rag/evaluation.json \
         --output artifacts/rag/evaluation.json
@@ -30,6 +31,7 @@ from app.rag.evaluation import (
     case_counts,
     corpus_snapshot,
     effective_num_candidates,
+    invalid_kinds,
     latency_summary,
     run_cases,
     select_gateway,
@@ -58,6 +60,11 @@ def main() -> int:
         print_json({**base, "result": "BLOCKED: no human-verified gold cases are ready"})
         write_json(args.output, {**base, "result": "blocked"})
         return EXIT_BLOCKED
+    # 모르는 kind를 answerable로 채점하면 Recall이 조용히 내려간다. 검색 전에 멈춘다.
+    unknown = invalid_kinds(ready)
+    if unknown:
+        print_json({**base, "result": "FAILED: unknown kind", "invalid_kinds": unknown})
+        return EXIT_FAILED
     if not settings.mongo_configured():
         print("BLOCKED: MONGO_URI is not configured")
         return EXIT_BLOCKED
@@ -93,8 +100,10 @@ def main() -> int:
     )
     evaluated_at = datetime.now(UTC).isoformat(timespec="seconds")
     try:
+        # 첫 질의 지연에 모델 로딩·워밍업이 섞이지 않게 먼저 로드한다.
+        embedder.load()
         try:
-            corpus = corpus_snapshot(collection, gateway)
+            corpus = corpus_snapshot(collection, gateway, embedding_model=embedder.model_name)
             rows, unanswerable, latencies = run_cases(service.search, ready, args.top_k)
         except SearchUnavailableError as exc:
             print_json({**base, "result": f"BLOCKED: {exc}"})

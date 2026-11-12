@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import math
 import statistics
 import time
 from collections import Counter
@@ -18,7 +19,9 @@ from app.integrations.spring_policy_gateway import SpringPolicyGateway
 from app.rag.errors import ContractBlockedError
 from app.rag.retrieval import CANDIDATES_PER_RESULT, SearchHit, SearchUnavailableError
 
+ANSWERABLE = "answerable"
 UNANSWERABLE = "unanswerable"
+KINDS = frozenset({ANSWERABLE, UNANSWERABLE})
 
 SearchFn = Callable[[str, int, list[str] | None], list[SearchHit]]
 
@@ -50,15 +53,23 @@ def score_case(
     return 0.0, 0.0
 
 
-def corpus_snapshot(collection: Any, gateway: PolicyDocumentGateway) -> dict[str, Any]:
+def corpus_snapshot(
+    collection: Any, gateway: PolicyDocumentGateway, *, embedding_model: str
+) -> dict[str, Any]:
     """평가 시점의 검색 대상: MongoDB 승인·활성 청크를 문서·버전별로 세고 Spring 현재 버전과 맞춘다.
 
-    ``current``가 true인 문서만 검색 결과로 나올 수 있다. 승인 확인에 실패하면
-    SearchUnavailableError를 올린다.
+    검색(retrieval.build_pipeline)처럼 ``embedding_model``이 같은 청크만 센다. ``current``가
+    true인 문서만 검색 결과로 나올 수 있다. 승인 확인에 실패하면 SearchUnavailableError를 올린다.
     """
     groups = collection.aggregate(
         [
-            {"$match": {"review_status": "approved", "is_active": True}},
+            {
+                "$match": {
+                    "review_status": "approved",
+                    "is_active": True,
+                    "embedding_model": embedding_model,
+                }
+            },
             {
                 "$group": {
                     "_id": {
@@ -111,8 +122,19 @@ def case_counts(cases: Iterable[Mapping[str, Any]]) -> dict[str, dict[str, int]]
     }
 
 
+def invalid_kinds(cases: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """``kind``가 answerable·unanswerable이 아닌 케이스. 오타가 answerable로 채점되지 않게 한다."""
+    return [{"id": c.get("id"), "kind": c.get("kind")} for c in cases if not _known_kind(c)]
+
+
+def _known_kind(case: Mapping[str, Any]) -> bool:
+    return case.get("kind", ANSWERABLE) in KINDS
+
+
 def _kind(case: Mapping[str, Any]) -> str:
-    return str(case.get("kind", "answerable"))
+    if not _known_kind(case):
+        raise ValueError(f"unknown kind for case {case.get('id')!r}: {case.get('kind')!r}")
+    return str(case.get("kind", ANSWERABLE))
 
 
 def run_cases(
@@ -125,17 +147,19 @@ def run_cases(
     """질문마다 검색해 (채점 행, 답이 없어야 하는 질문의 상위 1위, 지연 ms)를 돌려준다.
 
     ``kind``가 unanswerable인 질문은 Recall·MRR에서 빼고, 상위 1위 점수와 문서 id만 남긴다.
-    판정 기준은 두지 않는다. 검색 실패(SearchUnavailableError)는 그대로 올린다.
+    판정 기준은 두지 않는다. 모르는 ``kind``가 있으면 검색 전에 ValueError를 올린다.
+    검색 실패(SearchUnavailableError)는 그대로 올린다.
     """
+    kinds = [_kind(case) for case in cases]
     rows: list[dict[str, Any]] = []
     unanswerable: list[dict[str, Any]] = []
     latencies: list[float] = []
-    for case in cases:
+    for case, kind in zip(cases, kinds, strict=True):
         start = clock()
         hits = search(case["query"], top_k, case.get("visa_types"))
         latencies.append((clock() - start) * 1000)
         keys = [(h.policy_document_id, h.document_version, h.chunk_index) for h in hits]
-        if _kind(case) == UNANSWERABLE:
+        if kind == UNANSWERABLE:
             top = hits[0] if hits else None
             unanswerable.append(
                 {
@@ -152,7 +176,7 @@ def run_cases(
             {
                 "id": case["id"],
                 "language": case.get("language"),
-                "kind": _kind(case),
+                "kind": kind,
                 "recall": recall,
                 "rr": rr,
                 "hits": keys,
@@ -175,11 +199,11 @@ def by_language(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, float]
 
 
 def latency_summary(latencies: Sequence[float]) -> dict[str, float | None]:
-    """검색 지연 p50·p95(ms). 값이 없으면 None."""
+    """검색 지연 p50·p95(ms). p95는 nearest-rank(⌈0.95n⌉번째 값)다. 값이 없으면 None."""
     if not latencies:
         return {"p50": None, "p95": None}
     ordered = sorted(latencies)
     return {
         "p50": statistics.median(ordered),
-        "p95": ordered[max(0, int(len(ordered) * 0.95) - 1)],
+        "p95": ordered[math.ceil(len(ordered) * 0.95) - 1],
     }

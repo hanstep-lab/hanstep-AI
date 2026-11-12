@@ -93,6 +93,18 @@ def test_render_markdown_lists_candidates_marks_superseded_and_escapes_pipes() -
     assert listing.index("- chunk 0: 선발인원") < listing.index("- chunk 1: 본문")
 
 
+def test_render_markdown_lists_each_document_version_separately() -> None:
+    old = {**_chunk(5, 0, "옛 본문"), "document_version": "OLD"}
+    new = [{**_chunk(5, i, f"새 본문 {i}"), "document_version": "NEW"} for i in (0, 1)]
+    md = render_markdown([], [], [new[1], old, new[0]], superseded={}, summary="")
+    listing = md.split("## 문서별 청크 목록")[1]
+    new_part, old_part = listing.split("### 5 문서5 (`OLD`, 1개)")
+    assert "### 5 문서5 (`NEW`, 2개)" in new_part
+    assert "- chunk 0: 새 본문 0" in new_part and "- chunk 1: 새 본문 1" in new_part
+    assert "옛 본문" not in new_part
+    assert "- chunk 0: 옛 본문" in old_part and "새 본문" not in old_part
+
+
 def test_render_markdown_requires_candidates_for_every_case() -> None:
     cases = [{"id": "a", "query": "Q"}, {"id": "b", "query": "R"}]
     with pytest.raises(ValueError):

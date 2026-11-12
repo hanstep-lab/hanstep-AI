@@ -16,6 +16,7 @@ from app.rag.evaluation import (
     case_counts,
     corpus_snapshot,
     effective_num_candidates,
+    invalid_kinds,
     latency_summary,
     run_cases,
     score_case,
@@ -24,6 +25,8 @@ from app.rag.evaluation import (
 from app.rag.retrieval import SearchHit, SearchUnavailableError
 
 pytestmark = pytest.mark.unit
+
+MODEL = "BAAI/bge-m3"
 
 
 def _hit(doc_id: int, version: str, index: int, score: float = 0.5) -> SearchHit:
@@ -102,10 +105,10 @@ def test_corpus_snapshot_counts_approved_active_chunks_and_marks_current_version
     collection = FakeCollection([_group(7, "v1", 10), _group(6, "v2", 41), _group(1, "v1", 5)])
     gateway = FakeGateway({1: "v1", 6: "v2"})
 
-    corpus = corpus_snapshot(collection, gateway)  # type: ignore[arg-type]
+    corpus = corpus_snapshot(collection, gateway, embedding_model=MODEL)  # type: ignore[arg-type]
 
     match = collection.pipelines[0][0]["$match"]
-    assert match == {"review_status": "approved", "is_active": True}
+    assert match == {"review_status": "approved", "is_active": True, "embedding_model": MODEL}
     assert gateway.calls == [{1, 6, 7}]
     assert corpus["documents"] == [
         {"policy_document_id": 1, "document_version": "v1", "chunks": 5, "current": True},
@@ -118,7 +121,11 @@ def test_corpus_snapshot_counts_approved_active_chunks_and_marks_current_version
 
 def test_corpus_snapshot_skips_gateway_when_nothing_is_approved() -> None:
     gateway = FakeGateway({})
-    corpus = corpus_snapshot(FakeCollection([]), gateway)  # type: ignore[arg-type]
+    corpus = corpus_snapshot(
+        FakeCollection([]),
+        gateway,  # type: ignore[arg-type]
+        embedding_model=MODEL,
+    )
     assert gateway.calls == []
     assert corpus == {"documents": [], "searchable_document_ids": [], "searchable_chunks": 0}
 
@@ -133,7 +140,11 @@ def test_corpus_snapshot_skips_gateway_when_nothing_is_approved() -> None:
 def test_corpus_snapshot_reports_approval_check_failure(error: Exception, message: str) -> None:
     gateway = FakeGateway({}, error=error)
     with pytest.raises(SearchUnavailableError, match=message):
-        corpus_snapshot(FakeCollection([_group(6, "v2", 3)]), gateway)  # type: ignore[arg-type]
+        corpus_snapshot(
+            FakeCollection([_group(6, "v2", 3)]),
+            gateway,  # type: ignore[arg-type]
+            embedding_model=MODEL,
+        )
 
 
 def test_case_counts_by_language_and_kind() -> None:
@@ -176,7 +187,7 @@ def test_run_cases_separates_unanswerable_from_scoring() -> None:
         return results[query]
 
     ticks = iter([0.0, 0.010, 1.0, 1.020, 2.0, 2.030])
-    cases = [
+    cases: list[dict[str, Any]] = [
         {
             "id": "ko-01",
             "language": "ko",
@@ -213,6 +224,29 @@ def test_run_cases_separates_unanswerable_from_scoring() -> None:
     assert latencies == pytest.approx([10.0, 20.0, 30.0])
 
 
+@pytest.mark.parametrize("kind", ["Unanswerable", "unanswerable ", "out_of_scope", None])
+def test_run_cases_rejects_unknown_kind_before_searching(kind: str | None) -> None:
+    def search(query: str, top_k: int, visa_types: list[str] | None) -> list[SearchHit]:
+        raise AssertionError("must not search")
+
+    cases: list[dict[str, Any]] = [
+        {"id": "a", "language": "ko", "kind": "answerable", "query": "q"},
+        {"id": "b", "language": "ko", "kind": kind, "query": "r"},
+    ]
+    with pytest.raises(ValueError, match="'b'"):
+        run_cases(search, cases, 5)
+
+
+def test_invalid_kinds_lists_cases_outside_answerable_unanswerable() -> None:
+    cases = [
+        {"id": "a", "kind": "answerable"},
+        {"id": "b", "kind": "unanswerable"},
+        {"id": "c"},
+        {"id": "d", "kind": "Unanswerable"},
+    ]
+    assert invalid_kinds(cases) == [{"id": "d", "kind": "Unanswerable"}]
+
+
 def test_run_cases_propagates_search_unavailable() -> None:
     def search(query: str, top_k: int, visa_types: list[str] | None) -> list[SearchHit]:
         raise SearchUnavailableError("approval state check failed")
@@ -237,4 +271,18 @@ def test_latency_summary() -> None:
     assert latency_summary([]) == {"p50": None, "p95": None}
     summary = latency_summary([30.0, 10.0, 20.0, 40.0])
     assert summary["p50"] == 25.0
-    assert summary["p95"] == 30.0
+    assert summary["p95"] == 40.0
+
+
+@pytest.mark.parametrize(
+    ("latencies", "p95"),
+    [
+        ([7.0], 7.0),
+        ([10.0, 1000.0], 1000.0),
+        ([float(i) for i in range(1, 11)], 10.0),
+        ([float(i) for i in range(1, 21)], 19.0),
+        ([float(i) for i in range(1, 26)], 24.0),
+    ],
+)
+def test_latency_summary_p95_is_nearest_rank(latencies: list[float], p95: float) -> None:
+    assert latency_summary(list(reversed(latencies)))["p95"] == p95
