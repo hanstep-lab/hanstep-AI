@@ -93,13 +93,24 @@ def test_spring_path_sends_user_id_in_path_and_legal_answers_in_body() -> None:
     ("status", "payload", "expected"),
     [
         (401, {"code": "UNAUTHORIZED"}, "토큰 확인"),
-        (404, {"code": "RESOURCE_NOT_FOUND"}, "비자 프로필이 없음"),
+        (404, {"code": "RESOURCE_NOT_FOUND"}, "사용자가 없음"),
         (
             409,
             {"code": "INVALID_STATE", "details": {"reason": "RULE_SET_NOT_APPROVED"}},
-            "RULE_SET_NOT_APPROVED",
+            "승인 전(DRAFT) 규칙",
         ),
-        (422, {"code": "INSUFFICIENT_DATA"}, "입력 검증"),
+        # 같은 422라도 Spring이 준 이유에 맞는 안내를 붙인다.
+        (
+            422,
+            {"code": "INSUFFICIENT_DATA", "details": {"reason": "NO_VISA_PROFILE"}},
+            "비자 프로필이 없음(사용자 id 확인)",
+        ),
+        (
+            422,
+            {"code": "INSUFFICIENT_DATA", "details": {"reason": "PROFILE_REJECTED"}},
+            "입력 검증",
+        ),
+        (422, {"code": "INSUFFICIENT_DATA"}, "데이터가 부족"),
         (500, {"code": "INTERNAL_ERROR"}, "HTTP 500"),
     ],
 )

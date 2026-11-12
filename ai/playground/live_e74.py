@@ -30,12 +30,20 @@ ASSESSMENT_PATH = "/internal/v1/ai-context/users/{user_id}/e74-assessments"
 # Spring은 AI 계산 API를 불러 결과를 저장하므로 넉넉하게 둔다.
 TIMEOUT_SECONDS = 30.0
 
-# 상태 코드별로 확인할 것(화면·Claude에 그대로 보인다).
-_HINTS = {
+# 확인할 것(화면·Claude에 그대로 보인다). Spring이 details.reason을 주면 그것을 먼저 쓴다.
+_REASON_HINTS = {
+    "NO_VISA_PROFILE": "이 사용자에게 저장된 비자 프로필이 없음(사용자 id 확인)",
+    "PROFILE_REJECTED": "저장된 프로필이 계산기 입력 검증에 걸림",
+    "RULE_SET_NOT_APPROVED": (
+        "승인 전(DRAFT) 규칙이라 저장하지 않음. 로컬이면 Spring의 E74_INCLUDE_DRAFT_RULES 확인"
+    ),
+    "NO_APPLICABLE_RULE_SET": "기준일에 적용할 규칙 버전이 없음",
+    "RULE_SET_NOT_REGISTERED": "Spring e74_rule_sets에 규칙 버전이 등록되지 않음",
+}
+_STATUS_HINTS = {
     401: "토큰 확인(AI API는 AI_INTERNAL_API_TOKEN, Spring은 SPRING_INTERNAL_API_KEY)",
-    404: "사용자나 저장된 비자 프로필이 없음",
-    409: "승인 전(DRAFT) 규칙이라 저장하지 않음. 로컬이면 Spring의 E74_INCLUDE_DRAFT_RULES 확인",
-    422: "저장된 프로필이 계산기 입력 검증에 걸림",
+    404: "사용자가 없음(사용자 id 확인)",
+    422: "계산에 필요한 데이터가 부족함",
     502: "Spring이 AI 응답을 저장하지 못함",
     503: "계산 서버를 쓸 수 없음(ai-server·Spring이 떠 있는지 확인)",
 }
@@ -110,12 +118,14 @@ def _failure_message(response: httpx.Response) -> str:
     except ValueError:
         payload = None
     parts = [f"계산 실패: HTTP {response.status_code}"]
+    reason = None
     if isinstance(payload, dict):
         if payload.get("code"):
             parts.append(str(payload["code"]))
         details = payload.get("details")
         if isinstance(details, dict) and details.get("reason"):
-            parts.append(str(details["reason"]))
+            reason = str(details["reason"])
+            parts.append(reason)
     message = " ".join(parts)
-    hint = _HINTS.get(response.status_code)
+    hint = _REASON_HINTS.get(reason or "") or _STATUS_HINTS.get(response.status_code)
     return f"{message} ({hint})" if hint else message

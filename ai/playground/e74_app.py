@@ -164,7 +164,7 @@ def _render_score(
     as_of: date,
     include_draft: bool,
     mode: str,
-    user_id: int,
+    user_id: int | None,
 ) -> None:
     if mode == CALC_ENGINE:
         if profile is None:
@@ -185,6 +185,9 @@ def _render_score(
             st.error("편집기 프로필 JSON 오류를 먼저 고쳐야 함")
             return
     else:
+        if user_id is None:
+            st.info("사이드바에 Spring 사용자 id를 입력해야 계산할 수 있다.")
+            return
         st.caption(
             f"Spring 경유({settings.spring_internal_api_url}): 사용자 {user_id}의 MySQL 프로필로 "
             "계산·저장. 감점·제외 6문항은 편집기 프로필의 legalDeclaration 값을 보낸다."
@@ -201,6 +204,7 @@ def _render_score(
                         calculate_via_ai(_live_client(), profile, as_of),
                     )
                 else:
+                    assert user_id is not None
                     declaration = profile.legal_declaration if profile is not None else None
                     saved = assess_via_spring(_spring_client(), user_id, as_of, declaration)
                     st.session_state["live_result"] = (mode, saved, saved.result)
@@ -287,8 +291,12 @@ def _show_turn(entry: dict[str, Any]) -> None:
         )
 
 
+def _missing_user_id(_: date) -> dict[str, Any]:
+    raise LiveCalculateError("Spring 경유 계산: 사이드바에 Spring 사용자 id를 입력해야 함")
+
+
 def _render_chat(
-    profile: E74Profile | None, include_draft: bool, mode_calc: str, user_id: int
+    profile: E74Profile | None, include_draft: bool, mode_calc: str, user_id: int | None
 ) -> None:
     settings = get_settings()
     mode = st.radio(
@@ -358,10 +366,13 @@ def _render_chat(
         calculate = lambda as_of: assessment_payload(  # noqa: E731
             calculate_via_ai(_live_client(), ai_profile, as_of)
         )
-    elif mode_calc == CALC_SPRING:
+    elif mode_calc == CALC_SPRING and user_id is None:
+        calculate = _missing_user_id
+    elif mode_calc == CALC_SPRING and user_id is not None:
         declaration = profile.legal_declaration if profile is not None else None
+        spring_user = user_id
         calculate = lambda as_of: e74_records(  # noqa: E731
-            assess_via_spring(_spring_client(), user_id, as_of, declaration)
+            assess_via_spring(_spring_client(), spring_user, as_of, declaration)
         ).llm_output
     ctx = ToolContext(
         profile=profile, include_draft=include_draft, search=search, calculate=calculate
@@ -402,17 +413,20 @@ def main() -> None:
             key="calc_mode",
             help="점수 계산 탭과 채팅의 점수 계산 도구가 같은 경로를 쓴다.",
         )
-        user_id = 1
+        user_id: int | None = None
         if mode == CALC_SPRING:
-            user_id = int(
-                st.number_input(
-                    "Spring 사용자 id",
-                    min_value=1,
-                    step=1,
-                    key="spring_user_id",
-                    help="users.id. 필리핀 테스트 사용자는 external_user_key = demo-e9-ph-reyes",
-                )
+            # 기본값을 두지 않는다. 비자 프로필이 없는 사용자로 잘못 계산하지 않게 직접 입력한다.
+            entered = st.number_input(
+                "Spring 사용자 id",
+                min_value=1,
+                step=1,
+                value=None,
+                placeholder="예: 185",
+                key="spring_user_id",
+                help="users.id. 비자 프로필이 있는 사용자만 계산된다. 로컬 필리핀 테스트 사용자는 "
+                "external_user_key = demo-e9-ph-reyes",
             )
+            user_id = int(entered) if entered is not None else None
         st.caption("합성 데이터만 사용. 엔진 직접은 이 PC에서, 나머지는 서버 API로 계산한다.")
 
     left, right = st.columns([2, 3])
