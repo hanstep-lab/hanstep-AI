@@ -1,6 +1,6 @@
 {
-  "version": "v1.1",
-  "description": "챗봇(INT-05) 측정 문항. F 금융, H 대화 이어가기, O 범위 밖, T 함정, C 계산(답에 새 계산이 필요, referenceValues는 fixture로 계산한 참조값). 숫자는 데모 Minh 기준.",
+  "version": "v1.2",
+  "description": "챗봇(INT-05) 측정 문항. F 금융, H 대화 이어가기, O 범위 밖, T 함정, C 계산(답에 새 계산이 필요, referenceValues는 fixture로 계산한 참조값), J 판단형(expectedConclusion은 사람 채점 기준). 숫자는 데모 Minh 기준.",
   "latencySubset": ["F01", "F03", "F07", "F09", "H01"],
   "questions": [
     {"id": "F01", "category": "finance", "text": "How much money do I have left each month after all my expenses?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
@@ -29,6 +29,16 @@
     {"id": "C04", "category": "calculation", "text": "How much do I send home in a whole year?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "calculation_needed", "referenceValues": [{"value": 8400000, "unit": "KRW", "formula": "remittance * 12"}]},
     {"id": "C05", "category": "calculation", "text": "How much more is my income than my fixed living costs each month?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "calculation_needed", "referenceValues": [{"value": 1830000, "unit": "KRW", "formula": "avgMonthlyIncome - fixedLiving"}]},
     {"id": "C06", "category": "calculation", "text": "How big is the gap between my highest and lowest monthly variable spending?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "calculation_needed", "referenceValues": [{"value": 101800, "unit": "KRW", "formula": "variableExpense.max - variableExpense.min"}]},
-    {"id": "C07", "category": "calculation", "text": "My rent is going up by 50,000 won a month. How much spare money will I have after that?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "calculation_needed", "referenceValues": [{"value": 625317, "unit": "KRW", "formula": "spare - 50000"}]}
+    {"id": "C07", "category": "calculation", "text": "My rent is going up by 50,000 won a month. How much spare money will I have after that?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "calculation_needed", "referenceValues": [{"value": 625317, "unit": "KRW", "formula": "spare - 50000"}]},
+    {"id": "J01", "category": "judgment", "text": "Is it okay for me to send money home this month, considering my spare money?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "Yes. The usual 700,000 KRW remittance is already subtracted; about 675,317 KRW remains on average."},
+    {"id": "J02", "category": "judgment", "text": "Can I afford to send my usual amount home this month?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "Yes. The usual remittance is already included in the monthly budget."},
+    {"id": "J03", "category": "judgment", "text": "Will sending 700,000 won home leave me with nothing?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "No. About 675,317 KRW remains after the usual 700,000 KRW remittance."},
+    {"id": "J04", "category": "judgment", "text": "My spare money is less than my remittance, so I can't afford to send money, right?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "No. Spare money is what remains after the remittance, so the usual remittance is affordable."},
+    {"id": "J05", "category": "judgment", "text": "Do I have money left after sending money home?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "Yes, about 675,317 KRW on average."},
+    {"id": "J06", "category": "judgment", "text": "If I send 200,000 won more than usual this month, will I still have money left?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "Yes. On average about 475,317 KRW would remain."},
+    {"id": "J07", "category": "judgment", "text": "If I send 1,000,000 won more than usual, will I run out of money?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "Yes on average. 1,000,000 KRW is more than the 675,317 KRW spare, about 324,683 KRW short."},
+    {"id": "J08", "category": "judgment", "text": "Can I save 500,000 won this month?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "Yes on average (500,000 is less than 675,317)."},
+    {"id": "J09", "category": "judgment", "text": "Can I save 800,000 won a month?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "Not on average (800,000 is more than 675,317)."},
+    {"id": "J10", "category": "judgment", "text": "If my rent goes up by 100,000 won, will I still have spare money?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "judgment", "expectedConclusion": "Yes. About 575,317 KRW on average."}
   ]
 }
