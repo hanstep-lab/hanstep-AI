@@ -8,7 +8,13 @@ from typing import Any
 
 import pytest
 
-from app.chat.judgment import SPARE_DEFINITION, judgment_facts, message_amounts, message_months
+from app.chat.judgment import (
+    SPARE_DEFINITION,
+    is_recurring,
+    judgment_facts,
+    message_amounts,
+    message_months,
+)
 from app.chat.tools import FIXTURE, FinanceTool, FixtureFinanceContext, summarize
 
 pytestmark = pytest.mark.unit
@@ -226,7 +232,86 @@ def test_man_won_amount_that_is_not_whole_won_is_ignored() -> None:
 
 
 def test_note_applies_to_man_won_amounts() -> None:
-    [amount, period] = _facts("6개월 동안 70만 원씩 보내면?")["scenarios"]
-    assert amount["value"] == SPARE - 700_000
-    assert amount["note"].startswith("700,000 KRW equals the usual remittance")
-    assert period["value"] == SPARE * 6
+    [scenario] = _facts("이번 달에 70만 원 보내도 돼?")["scenarios"]
+    assert scenario["value"] == SPARE - 700_000
+    assert scenario["note"].startswith("700,000 KRW equals the usual remittance")
+
+
+def _table(message: str) -> list[tuple[str, int]]:
+    return [(s["formula"], s["value"]) for s in _facts(message)["scenarios"]]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "6개월 동안 70만 원씩 보내면?",
+        "매달 70만 원 보내면?",
+        "매월 700,000 won",
+        "달마다 70만원",
+        "I send 700,000 won every month",
+        "700,000 won each month",
+        "700,000 won per month",
+        "700,000 won a month",
+        "monthly 700,000 won",
+    ],
+)
+def test_recurring_markers(message: str) -> None:
+    assert is_recurring(message)
+    assert all(s["value"] != SPARE - 700_000 for s in _facts(message)["scenarios"])
+
+
+def test_recurring_amount_equal_to_a_monthly_item_is_not_taken_off_again() -> None:
+    scenarios = _facts("6개월 동안 70만 원씩 보내면?")["scenarios"]
+    assert scenarios[0] == {
+        "description": (
+            "700,000 KRW per month equals the usual remittance, which is already included in the "
+            "monthly figures, so spare stays 675,317 KRW per month"
+        ),
+        "value": SPARE,
+        "unit": "KRW",
+        "formula": "spare",
+    }
+    assert _table("6개월 동안 70만 원씩 보내면?") == [("spare", SPARE), ("spare * 6", 4_051_902)]
+    assert -24_683 not in [s["value"] for s in scenarios]
+
+
+def test_recurring_amount_with_a_period() -> None:
+    scenarios = _facts("매달 30만 원씩 6개월 모으면?")["scenarios"]
+    assert _table("매달 30만 원씩 6개월 모으면?") == [
+        ("spare - 300000", 375_317),
+        ("300000 * 6", 1_800_000),
+        ("(spare - 300000) * 6", 2_251_902),
+        ("spare * 6", 4_051_902),
+    ]
+    assert [s["description"] for s in scenarios[:3]] == [
+        "If 300,000 KRW is spent or set aside every month on top of the usual monthly budget, "
+        "spare each month would be 375,317 KRW",
+        "300,000 KRW every month for 6 months totals 1,800,000 KRW",
+        "spare left over 6 months would be 2,251,902 KRW",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("message", "table"),
+    [
+        ("I want to save 100,000 won a month", [("spare - 100000", 575_317)]),
+        ("monthly 50,000 won subscription", [("spare - 50000", 625_317)]),
+    ],
+)
+def test_recurring_amount_without_a_period(message: str, table: list[tuple[str, int]]) -> None:
+    assert _table(message) == table
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "If I spend 200,000 won more this month, is that okay?",
+        "이번 달에 20만 원 더 쓰면 괜찮아?",
+        "Can I spend ₩300,000 extra?",
+        "1.5만 원짜리 구독을 추가해도 될까?",
+    ],
+)
+def test_no_recurring_marker_keeps_the_one_off_scenario(message: str) -> None:
+    assert not is_recurring(message)
+    [scenario] = _facts(message)["scenarios"]
+    assert "is an additional expense this month" in scenario["description"]

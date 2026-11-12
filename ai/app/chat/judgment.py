@@ -28,6 +28,10 @@ _PERIODS = (
 )
 _HALF_YEAR = re.compile(r"\bhalf\s+a\s+year\b|반년", re.IGNORECASE)
 _ONE_YEAR = re.compile(r"(?<!half )\b(?:a|one)\s+year\b", re.IGNORECASE)
+# An amount repeated every month, not a one-off expense this month.
+_RECURRING = re.compile(
+    r"씩|매달|매월|달마다|\b(?:every|each|per|a)\s+month\b|\bmonthly\b", re.IGNORECASE
+)
 # Monthly items an amount in the message may simply repeat (the same money, not extra money).
 _KNOWN_ITEMS = (
     ("remittance", "remittance"),
@@ -126,6 +130,65 @@ def message_months(message: str) -> list[int]:
     return months
 
 
+def is_recurring(message: str) -> bool:
+    """The message talks about an amount every month ("씩", "매달", "per month", "monthly"...)."""
+    return _RECURRING.search(message) is not None
+
+
+def _known_item(values: dict[str, int | None], amount: int) -> str | None:
+    return next((label for key, label in _KNOWN_ITEMS if values[key] == amount), None)
+
+
+def _monthly_amount_scenarios(
+    values: dict[str, int | None], spare: int, amount: int, months: list[int]
+) -> list[dict[str, Any]]:
+    """An amount repeated every month, instead of a one-off extra expense this month."""
+    label = _known_item(values, amount)
+    if label is not None:
+        # The same money as a monthly item: already in spare, so nothing is taken off again.
+        return [
+            {
+                "description": (
+                    f"{_krw(amount)} KRW per month equals the usual {label}, which is already "
+                    f"included in the monthly figures, so spare stays {_krw(spare)} KRW per month"
+                ),
+                "value": spare,
+                "unit": "KRW",
+                "formula": "spare",
+            }
+        ]
+    left = spare - amount
+    out: list[dict[str, Any]] = [
+        {
+            "description": (
+                f"If {_krw(amount)} KRW is spent or set aside every month on top of the usual "
+                f"monthly budget, spare each month would be {_krw(left)} KRW"
+            ),
+            "value": left,
+            "unit": "KRW",
+            "formula": f"spare - {amount}",
+        }
+    ]
+    for n in months:
+        out += [
+            {
+                "description": (
+                    f"{_krw(amount)} KRW every month for {n} months totals {_krw(amount * n)} KRW"
+                ),
+                "value": amount * n,
+                "unit": "KRW",
+                "formula": f"{amount} * {n}",
+            },
+            {
+                "description": f"spare left over {n} months would be {_krw(left * n)} KRW",
+                "value": left * n,
+                "unit": "KRW",
+                "formula": f"(spare - {amount}) * {n}",
+            },
+        ]
+    return out
+
+
 def scenario_facts(values: dict[str, int | None], message: str) -> list[dict[str, Any]]:
     spare = values["spare"]
     if spare is None:
@@ -137,7 +200,12 @@ def scenario_facts(values: dict[str, int | None], message: str) -> list[dict[str
         + ")"
     )
     out: list[dict[str, Any]] = []
+    months = message_months(message)
+    recurring = is_recurring(message)
     for amount in message_amounts(message):
+        if recurring:
+            out += _monthly_amount_scenarios(values, spare, amount, months)
+            continue
         left = spare - amount
         scenario: dict[str, Any] = {
             "description": (
@@ -156,7 +224,7 @@ def scenario_facts(values: dict[str, int | None], message: str) -> list[dict[str
                 )
                 break
         out.append(scenario)
-    for n in message_months(message):
+    for n in months:
         out.append(
             {
                 "description": f"spare over {n} month{'s' if n > 1 else ''} = spare × {n}",
