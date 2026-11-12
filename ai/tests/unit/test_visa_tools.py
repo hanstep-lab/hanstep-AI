@@ -106,7 +106,7 @@ def test_e74_sample_builds_card_ref_and_source_from_tool_result() -> None:
 
     assert records.result_ref is not None
     assert (records.result_ref.type, records.result_ref.id) == ("E74_ASSESSMENT", 77)
-    assert [(s.source_type, s.source_id) for s in records.sources] == [("E74_ASSESSMENT", 77)]
+    assert [(s.type, s.id) for s in records.sources] == [("E74_ASSESSMENT", 77)]
     card = records.blocks[0]
     assert isinstance(card, E74ScoreCardBlock)
     # 카드 숫자는 도구 결과에서만 온다.
@@ -139,7 +139,7 @@ def test_roadmap_sample_builds_link_card_ref_and_source() -> None:
 
     assert records.result_ref is not None
     assert (records.result_ref.type, records.result_ref.id) == ("VISA_ROADMAP", 31)
-    assert [(s.source_type, s.source_id) for s in records.sources] == [("VISA_ROADMAP", 31)]
+    assert [(s.type, s.id) for s in records.sources] == [("VISA_ROADMAP", 31)]
     card = records.blocks[0]
     assert isinstance(card, VisaRoadmapLinkBlock)
     assert card.step_count == len(response.roadmap.steps)
@@ -154,7 +154,7 @@ def test_policy_search_sources_come_only_from_hits_and_are_deduplicated() -> Non
     records = policy_search_records(hits)
 
     assert records.result_ref is None and records.blocks == ()
-    assert [(s.source_id, s.chunk_ref, s.page_label) for s in records.sources] == [
+    assert [(s.id, s.chunk_ref, s.page_label) for s in records.sources] == [
         (6, "c1", "p.12"),
         (3, "c9", None),
     ]
@@ -170,9 +170,10 @@ def test_records_serialize_to_chat_table_shapes() -> None:
 
     assert set(data) == {"llmOutput", "resultRef", "sources", "blocks"}
     assert data["resultRef"] == {"type": "E74_ASSESSMENT", "id": 77}
+    # 근거 키는 agent.sources·Spring CHT-04와 같다(type·id가 없으면 Spring이 버린다).
     assert data["sources"][0] == {
-        "sourceType": "E74_ASSESSMENT",
-        "sourceId": 77,
+        "type": "E74_ASSESSMENT",
+        "id": 77,
         "chunkRef": None,
         "pageLabel": None,
     }

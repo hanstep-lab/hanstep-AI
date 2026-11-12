@@ -165,10 +165,14 @@ class ResultRef(ChatRecord):
 
 
 class SourceRef(ChatRecord):
-    """답변 근거 한 건(chat_message_sources 한 행)."""
+    """답변 근거 한 건(chat_message_sources 한 행).
 
-    source_type: SourceType
-    source_id: int = Field(ge=1, description="정책 문서 id, e74_assessments.id, visa_roadmaps.id")
+    키는 agent.sources와 Spring CHT-04가 읽는 {type, id, chunkRef, pageLabel}이다.
+    Spring은 type·id가 없는 근거를 오류 없이 버린다.
+    """
+
+    type: SourceType
+    id: int = Field(ge=1, description="정책 문서 id, e74_assessments.id, visa_roadmaps.id")
     chunk_ref: str | None = Field(default=None, max_length=100, description="MongoDB 청크 id")
     page_label: str | None = Field(default=None, max_length=50, description="쪽·절")
 
@@ -276,9 +280,7 @@ def e74_records(response: E74AssessmentToolResponse) -> VisaToolRecords:
     return VisaToolRecords(
         llm_output=llm_output,
         result_ref=ResultRef(type=ResultRefType.E74_ASSESSMENT, id=response.assessment_id),
-        sources=(
-            SourceRef(source_type=SourceType.E74_ASSESSMENT, source_id=response.assessment_id),
-        ),
+        sources=(SourceRef(type=SourceType.E74_ASSESSMENT, id=response.assessment_id),),
         blocks=(card, *_missing_block(result.missing_inputs)),
     )
 
@@ -327,7 +329,7 @@ def roadmap_records(response: RoadmapToolResponse) -> VisaToolRecords:
     return VisaToolRecords(
         llm_output=llm_output,
         result_ref=ResultRef(type=ResultRefType.VISA_ROADMAP, id=response.roadmap_id),
-        sources=(SourceRef(source_type=SourceType.VISA_ROADMAP, source_id=response.roadmap_id),),
+        sources=(SourceRef(type=SourceType.VISA_ROADMAP, id=response.roadmap_id),),
         blocks=(card, *_missing_block(roadmap.missing_inputs)),
     )
 
@@ -363,8 +365,8 @@ def policy_search_records(hits: Sequence[SearchHit]) -> VisaToolRecords:
         seen.add(key)
         sources.append(
             SourceRef(
-                source_type=SourceType.POLICY_DOCUMENT,
-                source_id=hit.policy_document_id,
+                type=SourceType.POLICY_DOCUMENT,
+                id=hit.policy_document_id,
                 chunk_ref=hit.chunk_id or None,
                 page_label=f"p.{hit.page_number}" if hit.page_number is not None else None,
             )
