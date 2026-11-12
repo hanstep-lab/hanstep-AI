@@ -53,6 +53,11 @@ def _settings(**overrides: Any) -> Settings:
         # 기본값(AGENT_MODEL)이 바뀌어도 테스트가 흔들리지 않게 고정한다.
         # override 테스트가 haiku로 바꾸므로 기본은 그와 다른 모델로 둔다.
         "agent_model": "claude-sonnet-5-5",
+        # 판단 근거를 끈 설정(CHAT_MODEL 비움, judgmentFacts false, v1)에서 이전과 같은지 본다.
+        # 새 기본값은 test_default_settings_reach_the_stream에서 따로 본다.
+        "chat_model": "",
+        "chat_judgment_facts": False,
+        "chat_prompt_version": "v1",
         **overrides,
     }
     return Settings(_env_file=None, **values)  # type: ignore[call-arg]
@@ -635,10 +640,11 @@ def test_route_builds_tool_with_this_message_and_flag(
 
 
 def test_chat_model_falls_back_to_agent_model() -> None:
-    default = _settings(agent_model="claude-haiku-5-5")
-    assert default.chat_model == ""
-    assert default.chat_model_id == "claude-haiku-5-5"
-    assert LlmConfig.from_settings(default).model == "claude-haiku-5-5"
+    empty = _settings(agent_model="claude-haiku-5-5", chat_model="")
+    assert empty.chat_model_id == "claude-haiku-5-5"
+    assert LlmConfig.from_settings(empty).model == "claude-haiku-5-5"
+    blank = _settings(agent_model="claude-sonnet-5-5", chat_model="  ")
+    assert blank.chat_model_id == "claude-sonnet-5-5"
 
     chat_only = _settings(agent_model="claude-haiku-5-5", chat_model="claude-sonnet-5-5")
     assert chat_only.agent_model == "claude-haiku-5-5"  # roadmap text etc. keep AGENT_MODEL
@@ -663,6 +669,31 @@ def test_chat_config_is_checked_against_the_model_chat_uses() -> None:
         agent_model="claude-sonnet-5-5", chat_model="claude-haiku-5-5", chat_thinking="disabled"
     )
     assert ok.chat_model_id == "claude-haiku-5-5"
+
+
+def test_default_settings_reach_the_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Defaults (haiku-facts-prompt, 2026-11-12), not the pinned off setting of _settings().
+    seen: dict[str, Any] = {}
+
+    def spy(*args: Any, **kwargs: Any) -> FinanceTool:
+        seen.update(kwargs)
+        return FinanceTool(*args, **kwargs)
+
+    monkeypatch.setattr("app.api.routes.chat.FinanceTool", spy)
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None, ai_internal_api_token=TOKEN, chat_fake_delta_delay_ms=0
+    )
+    app = create_app()
+    app.state.rag = AppState(
+        settings=settings, gateway=UnconfiguredPolicyGateway(), embedder=BgeM3Embedder()
+    )
+    events = parse_sse(_post(TestClient(app), _body(), **{"X-Chat-Metrics": "1"}).text)
+    config = events[-2][1]["config"]
+    assert config["model"] == "claude-haiku-5-5"
+    assert config["judgmentFacts"] is True
+    assert config["promptVersion"] == "chat-v1.1"
+    assert events[-1][1]["promptVersion"] == "chat-v1.1"
+    assert seen["judgment_facts"] is True
 
 
 def test_judgment_and_prompt_override_only_when_allowed(monkeypatch: pytest.MonkeyPatch) -> None:

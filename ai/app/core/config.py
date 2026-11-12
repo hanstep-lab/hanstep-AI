@@ -105,7 +105,8 @@ class Settings(BaseSettings):
     # Chat agent (INT-05). fake runs the same graph without an API key.
     chat_llm_mode: Literal["fake", "anthropic"] = "fake"
     # Chat-only model. Empty: AGENT_MODEL (see chat_model_id).
-    chat_model: str = ""
+    # Defaults (model, judgment facts, prompt v1.1): judgment facts comparison, 2026-11-12.
+    chat_model: str = "claude-haiku-5-5"
     # model_default sends no thinking parameter (both 5.5 models then think adaptively).
     chat_thinking: ChatThinking = "model_default"
     chat_effort: ChatEffort = ""
@@ -116,9 +117,9 @@ class Settings(BaseSettings):
     chat_run_timeout_seconds: float = Field(default=60.0, gt=0, le=600)
     chat_fake_delta_delay_ms: int = Field(default=30, ge=0, le=5000)
     # Add code-computed judgment facts (judgmentFacts) to the finance tool result.
-    chat_judgment_facts: bool = False
+    chat_judgment_facts: bool = True
     # System prompt version (app/chat/prompts): v1 | v1.1.
-    chat_prompt_version: ChatPromptVersion = "v1"
+    chat_prompt_version: ChatPromptVersion = "v1.1"
     # Measurement only: honour the per-request X-Chat-Config header.
     chat_allow_config_override: bool = False
 

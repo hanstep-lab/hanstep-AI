@@ -37,14 +37,28 @@ def _settings(**overrides: object) -> Settings:
     return Settings(_env_file=None, **overrides)  # type: ignore[arg-type]
 
 
-def test_default_is_v1_and_unchanged() -> None:
+def test_v1_unchanged_when_judgment_is_off() -> None:
+    # The off setting (judgmentFacts false, v1) still sends the v1 prompt byte for byte.
     assert PROMPT_VERSION == "chat-v1"
     assert PROMPT_VERSIONS == {"v1": "chat-v1", "v1.1": "chat-v1.1"}
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
     assert system_prompt("ko") == system_prompt("ko", "v1")
-    config = LlmConfig.from_settings(_settings())
+    config = LlmConfig.from_settings(_settings(chat_judgment_facts=False, chat_prompt_version="v1"))
     assert (config.prompt_version, config.prompt_version_id) == ("v1", "chat-v1")
+    assert config.judgment_facts is False
+
+
+def test_default_is_judgment_facts_v1_1_haiku() -> None:
+    # Chosen by the judgment facts comparison (2026-11-12): haiku-facts-prompt.
+    settings = _settings()
+    assert settings.chat_judgment_facts is True
+    assert settings.chat_prompt_version == "v1.1"
+    assert settings.chat_model == "claude-haiku-5-5"
+    config = LlmConfig.from_settings(settings)
+    assert config.model == "claude-haiku-5-5"
+    assert config.judgment_facts is True
+    assert (config.prompt_version, config.prompt_version_id) == ("v1.1", "chat-v1.1")
 
 
 def test_v1_1_differs_only_in_two_lines() -> None:

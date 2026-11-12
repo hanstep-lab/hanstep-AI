@@ -177,7 +177,8 @@ def test_cost_uses_official_prices() -> None:
 
 
 def test_rescore_without_calls(tmp_path: Path) -> None:
-    settings = _settings()
+    # Facts off: with them on, 29.8% is a derived fact (remittance share) and is supported.
+    settings = _settings(chat_judgment_facts=False)
     run = tmp_path / "run.jsonl"
     assert _run(settings, "--questions", "F01", "--output", str(run)) == 0
     lines = run.read_text(encoding="utf-8").splitlines()
