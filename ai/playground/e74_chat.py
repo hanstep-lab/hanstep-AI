@@ -144,6 +144,13 @@ class ClaudeClient(Protocol):
 SearchFn = Callable[[str, int], list[dict[str, object]]]
 
 
+class SearchToolError(Exception):
+    """검색 함수가 도구 오류로 돌려줄 실패(연결 실패, 서버 오류, 응답 형식 오류).
+
+    메시지는 그대로 Claude에게 가므로 토큰·문서 원문을 넣지 않는다.
+    """
+
+
 @dataclass
 class ToolContext:
     """도구가 쓰는 현재 화면 상태."""
@@ -212,7 +219,11 @@ def execute_tool(name: str, tool_input: dict[str, Any], ctx: ToolContext) -> tup
             return "query가 비어 있음", True
         top_k = tool_input.get("top_k", 5)
         top_k = top_k if isinstance(top_k, int) and 1 <= top_k <= 8 else 5
-        return json.dumps(ctx.search(query, top_k), ensure_ascii=False), False
+        try:
+            results = ctx.search(query, top_k)
+        except SearchToolError as exc:
+            return str(exc), True
+        return json.dumps(results, ensure_ascii=False), False
     if name == "calculate_e74_score":
         if ctx.profile is None:
             return (

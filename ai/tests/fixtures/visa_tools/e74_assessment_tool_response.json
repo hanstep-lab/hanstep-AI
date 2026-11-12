@@ -1,0 +1,536 @@
+{
+  "assessmentId": 77,
+  "reused": false,
+  "result": {
+    "ruleVersion": "E74-2026-v1",
+    "asOfDate": "2026-10-25",
+    "requestKey": "926c3c55ff15afe315112547e8bfec430c28050a2cb1d32c21283539818bcbea",
+    "status": "ELIGIBLE",
+    "eligibilityConfirmed": true,
+    "score": {
+      "base": 205,
+      "bonus": 100,
+      "penalty": 0,
+      "total": 305,
+      "required": 200
+    },
+    "potentialScore": {
+      "base": 205,
+      "bonus": 100,
+      "penalty": 0,
+      "total": 305,
+      "complete": true
+    },
+    "scoreRequirementMet": true,
+    "koreanDeferralApplied": false,
+    "items": [
+      {
+        "ruleCode": "INCOME_30_35",
+        "category": "BASE_INCOME",
+        "status": "MET",
+        "earnedPoints": 65,
+        "potentialPoints": 65,
+        "messageCode": "E74_INCOME_BAND",
+        "evidence": {
+          "incomeYears": [
+            2024,
+            2025
+          ],
+          "averageIncome": 32650000,
+          "sources": [
+            "DOCUMENT",
+            "DOCUMENT"
+          ],
+          "fallbackUsed": false,
+          "industryCode": "MANUFACTURING"
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "KOREAN_L3",
+        "category": "BASE_KOREAN",
+        "status": "MET",
+        "earnedPoints": 80,
+        "potentialPoints": 80,
+        "messageCode": "E74_KOREAN_LEVEL",
+        "evidence": {
+          "visaEvidenceId": 101,
+          "type": "TOPIK",
+          "level": 3,
+          "candidates": [
+            {
+              "visaEvidenceId": 101,
+              "type": "TOPIK",
+              "level": 3
+            }
+          ]
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "AGE_27_33",
+        "category": "BASE_AGE",
+        "status": "MET",
+        "earnedPoints": 60,
+        "potentialPoints": 60,
+        "messageCode": "E74_AGE_BAND",
+        "evidence": {
+          "age": 32,
+          "asOfDate": "2026-10-25"
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REC_CENTRAL",
+        "category": "BONUS",
+        "status": "NOT_MET",
+        "earnedPoints": 0,
+        "potentialPoints": 0,
+        "messageCode": "E74_BONUS_NOT_FOUND",
+        "evidence": {
+          "visaEvidenceIds": []
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REC_REGIONAL",
+        "category": "BONUS",
+        "status": "NOT_MET",
+        "earnedPoints": 0,
+        "potentialPoints": 0,
+        "messageCode": "E74_BONUS_NOT_FOUND",
+        "evidence": {
+          "visaEvidenceIds": []
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REC_EMPLOYER",
+        "category": "BONUS",
+        "status": "MET",
+        "earnedPoints": 50,
+        "potentialPoints": 50,
+        "messageCode": "E74_BONUS_RECOMMENDATION",
+        "evidence": {
+          "visaEvidenceIds": [
+            102
+          ]
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "TENURE_3Y",
+        "category": "BONUS",
+        "status": "MET",
+        "earnedPoints": 20,
+        "potentialPoints": 20,
+        "messageCode": "E74_BONUS_TENURE",
+        "evidence": {
+          "coveredDays": 2029,
+          "requiredDays": 1096,
+          "employmentHistoryIds": [
+            11
+          ]
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REGION_3Y",
+        "category": "BONUS",
+        "status": "MET",
+        "earnedPoints": 20,
+        "potentialPoints": 20,
+        "messageCode": "E74_BONUS_REGION",
+        "evidence": {
+          "coveredDays": 2029,
+          "requiredDays": 1096,
+          "windowStart": "2016-10-25",
+          "employmentHistoryIds": [
+            11
+          ]
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "QUALIFICATION",
+        "category": "BONUS",
+        "status": "NOT_MET",
+        "earnedPoints": 0,
+        "potentialPoints": 0,
+        "messageCode": "E74_BONUS_NOT_FOUND",
+        "evidence": {
+          "candidates": []
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "DRIVER_LICENSE",
+        "category": "BONUS",
+        "status": "MET",
+        "earnedPoints": 10,
+        "potentialPoints": 10,
+        "messageCode": "E74_BONUS_DRIVER_LICENSE",
+        "evidence": {
+          "candidates": [
+            {
+              "visaEvidenceId": 103,
+              "class": "2종보통"
+            }
+          ],
+          "visaEvidenceId": 103
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "PEN_FINE_UNDER_1M",
+        "category": "PENALTY",
+        "status": "NOT_MET",
+        "earnedPoints": 0,
+        "potentialPoints": 0,
+        "messageCode": "E74_PENALTY_NONE",
+        "evidence": {
+          "declarationField": "finesUnder1mCount",
+          "declaredCount": 0
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "PEN_TAX_RESTRICTION",
+        "category": "PENALTY",
+        "status": "NOT_MET",
+        "earnedPoints": 0,
+        "potentialPoints": 0,
+        "messageCode": "E74_PENALTY_NONE",
+        "evidence": {
+          "declarationField": "taxStayRestrictionCount",
+          "declaredCount": 0
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "PEN_IMMIGRATION",
+        "category": "PENALTY",
+        "status": "NOT_MET",
+        "earnedPoints": 0,
+        "potentialPoints": 0,
+        "messageCode": "E74_PENALTY_NONE",
+        "evidence": {
+          "declarationField": "immigrationViolationCount",
+          "declaredCount": 0
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REQ_STAY_PERIOD",
+        "category": "REQUIREMENT",
+        "status": "MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_REQ_STAY_PERIOD",
+        "evidence": {
+          "currentStayMonths": 66,
+          "requiredMonths": 48
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REQ_CURRENT_EMPLOYMENT",
+        "category": "REQUIREMENT",
+        "status": "MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_REQ_CURRENT_EMPLOYMENT",
+        "evidence": {
+          "visaTypeCode": "E-9",
+          "employmentHistoryId": 11
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REQ_CONTRACT",
+        "category": "REQUIREMENT",
+        "status": "MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_REQ_CONTRACT",
+        "evidence": {
+          "employmentHistoryId": 11,
+          "contractEndOn": "2028-11-30",
+          "requiredEndOn": "2028-10-24",
+          "annualSalary": 31000000,
+          "requiredAnnualSalary": 26000000
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REQ_CONTRACT_AGRI_FISHERY",
+        "category": "REQUIREMENT",
+        "status": "NOT_APPLICABLE",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_REQ_OTHER_INDUSTRY_ROW",
+        "evidence": {
+          "appliedRuleCode": "REQ_CONTRACT"
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REQ_EMPLOYER_REC",
+        "category": "REQUIREMENT",
+        "status": "MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_REQ_EMPLOYER_REC",
+        "evidence": {
+          "coveredDays": 2029,
+          "requiredDays": 365,
+          "visaEvidenceIds": [
+            102
+          ]
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REQ_MIN_INCOME",
+        "category": "REQUIREMENT",
+        "status": "MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_REQ_INCOME",
+        "evidence": {
+          "averageIncome": 32650000,
+          "requiredAverageIncome": 25000000
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REQ_MIN_INCOME_AGRI_FISHERY",
+        "category": "REQUIREMENT",
+        "status": "NOT_APPLICABLE",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_REQ_OTHER_INDUSTRY_ROW",
+        "evidence": {
+          "appliedRuleCode": "REQ_MIN_INCOME"
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REQ_MIN_KOREAN",
+        "category": "REQUIREMENT",
+        "status": "MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_REQ_KOREAN",
+        "evidence": {
+          "koreanPoints": 80,
+          "requiredPoints": 50
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "REQ_TOTAL_SCORE",
+        "category": "REQUIREMENT",
+        "status": "MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_REQ_TOTAL",
+        "evidence": {
+          "confirmedTotal": 305,
+          "potentialTotal": 305,
+          "requiredTotal": 200,
+          "complete": true,
+          "koreanDeferral": false
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "EXC_FINE_1M_PLUS",
+        "category": "EXCLUSION",
+        "status": "NOT_MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_EXCLUSION_NONE",
+        "evidence": {
+          "declarationField": "hasFine1mOrMore",
+          "declaredValue": false
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "EXC_TAX_ARREARS",
+        "category": "EXCLUSION",
+        "status": "NOT_MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_EXCLUSION_NONE",
+        "evidence": {
+          "declarationField": "hasCurrentTaxArrears",
+          "declaredValue": false
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "EXC_IMMIGRATION_4PLUS",
+        "category": "EXCLUSION",
+        "status": "NOT_MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_EXCLUSION_NONE",
+        "evidence": {
+          "declarationField": "immigrationViolationCount",
+          "declaredValue": 0
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "EXC_OVERSTAY_3M",
+        "category": "EXCLUSION",
+        "status": "NOT_MET",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_EXCLUSION_NONE",
+        "evidence": {
+          "declarationField": "hasOverstay3mOrMore",
+          "declaredValue": false
+        },
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "EXC_PUBLIC_SAFETY",
+        "category": "EXCLUSION",
+        "status": "NOT_APPLICABLE",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_EXCLUSION_MANUAL",
+        "evidence": {},
+        "missingInputs": [],
+        "reviewNote": null
+      },
+      {
+        "ruleCode": "EXC_SOCIAL_ORDER",
+        "category": "EXCLUSION",
+        "status": "NOT_APPLICABLE",
+        "earnedPoints": null,
+        "potentialPoints": null,
+        "messageCode": "E74_EXCLUSION_MANUAL",
+        "evidence": {},
+        "missingInputs": [],
+        "reviewNote": null
+      }
+    ],
+    "missingInputs": [],
+    "needsEvidence": [],
+    "reviewNotes": [],
+    "scoreGap": {
+      "required": 200,
+      "pointsNeeded": 0,
+      "pointsNeededAfterEvidence": 0
+    },
+    "improvements": [
+      {
+        "ruleCode": "KOREAN_L4_PLUS",
+        "kind": "RAISE_LEVEL",
+        "actor": "USER",
+        "pointsGain": 40,
+        "blocking": false,
+        "availableFrom": null,
+        "target": {
+          "topikLevel": 4,
+          "kiipStage": 4,
+          "preTestScore": 81
+        },
+        "documents": [
+          "TOPIK 성적표 또는 사회통합프로그램 이수증·사전평가 성적표"
+        ],
+        "messageCode": "E74_IMPROVE_RAISE_KOREAN",
+        "description": "한국어를 TOPIK 4급, 사회통합프로그램 4단계, 또는 사전평가 81점 이상으로 올리면 +40점"
+      },
+      {
+        "ruleCode": "REC_CENTRAL",
+        "kind": "OBTAIN_BONUS",
+        "actor": "GOVERNMENT",
+        "pointsGain": 30,
+        "blocking": false,
+        "availableFrom": null,
+        "target": {
+          "alternatives": [
+            "REC_CENTRAL",
+            "REC_REGIONAL"
+          ]
+        },
+        "documents": [
+          "중앙부처 추천서"
+        ],
+        "messageCode": "E74_IMPROVE_OBTAIN_RECOMMENDATION",
+        "description": "중앙부처 또는 광역지자체 추천을 받으면 +30점(둘 중 하나만 인정)"
+      },
+      {
+        "ruleCode": "QUALIFICATION",
+        "kind": "OBTAIN_BONUS",
+        "actor": "USER",
+        "pointsGain": 20,
+        "blocking": false,
+        "availableFrom": null,
+        "target": {},
+        "documents": [
+          "국내 자격증 사본 또는 국내 학위증 사본"
+        ],
+        "messageCode": "E74_IMPROVE_OBTAIN_QUALIFICATION",
+        "description": "지금 하는 일과 관련된 국내 기사·산업기사·기능사 자격증, 또는 국내 전문학사 이상 학위를 받으면 +20점"
+      },
+      {
+        "ruleCode": "INCOME_35_40",
+        "kind": "RAISE_LEVEL",
+        "actor": "USER",
+        "pointsGain": 15,
+        "blocking": false,
+        "availableFrom": null,
+        "target": {
+          "averageIncomeNeeded": 35000000,
+          "currentAverage": 32650000,
+          "shortfall": 2350000
+        },
+        "documents": [
+          "세무서 발행 소득금액증명원(최근 2년)"
+        ],
+        "messageCode": "E74_IMPROVE_RAISE_INCOME",
+        "description": "최근 2년 평균소득을 35,000,000원 이상으로 올리면 +15점(현재 32,650,000원)"
+      }
+    ],
+    "planToRequired": {
+      "ruleCodes": [],
+      "pointsAdded": 0,
+      "reachesRequired": true
+    },
+    "ruleStatus": "DRAFT",
+    "isScenario": false,
+    "scenario": null
+  }
+}

@@ -2,8 +2,11 @@
 
 실행(저장소 루트): uv run --project ai --with streamlit streamlit run ai/playground/e74_app.py
 - 점수 계산 탭: 엔진(assess_e74)을 직접 부른다. API·DB·LLM 없이 동작한다.
-- 채팅 탭: Claude(`AGENT_MODEL`)가 정책 문서 검색(테스트 인덱스)과 점수 계산을 도구로 쓴다.
-  Anthropic API 비용이 든다. 검색 인덱스는 이 PC 메모리에만 있다(승인 전 문서).
+- 채팅 탭: Claude(`AGENT_MODEL`)가 정책 문서 검색과 점수 계산을 도구로 쓴다.
+  Anthropic API 비용이 든다. 검색 방식은 두 가지다.
+  - 테스트 인덱스(기본): 이 PC 메모리에 만든 인덱스(승인 전 문서 포함, 승인 확인 없음)
+  - 운영 경로: ai-server 검색 API(MongoDB 벡터 검색 + Spring 승인 확인). 승인된 문서만 나온다.
+    ai-server(`PLAYGROUND_AI_SERVER_URL`)와 Spring이 떠 있어야 한다.
 합성 샘플만 쓰고, 실제 사용자 데이터를 넣지 않는다.
 """
 
@@ -15,6 +18,7 @@ from typing import Any
 
 import _bootstrap  # noqa: F401  (app 패키지 import 경로)
 import anthropic
+import httpx
 import pandas as pd
 import streamlit as st
 
@@ -42,10 +46,13 @@ from playground.e74_views import (
     plan_text,
     run,
 )
+from playground.live_search import live_search_client, live_search_payload
 from playground.rag_test_index import TestIndex, build_index, search_payload
 
 st.set_page_config(page_title="E-7-4 점수 계산 테스트", layout="wide")
 SAMPLES = load_samples()
+SEARCH_TEST_INDEX = "테스트 인덱스"
+SEARCH_LIVE = "운영 경로"
 
 
 def _use_sample() -> None:
@@ -155,6 +162,16 @@ def _client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=get_settings().anthropic_api_key.get_secret_value())
 
 
+@st.cache_resource(show_spinner=False)
+def _live_client() -> httpx.Client:
+    settings = get_settings()
+    return live_search_client(
+        settings.playground_ai_server_url,
+        settings.ai_internal_api_token.get_secret_value(),
+        settings.internal_token_header,
+    )
+
+
 def _build_index() -> TestIndex:
     with st.status("검색 인덱스 만드는 중", expanded=True) as status:
         status.write("BGE-M3 모델 불러오기(처음이면 내려받기)")
@@ -192,21 +209,40 @@ def _show_turn(entry: dict[str, Any]) -> None:
 
 def _render_chat(profile: E74Profile | None, include_draft: bool) -> None:
     settings = get_settings()
+    mode = st.radio(
+        "검색 방식",
+        [SEARCH_TEST_INDEX, SEARCH_LIVE],
+        horizontal=True,
+        key="search_mode",
+        help="운영 경로는 ai-server 검색 API를 부른다(MongoDB 벡터 검색 + Spring 승인 확인).",
+    )
+    live = mode == SEARCH_LIVE
+    search_label = (
+        f"운영 경로({settings.playground_ai_server_url}, 승인된 문서만)"
+        if live
+        else "테스트 인덱스(승인 전 문서, 이 PC 메모리)"
+    )
     st.caption(
         f"모델 {settings.agent_model} · 프롬프트 {PROMPT_ID} · thinking {CHAT_THINKING['type']} · "
-        "검색: 테스트 인덱스(승인 전 문서, 이 PC 메모리) · 점수: 왼쪽 프로필로 엔진 계산"
+        f"검색: {search_label} · 점수: 왼쪽 프로필로 엔진 계산"
     )
     log: list[dict[str, Any]] = st.session_state.setdefault("chat_log", [])
     history: list[dict[str, Any]] = st.session_state.setdefault("chat_history", [])
     index: TestIndex | None = st.session_state.get("rag_index")
 
     cols = st.columns([1, 1, 3])
-    if cols[0].button("검색 인덱스 만들기", disabled=index is not None):
+    if not live and cols[0].button("검색 인덱스 만들기", disabled=index is not None):
         st.session_state["rag_index"] = index = _build_index()
     if cols[1].button("대화 지우기"):
         log.clear()
         history.clear()
-    if index is not None:
+    if live:
+        cols[2].caption(
+            "ai-server와 Spring이 떠 있어야 한다. "
+            "승인 확인 실패(503) 등은 도구 오류로 Claude에게 간다"
+            + ("" if settings.internal_token_configured() else " · AI_INTERNAL_API_TOKEN 없음(401)")
+        )
+    elif index is not None:
         documents = len({chunk.path for chunk in index.chunks})
         skipped = ", ".join(path for path, _ in index.skipped) or "없음"
         cols[2].caption(
@@ -228,7 +264,10 @@ def _render_chat(profile: E74Profile | None, include_draft: bool) -> None:
         return
     log.append({"role": "user", "text": question})
     search: SearchFn | None = None
-    if index is not None:
+    if live:
+        client = _live_client()
+        search = lambda query, top_k: live_search_payload(client, query, top_k)  # noqa: E731
+    elif index is not None:
         embedder, ready = _embedder(), index
         search = lambda query, top_k: search_payload(ready, embedder, query, top_k)  # noqa: E731
     ctx = ToolContext(profile=profile, include_draft=include_draft, search=search)
