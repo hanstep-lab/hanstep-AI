@@ -102,6 +102,8 @@ async def chat_stream(
         user_id=body.user_id,
         request_id=request_id(request),
         timeout=settings.chat_tool_timeout_seconds,
+        message=body.message,
+        judgment_facts=setup.config.judgment_facts,
     )
     options = ChatRunOptions(
         max_tool_calls=settings.chat_max_tool_calls,

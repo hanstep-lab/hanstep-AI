@@ -17,6 +17,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from app.chat.judgment import judgment_facts
 from app.integrations.spring_client import SpringApiError, SpringInternalClient
 
 logger = logging.getLogger(__name__)
@@ -137,7 +138,11 @@ def summarize(context: dict[str, Any]) -> dict[str, Any]:
 
 
 class FinanceTool:
-    """Bound to one request: user id and request id cannot be changed by the LLM."""
+    """Bound to one request: user id, request id and message cannot be changed by the LLM.
+
+    With ``judgment_facts`` the result also holds ``judgmentFacts`` computed from the summary and
+    this turn's user message; without it the result is exactly the summary.
+    """
 
     def __init__(
         self,
@@ -146,11 +151,15 @@ class FinanceTool:
         user_id: int,
         request_id: str | None,
         timeout: float,
+        message: str = "",
+        judgment_facts: bool = False,
     ) -> None:
         self._source = source
         self._user_id = user_id
         self._request_id = request_id
         self._timeout = timeout
+        self._message = message
+        self._judgment_facts = judgment_facts
 
     async def run(self, name: str, arguments: dict[str, Any]) -> ToolOutcome:
         started = time.perf_counter()
@@ -182,5 +191,9 @@ class FinanceTool:
             ref = {"type": "FINANCIAL_ANALYSIS", "id": int(analysis["id"])}
         except (KeyError, TypeError, ValueError):
             return outcome("FAILED", UNAVAILABLE, error_code="INVALID_CONTEXT")
+        if self._judgment_facts:
+            facts = judgment_facts(summary, self._message)
+            if facts is not None:
+                summary["judgmentFacts"] = facts
         source = {**ref, "chunkRef": None, "pageLabel": None}
         return outcome("SUCCEEDED", summary, result_ref=ref, sources=[source])

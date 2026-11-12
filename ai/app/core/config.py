@@ -20,6 +20,7 @@ PLACEHOLDER_MARKERS = ("your-", "CHANGE_ME", "example.", "username:password")
 
 ChatThinking = Literal["model_default", "adaptive", "between_tools", "disabled"]
 ChatEffort = Literal["", "low", "medium", "high"]
+ChatPromptVersion = Literal["v1", "v1.1"]
 # Efforts allowed when thinking is turned off (between_tools / disabled).
 _EFFORTS_WITHOUT_THINKING = {"", "low", "medium", "high"}
 
@@ -105,6 +106,9 @@ class Settings(BaseSettings):
 
     # Chat agent (INT-05). fake runs the same graph without an API key.
     chat_llm_mode: Literal["fake", "anthropic"] = "fake"
+    # Chat-only model. Empty: AGENT_MODEL (see chat_model_id).
+    # Defaults (model, judgment facts, prompt v1.1): judgment facts comparison, 2026-11-12.
+    chat_model: str = "claude-haiku-5-5"
     # model_default sends no thinking parameter (both 5.5 models then think adaptively).
     chat_thinking: ChatThinking = "model_default"
     chat_effort: ChatEffort = ""
@@ -114,6 +118,10 @@ class Settings(BaseSettings):
     chat_tool_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
     chat_run_timeout_seconds: float = Field(default=60.0, gt=0, le=600)
     chat_fake_delta_delay_ms: int = Field(default=30, ge=0, le=5000)
+    # Add code-computed judgment facts (judgmentFacts) to the finance tool result.
+    chat_judgment_facts: bool = True
+    # System prompt version (app/chat/prompts): v1 | v1.1.
+    chat_prompt_version: ChatPromptVersion = "v1.1"
     # Measurement only: honour the per-request X-Chat-Config header.
     chat_allow_config_override: bool = False
 
@@ -174,7 +182,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _chat_config_allowed(self) -> Settings:
         # Fail at startup, not on the first chat request.
-        check_chat_config(self.agent_model, self.chat_thinking, self.chat_effort)
+        check_chat_config(self.chat_model_id, self.chat_thinking, self.chat_effort)
         return self
 
     @model_validator(mode="after")
@@ -192,6 +200,11 @@ class Settings(BaseSettings):
 
     def anthropic_configured(self) -> bool:
         return not is_placeholder(self.anthropic_api_key.get_secret_value())
+
+    @property
+    def chat_model_id(self) -> str:
+        """The model the chat agent uses: CHAT_MODEL, or AGENT_MODEL when it is empty."""
+        return self.chat_model.strip() or self.agent_model
 
     def spring_configured(self) -> bool:
         return not (
