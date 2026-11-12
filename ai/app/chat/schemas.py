@@ -55,7 +55,7 @@ class LlmConfig:
     @classmethod
     def from_settings(cls, settings: Settings) -> LlmConfig:
         return cls(
-            model=settings.agent_model,
+            model=settings.chat_model_id,
             thinking=settings.chat_thinking,
             effort=settings.chat_effort,
             max_tokens=settings.chat_max_tokens,

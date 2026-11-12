@@ -632,3 +632,34 @@ def test_route_builds_tool_with_this_message_and_flag(
     assert names[-1] == "agent.done"
     assert seen["message"] == "Can I send 200,000 won more?"
     assert seen["judgment_facts"] is enabled
+
+
+def test_chat_model_falls_back_to_agent_model() -> None:
+    default = _settings(agent_model="claude-haiku-5-5")
+    assert default.chat_model == ""
+    assert default.chat_model_id == "claude-haiku-5-5"
+    assert LlmConfig.from_settings(default).model == "claude-haiku-5-5"
+
+    chat_only = _settings(agent_model="claude-haiku-5-5", chat_model="claude-sonnet-5-5")
+    assert chat_only.agent_model == "claude-haiku-5-5"  # roadmap text etc. keep AGENT_MODEL
+    assert LlmConfig.from_settings(chat_only).model == "claude-sonnet-5-5"
+    events = parse_sse(
+        _post(
+            _client(agent_model="claude-haiku-5-5", chat_model="claude-sonnet-5-5"),
+            _body(),
+            **{"X-Chat-Metrics": "1"},
+        ).text
+    )
+    assert events[-2][1]["config"]["model"] == "claude-sonnet-5-5"
+
+
+def test_chat_config_is_checked_against_the_model_chat_uses() -> None:
+    # disabled is fine for Haiku (AGENT_MODEL) but not for Sonnet (CHAT_MODEL).
+    with pytest.raises(ValidationError):
+        _settings(
+            agent_model="claude-haiku-5-5", chat_model="claude-sonnet-5-5", chat_thinking="disabled"
+        )
+    ok = _settings(
+        agent_model="claude-sonnet-5-5", chat_model="claude-haiku-5-5", chat_thinking="disabled"
+    )
+    assert ok.chat_model_id == "claude-haiku-5-5"

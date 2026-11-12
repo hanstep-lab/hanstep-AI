@@ -104,6 +104,8 @@ class Settings(BaseSettings):
 
     # Chat agent (INT-05). fake runs the same graph without an API key.
     chat_llm_mode: Literal["fake", "anthropic"] = "fake"
+    # Chat-only model. Empty: AGENT_MODEL (see chat_model_id).
+    chat_model: str = ""
     # model_default sends no thinking parameter (both 5.5 models then think adaptively).
     chat_thinking: ChatThinking = "model_default"
     chat_effort: ChatEffort = ""
@@ -177,7 +179,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _chat_config_allowed(self) -> Settings:
         # Fail at startup, not on the first chat request.
-        check_chat_config(self.agent_model, self.chat_thinking, self.chat_effort)
+        check_chat_config(self.chat_model_id, self.chat_thinking, self.chat_effort)
         return self
 
     @model_validator(mode="after")
@@ -195,6 +197,11 @@ class Settings(BaseSettings):
 
     def anthropic_configured(self) -> bool:
         return not is_placeholder(self.anthropic_api_key.get_secret_value())
+
+    @property
+    def chat_model_id(self) -> str:
+        """The model the chat agent uses: CHAT_MODEL, or AGENT_MODEL when it is empty."""
+        return self.chat_model.strip() or self.agent_model
 
     def spring_configured(self) -> bool:
         return not (

@@ -147,7 +147,7 @@ def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]
         return [
             {
                 "name": "server-default",
-                "model": settings.agent_model,
+                "model": settings.chat_model_id,
                 "thinking": settings.chat_thinking,
                 "effort": settings.chat_effort,
                 "maxTokens": settings.chat_max_tokens,
@@ -159,7 +159,7 @@ def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]
     if not variants or any(not n for n in names) or len(set(names)) != len(names):
         raise ValueError("--variants needs a non-empty list with unique names")
     for v in variants:
-        v.setdefault("model", settings.agent_model)
+        v.setdefault("model", settings.chat_model_id)
         v.setdefault("maxTokens", settings.chat_max_tokens)
         v["override"] = True
     return variants
