@@ -20,6 +20,7 @@ cross the budget; runs that end in agent.error count too (usage from agent.metri
 --llm-mode fake the run stops at once if the server answers with a real model or real tokens.
 Questions with referenceValues get a referenceCheck (reference / wrong_number / no_value), and
 each row keeps the arrival ms of every delta (deltaTimesMs) for replaying the stream later.
+Judgment questions (expectedConclusion) are listed with their full answers for a person to grade.
 The API key and internal tokens are never printed or written.
 """
 
@@ -461,7 +462,41 @@ def render_summary(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> st
                 f"{sum(u.get('outputTokens', 0) for u in usage) / n:.0f} | "
                 f"{sum(r.get('costUsd', 0) for r in q_rows) / n:.5f} |"
             )
+    out += judgment_section(conditions, rows)
     return "\n".join(out) + "\n"
+
+
+def _cell(text: str) -> str:
+    """One markdown table cell: line breaks become spaces, pipes are escaped."""
+    return " ".join(text.split()).replace("|", "\\|")
+
+
+def judgment_section(conditions: dict[str, Any], rows: list[dict[str, Any]]) -> list[str]:
+    """Judgment answers next to the expected conclusion, for a person to grade (no auto score)."""
+    judged = [r for r in rows if r.get("expectedConclusion") and not r["warmup"]]
+    if not judged:
+        return []
+    out = ["", "## 판단형 문항(사람 채점)", ""]
+    for variant in conditions["variants"]:
+        mine = [r for r in judged if r["variant"] == variant["name"]]
+        if not mine:
+            continue
+        out += [
+            f"### {variant['name']}",
+            "",
+            "| 문항 | 회차 | 기대 결론 | 답변 |",
+            "|---|---|---|---|",
+        ]
+        for r in mine:
+            answer = r.get("answer") or ""
+            if r["status"] != "done":
+                answer = f"(오류 {r.get('errorCode') or r['status']}) {answer}"
+            out.append(
+                f"| {r['questionId']} | {r['repeat']} | {_cell(r['expectedConclusion'])} | "
+                f"{_cell(answer)} |"
+            )
+        out.append("")
+    return out[:-1]
 
 
 def write_jsonl(path: Path, conditions: dict[str, Any], rows: list[dict[str, Any]]) -> None:
@@ -668,6 +703,7 @@ def main(
                 "deltaTimesMs": result["deltaMs"],
                 "expectedTools": question["expectedTools"],
                 "referenceValues": question.get("referenceValues"),
+                "expectedConclusion": question.get("expectedConclusion"),
                 "toolResult": context,
                 "contextTexts": [
                     question["text"],

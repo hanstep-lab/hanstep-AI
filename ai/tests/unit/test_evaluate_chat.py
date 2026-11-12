@@ -443,3 +443,40 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
     assert "  - T03 #1: 참조값 포함 (29.8%)" in rescored.with_suffix(".md").read_text(
         encoding="utf-8"
     )
+
+
+def test_judgment_answers_listed_for_grading(tmp_path: Path) -> None:
+    output = tmp_path / "run.jsonl"
+    assert _run(_settings(), "--questions", "F01,J01,J07", "--output", str(output)) == 0
+
+    rows = {r["questionId"]: r for r in _rows(output)}
+    conclusions = {q["id"]: q.get("expectedConclusion") for q in EVAL.load_questions()["questions"]}
+    assert rows["F01"]["expectedConclusion"] is None
+    for qid in ("J01", "J07"):
+        assert rows[qid]["expectedConclusion"] == conclusions[qid]
+        assert "referenceCheck" not in rows[qid]  # graded by a person, not automatically
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    section = summary.split("## 판단형 문항(사람 채점)", 1)[1]
+    assert "### server-default" in section
+    assert "| 문항 | 회차 | 기대 결론 | 답변 |" in section
+    j01 = " ".join(rows["J01"]["answer"].split())
+    assert f"| J01 | 1 | {conclusions['J01']} | {j01} |" in section
+    assert "| F01 |" not in section
+
+    # --rescore keeps the section; line breaks and pipes in an answer stay inside one cell.
+    lines = output.read_text(encoding="utf-8").splitlines()
+    saved = [json.loads(line) for line in lines[1:]]
+    for row in saved:
+        if row["questionId"] == "J07":
+            row["answer"] = "Yes on average.\n\nYou would be short | about 324,683 KRW."
+    output.write_text(
+        "\n".join([lines[0], *(json.dumps(r) for r in saved)]) + "\n", encoding="utf-8"
+    )
+    rescored = tmp_path / "rescored.jsonl"
+    assert EVAL.main(["--rescore", str(output), "--output", str(rescored)]) == 0
+    text = rescored.with_suffix(".md").read_text(encoding="utf-8")
+    assert "## 판단형 문항(사람 채점)" in text
+    assert (
+        f"| J07 | 1 | {conclusions['J07']} | "
+        "Yes on average. You would be short \\| about 324,683 KRW. |"
+    ) in text
