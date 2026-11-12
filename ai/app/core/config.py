@@ -6,6 +6,7 @@ import logging
 import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -16,6 +17,30 @@ REPO_ROOT = AI_ROOT.parent
 
 MIN_INTERNAL_TOKEN_LENGTH = 32
 PLACEHOLDER_MARKERS = ("your-", "CHANGE_ME", "example.", "username:password")
+
+ChatThinking = Literal["model_default", "adaptive", "between_tools", "disabled"]
+ChatEffort = Literal["", "low", "medium", "high"]
+# Efforts allowed when thinking is turned off (between_tools / disabled).
+_EFFORTS_WITHOUT_THINKING = {"", "low", "medium", "high"}
+
+
+def check_chat_config(model: str, thinking: str, effort: str) -> None:
+    """Reject thinking/effort combinations the model does not accept.
+
+    Rules are known for the two 5.5 models only; other models are passed through unchecked.
+    Sonnet 5.5: no ``disabled``; ``between_tools`` with effort high or below.
+    Haiku 5.5: no ``between_tools``; ``disabled`` with effort high or below.
+    """
+    if model.startswith("claude-sonnet-5-5"):
+        if thinking == "disabled":
+            raise ValueError(f"{model} does not accept CHAT_THINKING=disabled")
+    elif model.startswith("claude-haiku-5-5"):
+        if thinking == "between_tools":
+            raise ValueError(f"{model} does not accept CHAT_THINKING=between_tools")
+    else:
+        return
+    if thinking in ("between_tools", "disabled") and effort not in _EFFORTS_WITHOUT_THINKING:
+        raise ValueError(f"{model} with CHAT_THINKING={thinking} needs CHAT_EFFORT high or below")
 
 
 def is_placeholder(value: str | None) -> bool:
@@ -76,6 +101,20 @@ class Settings(BaseSettings):
     # 문장 생성 전체(재시도 포함)의 시간. 넘기면 템플릿 문장. Spring 호출 타임아웃보다 짧게 둔다.
     roadmap_llm_timeout_seconds: float = Field(default=15.0, gt=0, le=60)
 
+    # Chat agent (INT-05). fake runs the same graph without an API key.
+    chat_llm_mode: Literal["fake", "anthropic"] = "fake"
+    # model_default sends no thinking parameter (both 5.5 models then think adaptively).
+    chat_thinking: ChatThinking = "model_default"
+    chat_effort: ChatEffort = ""
+    # Thinking tokens count against max_tokens, so leave room.
+    chat_max_tokens: int = Field(default=2000, ge=1, le=64000)
+    chat_max_tool_calls: int = Field(default=3, ge=0, le=10)
+    chat_tool_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
+    chat_run_timeout_seconds: float = Field(default=60.0, gt=0, le=600)
+    chat_fake_delta_delay_ms: int = Field(default=30, ge=0, le=5000)
+    # Measurement only: honour the per-request X-Chat-Config header.
+    chat_allow_config_override: bool = False
+
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")
 
@@ -129,6 +168,12 @@ class Settings(BaseSettings):
                 "without a bucket name or path"
             )
         return value.rstrip("/")
+
+    @model_validator(mode="after")
+    def _chat_config_allowed(self) -> Settings:
+        # Fail at startup, not on the first chat request.
+        check_chat_config(self.agent_model, self.chat_thinking, self.chat_effort)
+        return self
 
     @model_validator(mode="after")
     def _distinct_buckets(self) -> Settings:
