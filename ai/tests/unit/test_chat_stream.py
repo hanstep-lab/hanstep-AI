@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from app.api.routes.chat import build_model, finance_source
 from app.chat.fake_llm import FAKE_MODEL_ID, TRIGGER_EMPTY_ANSWER, TRIGGER_LLM_ERROR, FakeChatModel
 from app.chat.schemas import ChatStreamRequest, LlmConfig
-from app.chat.stream import ChatRunOptions, run_chat
+from app.chat.stream import CALL_SEPARATOR, ChatRunOptions, run_chat
 from app.chat.tools import (
     FinanceTool,
     FixtureFinanceContext,
@@ -526,6 +526,82 @@ async def test_first_answer_delta_and_pre_tool_text() -> None:
     done = chatty[-1][1]
     assert metrics["preToolTextChars"] == len("Let me check. ")
     assert metrics["firstAnswerDeltaMs"] >= done["timings"]["firstDeltaMs"]
-    # Today that text still goes out as a delta (only the prompt forbids it).
-    assert done["content"].startswith("Let me check. ")
+    # The text before the tool call still streams, and the answer starts after a blank line.
     assert _names(chatty)[0] == "agent.delta"
+    texts = [data["text"] for name, data in chatty if name == "agent.delta"]
+    assert "".join(texts) == done["content"]
+    assert done["content"] == "Let me check. " + CALL_SEPARATOR + plain[-1][1]["content"]
+
+
+def _llm_call(call: int, stop: str) -> dict[str, Any]:
+    return {"type": "llm_call", "call": call, "model": FAKE_MODEL_ID, "stopReason": stop,
+            "inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0, "thinkingBlocks": 0, "firstTextMs": None,
+            "durationMs": 0}  # fmt: skip
+
+
+class _ScriptedGraph:
+    """Stands in for the compiled graph: yields the given custom-stream items as they are."""
+
+    def __init__(self, items: list[dict[str, Any]]) -> None:
+        self.items = items
+
+    async def astream(self, *_: Any, **__: Any) -> Any:
+        for item in self.items:
+            yield item
+
+
+def _delta(text: str, call: int) -> dict[str, Any]:
+    return {"type": "delta", "text": text, "call": call}
+
+
+@pytest.mark.parametrize(
+    ("items", "texts"),
+    [
+        # Text before the tool call, then the answer's first chunk is blank: dropped, and the
+        # separator goes on the first real text only once.
+        (
+            [
+                _delta("Let me check.", 0),
+                _llm_call(0, "tool_use"),
+                _delta(" ", 1),
+                _delta("Your", 1),
+                _delta(" spare", 1),
+                _llm_call(1, "end_turn"),
+            ],
+            ["Let me check.", CALL_SEPARATOR + "Your", " spare"],
+        ),
+        # A blank chunk in the middle of the answer is kept, so words stay apart.
+        (
+            [
+                _delta("Let me check.", 0),
+                _llm_call(0, "tool_use"),
+                _delta("Your", 1),
+                _delta(" ", 1),
+                _delta("spare", 1),
+                _llm_call(1, "end_turn"),
+            ],
+            ["Let me check.", CALL_SEPARATOR + "Your", " ", "spare"],
+        ),
+        # No text before the tool call: no separator, blank chunks kept as they are.
+        (
+            [
+                _llm_call(0, "tool_use"),
+                _delta("Your", 1),
+                _delta(" ", 1),
+                _delta("spare", 1),
+                _llm_call(1, "end_turn"),
+            ],
+            ["Your", " ", "spare"],
+        ),
+    ],  # fmt: skip
+    ids=["blank-first-answer-chunk", "blank-mid-answer-chunk", "no-pre-tool-text"],
+)
+async def test_call_separator_on_graph_output(
+    monkeypatch: pytest.MonkeyPatch, items: list[dict[str, Any]], texts: list[str]
+) -> None:
+    monkeypatch.setattr("app.chat.stream.build_graph", lambda *_, **__: _ScriptedGraph(items))
+    events = await _run()
+    assert [data["text"] for name, data in events if name == "agent.delta"] == texts
+    assert events[-1][0] == "agent.done"
+    assert events[-1][1]["content"] == "".join(texts)

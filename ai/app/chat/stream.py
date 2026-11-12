@@ -3,6 +3,9 @@
 Order: agent.tool_call* -> agent.delta* -> agent.sources? -> [agent.metrics] -> agent.done,
 or [agent.metrics] -> agent.error at any point; nothing after done/error. agent.metrics (only
 with ``X-Chat-Metrics: 1``) holds the LLM calls finished so far, so failed runs are measured too.
+When a later LLM call writes text after an earlier call already did (e.g. "Let me check." before
+a tool call), CALL_SEPARATOR goes first in the same agent.delta, so the streamed text and
+agent.done content never run two calls' text together.
 The graph runs in its own task so the run deadline and a Spring disconnect (generator cancelled
 or closed) cancel the graph and the in-flight LLM call. Logs carry run id, latency, token
 counts, tool names and stop reasons only.
@@ -37,6 +40,8 @@ ERROR_MESSAGES = {
     "AGENT_TIMEOUT": "The answer took too long. Please try again.",
     "AGENT_INTERNAL_ERROR": "Something went wrong while answering. Please try again.",
 }
+# Between the texts of two LLM calls (text before a tool call, then the answer).
+CALL_SEPARATOR = "\n\n"
 _TOOL_EVENT_FIELDS = (
     "order",
     "toolName",
@@ -123,6 +128,7 @@ async def run_chat(
     # Per LLM call number: when its first text reached the stream, and how many characters.
     call_first_delta_ms: dict[int, int] = {}
     call_text_chars: dict[int, int] = {}
+    last_text_call: int | None = None  # LLM call that wrote the last non-blank text
     outcome = "cancelled"
 
     def metrics_event() -> ServerSentEvent:
@@ -167,8 +173,15 @@ async def run_chat(
                     call_text_chars[item["call"]] = call_text_chars.get(item["call"], 0) + len(
                         item["text"]
                     )
-                    deltas.append(item["text"])
-                    yield _event("agent.delta", {"text": item["text"]})
+                    text = item["text"]
+                    if last_text_call is not None and item["call"] != last_text_call:
+                        if not text.strip():
+                            continue  # wait for the new call's first real text
+                        text = CALL_SEPARATOR + text.lstrip()
+                    if text.strip():
+                        last_text_call = item["call"]
+                    deltas.append(text)
+                    yield _event("agent.delta", {"text": text})
                 elif item["type"] == "tool_call":
                     tools.append(item)
                     for source in item["sources"]:
