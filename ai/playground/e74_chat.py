@@ -142,6 +142,8 @@ class ClaudeClient(Protocol):
 
 
 SearchFn = Callable[[str, int], list[dict[str, object]]]
+# 기준일 → Claude에게 돌려줄 계산 결과 요약(운영 경로 계산).
+CalculateFn = Callable[[date], dict[str, Any]]
 
 
 class SearchToolError(Exception):
@@ -151,14 +153,23 @@ class SearchToolError(Exception):
     """
 
 
+class CalculateToolError(Exception):
+    """계산 함수(운영 경로)가 도구 오류로 돌려줄 실패. 메시지에 토큰·프로필 값을 넣지 않는다."""
+
+
 @dataclass
 class ToolContext:
-    """도구가 쓰는 현재 화면 상태."""
+    """도구가 쓰는 현재 화면 상태.
+
+    ``calculate``가 있으면 점수 계산 도구가 그 경로(AI API·Spring 경유)를 쓰고, 없으면 왼쪽
+    프로필로 엔진을 직접 부른다.
+    """
 
     profile: E74Profile | None
     include_draft: bool
     search: SearchFn | None
     today: date = field(default_factory=date.today)
+    calculate: CalculateFn | None = None
 
 
 @dataclass(frozen=True)
@@ -225,17 +236,22 @@ def execute_tool(name: str, tool_input: dict[str, Any], ctx: ToolContext) -> tup
             return str(exc), True
         return json.dumps(results, ensure_ascii=False), False
     if name == "calculate_e74_score":
+        raw = tool_input.get("as_of_date")
+        try:
+            as_of = date.fromisoformat(raw) if isinstance(raw, str) and raw else ctx.today
+        except ValueError:
+            return f"as_of_date 형식 오류: {raw!r} (YYYY-MM-DD)", True
+        if ctx.calculate is not None:
+            try:
+                return json.dumps(ctx.calculate(as_of), ensure_ascii=False), False
+            except CalculateToolError as exc:
+                return str(exc), True
         if ctx.profile is None:
             return (
                 "프로필 입력이 올바르지 않아 계산할 수 없음. "
                 "화면의 프로필 JSON 오류를 먼저 고쳐야 함",
                 True,
             )
-        raw = tool_input.get("as_of_date")
-        try:
-            as_of = date.fromisoformat(raw) if isinstance(raw, str) and raw else ctx.today
-        except ValueError:
-            return f"as_of_date 형식 오류: {raw!r} (YYYY-MM-DD)", True
         result = assess_e74(ctx.profile, as_of, include_draft=ctx.include_draft)
         return json.dumps(assessment_payload(result), ensure_ascii=False), False
     return f"알 수 없는 도구: {name}", True
