@@ -376,6 +376,27 @@ def test_judgment_conclusion_numbers_match_fixture() -> None:
         assert found == expected.get(qid, set()), qid
 
 
+@pytest.mark.parametrize(
+    ("prompt_version", "supported"),
+    [("chat-v2", True), ("chat-v1.1", False), (None, False)],
+)
+def test_prompt_fixed_number_is_supported_only_for_its_prompt(
+    prompt_version: str | None, supported: bool
+) -> None:
+    # HiKorea 1345는 v2 프롬프트(visa_rules.md)에만 있다.
+    # 다른 버전이나 버전을 모르는 행에서는 그대로 근거 없는 숫자로 센다.
+    row: dict[str, Any] = {
+        "answer": "Please check with HiKorea at 1345.",
+        "toolResult": EVAL.tool_context(_settings(), 1, "fake"),
+        "contextTexts": ["What is my E-7-4 visa score?"],
+        "expectedTools": [],
+        "tools": [],
+        "metrics": {"config": {"promptVersion": prompt_version}},
+    }
+    EVAL.score(row)
+    assert (row["numberCheck"]["unsupported"] == []) is supported
+
+
 def _calc_row(question_id: str, answer: str) -> dict[str, Any]:
     question = next(q for q in EVAL.load_questions()["questions"] if q["id"] == question_id)
     row: dict[str, Any] = {

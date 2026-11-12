@@ -55,7 +55,7 @@ import httpx
 from app.chat.fake_llm import FAKE_MODEL_ID
 from app.chat.judgment import judgment_facts
 from app.chat.number_check import check_answer, rounded_values, scan_numbers
-from app.chat.prompts import PROMPT_VERSIONS
+from app.chat.prompts import PROMPT_VERSIONS, system_prompt
 from app.chat.tools import FIXTURE, summarize
 from app.core.config import Settings, get_settings
 from app.integrations.spring_client import SpringInternalClient
@@ -63,6 +63,8 @@ from app.rag.cli import EXIT_BLOCKED, EXIT_FAILED, EXIT_OK
 
 AI_ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
+# 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
+PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
 EXIT_INTERRUPTED = 130
 EXIT_USAGE = 2
 
@@ -376,6 +378,16 @@ def reference_check(
     return {"verdict": verdict, "matched": matched, "unsupported": unsupported}
 
 
+def prompt_fixed_numbers(row: dict[str, Any]) -> list[str]:
+    """이 행의 프롬프트(서버가 보고한 promptVersion)에 들어 있는 고정 번호. 모르면 없음."""
+    version_id = ((row.get("metrics") or {}).get("config") or {}).get("promptVersion")
+    key = next((k for k, v in PROMPT_VERSIONS.items() if v == version_id), None)
+    if key is None:
+        return []
+    prompt = system_prompt("en", key)
+    return [number for number in PROMPT_FIXED_NUMBERS if number in prompt]
+
+
 def score(row: dict[str, Any]) -> None:
     """Number check, reference check and expected-tool match from what the row already holds."""
     answer = row.get("answer") or ""
@@ -385,7 +397,7 @@ def score(row: dict[str, Any]) -> None:
         facts = judgment_facts(row["toolResult"], row["contextTexts"][0])
         if facts is not None:
             tool_results.append(facts)
-    check = check_answer(answer, tool_results, row["contextTexts"])
+    check = check_answer(answer, tool_results, [*row["contextTexts"], *prompt_fixed_numbers(row)])
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)

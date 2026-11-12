@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.chat.prompts import PROMPT_VERSION, PROMPT_VERSIONS, system_prompt
+from app.chat.prompts import PROMPT_VERSION, PROMPT_VERSIONS, _with_visa_rules, system_prompt
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import build_messages
 from app.core.config import Settings
@@ -66,21 +66,26 @@ def test_default_is_judgment_facts_v1_1_haiku() -> None:
     assert (config.prompt_version, config.prompt_version_id) == ("v1.1", "chat-v1.1")
 
 
-def test_v2_keeps_v1_1_rules_and_adds_visa_rules() -> None:
+def test_v2_is_v1_1_plus_visa_rules() -> None:
+    # v2는 복사본이 아니라 v1.1 + visa_rules.md로 만든다.
+    # 바뀌는 v1.1 줄은 "비자 점수는 아직 안 됨" 하나다.
     v11 = system_prompt("en", "v1.1").splitlines()
     v2 = system_prompt("en", "v2").splitlines()
-    # 첫 줄(역할 소개)과 "비자 점수는 아직 안 됨" 줄만 바뀌고 나머지 v1.1 줄은 같은 순서로 남는다.
-    assert v11[0] != v2[0]
+    visa = (PROMPTS / "visa_rules.md").read_text(encoding="utf-8").splitlines()
     assert V11_VISA_UNAVAILABLE in v11
-    assert V11_VISA_UNAVAILABLE not in v2
-    kept = [line for line in v11[1:] if line != V11_VISA_UNAVAILABLE]
-    position = 0
-    for line in kept:
-        position = v2.index(line, position) + 1  # 없거나 순서가 바뀌면 ValueError
-    assert V2_PRODUCTS in v2
-    added = "\n".join(line for line in v2 if line not in v11)
+    assert not (PROMPTS / "system_v2.md").exists()
+    expected = [V2_PRODUCTS if line == V11_VISA_UNAVAILABLE else line for line in v11]
+    assert v2 == [*expected, "", *visa]
+    # v1.1의 숫자·판단 규칙은 그대로 남는다.
+    assert V11_NUMBERS in v2
+    assert V11_JUDGMENT in v2
     for name in ("calculate_e74_score", "search_visa_policies", "HiKorea (1345)", "pre-check"):
-        assert name in added
+        assert any(name in line for line in visa)
+
+
+def test_v2_fails_fast_when_v1_1_line_moves() -> None:
+    with pytest.raises(ValueError, match="visa-unavailable line"):
+        _with_visa_rules("Rules:\n- something else", "- visa")
 
 
 def test_v1_1_differs_only_in_two_lines() -> None:
