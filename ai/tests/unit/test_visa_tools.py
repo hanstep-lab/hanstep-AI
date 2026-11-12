@@ -140,6 +140,46 @@ def test_recorded_arguments_drop_malformed_legal_values(
     assert recorded == {"query": "E-7-4", "legalDeclaration": {"answered": answered}}
 
 
+@pytest.mark.parametrize(
+    ("arguments", "recorded"),
+    [
+        # snake_case 키: 도구는 거부(REJECTED)하지만 Spring은 인자를 저장한다.
+        (
+            {"legal_declaration": {"fines_under_1m_count": 2, "has_fine_1m_or_more": False}},
+            {"legal_declaration": {"answered": ["finesUnder1mCount", "hasFine1mOrMore"]}},
+        ),
+        # 다른 인자 안에 넣은 경우
+        (
+            {"scenario": {"legalDeclaration": {"taxStayRestrictionCount": 1}}},
+            {"scenario": {"legalDeclaration": {"answered": ["taxStayRestrictionCount"]}}},
+        ),
+        # 문항 이름을 바로 인자로 쓴 경우(대소문자·밑줄 무시)
+        (
+            {"asOfDate": "2026-11-12", "FINES_UNDER_1M_COUNT": 3, "hasCurrentTaxArrears": True},
+            {
+                "asOfDate": "2026-11-12",
+                "FINES_UNDER_1M_COUNT": "REDACTED",
+                "hasCurrentTaxArrears": "REDACTED",
+            },
+        ),
+        # 목록 안에 들어 있는 경우
+        (
+            {"items": [{"legalDeclaration": {"immigrationViolationCount": 2}}, {"query": "q"}]},
+            {
+                "items": [
+                    {"legalDeclaration": {"answered": ["immigrationViolationCount"]}},
+                    {"query": "q"},
+                ]
+            },
+        ),
+    ],
+)
+def test_recorded_arguments_hide_legal_values_under_any_key_or_depth(
+    arguments: dict[str, Any], recorded: dict[str, Any]
+) -> None:
+    assert recorded_arguments(arguments) == recorded
+
+
 def test_recorded_arguments_without_legal_answers_are_unchanged() -> None:
     for arguments in ({"query": "E-7-4", "topK": 3}, {"asOfDate": None, "legalDeclaration": None}):
         assert recorded_arguments(arguments) == arguments

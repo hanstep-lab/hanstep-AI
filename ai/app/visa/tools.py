@@ -110,21 +110,57 @@ LEGAL_DECLARATION_ITEMS = tuple(
 )
 
 
+# 문항 값 대신 남기는 표시. 문항 이름이 legalDeclaration 밖에 따로 나온 경우에 쓴다.
+REDACTED = "REDACTED"
+
+
+def _key(name: object) -> str:
+    """키 비교용: 소문자로 바꾸고 영문·숫자만 남긴다(legal_declaration = legalDeclaration)."""
+    return "".join(ch for ch in str(name).lower() if ch.isascii() and ch.isalnum())
+
+
+_DECLARATION_KEY = _key(LEGAL_DECLARATION_KEY)
+_ITEM_KEYS = {_key(item): item for item in LEGAL_DECLARATION_ITEMS}
+
+
+def _answered(declaration: Any) -> dict[str, list[str]]:
+    answers = declaration if isinstance(declaration, Mapping) else {}
+    given = {
+        _ITEM_KEYS[_key(name)]
+        for name, value in answers.items()
+        if _key(name) in _ITEM_KEYS and value is not None
+    }
+    return {"answered": [item for item in LEGAL_DECLARATION_ITEMS if item in given]}
+
+
+def _redact(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        redacted: dict[Any, Any] = {}
+        for name, item in value.items():
+            key = _key(name)
+            if key == _DECLARATION_KEY:
+                redacted[name] = None if item is None else _answered(item)
+            elif key in _ITEM_KEYS:
+                redacted[name] = REDACTED
+            else:
+                redacted[name] = _redact(item)
+        return redacted
+    if isinstance(value, list | tuple):
+        return [_redact(item) for item in value]
+    return value
+
+
 def recorded_arguments(arguments: Mapping[str, Any]) -> dict[str, Any]:
     """채팅 기록에 남길 도구 인자(agent.tool_call의 arguments → chat_tool_calls.arguments_json).
 
     도구 실행에는 원래 인자를 쓰고, 기록에는 이 값을 쓴다. legalDeclaration은 값 대신 답한 문항
-    이름만 남긴다(예: {"answered": ["finesUnder1mCount"]}). LLM이 인자를 잘못 채워 다른 도구에
-    넣거나 모양이 틀려도 값이 남지 않게, 도구 이름이나 형식 검사와 상관없이 바꾼다.
+    이름만 남긴다(예: {"answered": ["finesUnder1mCount"]}). 문항 이름이 따로 나오면 값을
+    REDACTED로 바꾼다. Spring은 인자 검증에 실패한(REJECTED) 호출의 인자도 저장하므로, LLM이
+    키를 snake_case로 쓰거나 다른 인자 안에 넣거나 모양을 틀려도 값이 남지 않게 한다. 키는
+    대소문자·밑줄을 무시하고 비교하며, 중첩된 객체·목록까지 모두 바꾼다.
     """
-    recorded = dict(arguments)
-    declaration = recorded.get(LEGAL_DECLARATION_KEY)
-    if declaration is not None:
-        answers = declaration if isinstance(declaration, Mapping) else {}
-        recorded[LEGAL_DECLARATION_KEY] = {
-            "answered": [key for key in LEGAL_DECLARATION_ITEMS if answers.get(key) is not None]
-        }
-    return recorded
+    redacted: dict[str, Any] = _redact(arguments)
+    return redacted
 
 
 # --- 2. 도구가 부르는 Spring 내부 API(AI → Spring, 경로는 백엔드와 확정 전 초안) ---------------
