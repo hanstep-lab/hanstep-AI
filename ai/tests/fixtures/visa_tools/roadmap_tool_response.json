@@ -1,0 +1,198 @@
+{
+  "roadmapId": 31,
+  "roadmap": {
+    "goalVisaCode": "E-7-4",
+    "asOfDate": "2026-10-25",
+    "ruleVersion": "E74-2026-v1",
+    "ruleStatus": "DRAFT",
+    "assessmentRequestKey": "926c3c55ff15afe315112547e8bfec430c28050a2cb1d32c21283539818bcbea",
+    "stay": {
+      "visaTypeCode": "E-9",
+      "stayStartedOn": "2021-04-01",
+      "stayExpiresOn": "2027-10-04",
+      "daysToExpiry": 344,
+      "applicableFrom": "2026-10-25"
+    },
+    "score": {
+      "confirmed": 305,
+      "potential": 305,
+      "required": null,
+      "items": [
+        {
+          "ruleCode": "INCOME_30_35",
+          "category": "BASE_INCOME",
+          "status": "MET",
+          "earnedPoints": 65,
+          "potentialPoints": 65,
+          "basis": "DOCUMENT",
+          "value": {
+            "averageIncome": 32650000
+          },
+          "requiredForApplication": false
+        },
+        {
+          "ruleCode": "KOREAN_L3",
+          "category": "BASE_KOREAN",
+          "status": "MET",
+          "earnedPoints": 80,
+          "potentialPoints": 80,
+          "basis": "TOPIK",
+          "value": {
+            "level": 3
+          },
+          "requiredForApplication": false
+        },
+        {
+          "ruleCode": "AGE_27_33",
+          "category": "BASE_AGE",
+          "status": "MET",
+          "earnedPoints": 60,
+          "potentialPoints": 60,
+          "basis": "ARC",
+          "value": {
+            "age": 32
+          },
+          "requiredForApplication": false
+        },
+        {
+          "ruleCode": "REC_EMPLOYER",
+          "category": "BONUS",
+          "status": "MET",
+          "earnedPoints": 50,
+          "potentialPoints": 50,
+          "basis": null,
+          "value": {},
+          "requiredForApplication": false
+        },
+        {
+          "ruleCode": "TENURE_3Y",
+          "category": "BONUS",
+          "status": "MET",
+          "earnedPoints": 20,
+          "potentialPoints": 20,
+          "basis": null,
+          "value": {
+            "tenureMonths": 66
+          },
+          "requiredForApplication": false
+        },
+        {
+          "ruleCode": "REGION_3Y",
+          "category": "BONUS",
+          "status": "MET",
+          "earnedPoints": 20,
+          "potentialPoints": 20,
+          "basis": null,
+          "value": {},
+          "requiredForApplication": false
+        },
+        {
+          "ruleCode": "DRIVER_LICENSE",
+          "category": "BONUS",
+          "status": "MET",
+          "earnedPoints": 10,
+          "potentialPoints": 10,
+          "basis": null,
+          "value": {},
+          "requiredForApplication": false
+        },
+        {
+          "ruleCode": "REC_CENTRAL",
+          "category": "BONUS",
+          "status": "NOT_MET",
+          "earnedPoints": 0,
+          "potentialPoints": 30,
+          "basis": null,
+          "value": {},
+          "requiredForApplication": false
+        },
+        {
+          "ruleCode": "QUALIFICATION",
+          "category": "BONUS",
+          "status": "NOT_MET",
+          "earnedPoints": 0,
+          "potentialPoints": 20,
+          "basis": null,
+          "value": {},
+          "requiredForApplication": false
+        }
+      ]
+    },
+    "steps": [
+      {
+        "order": 1,
+        "kind": "RAISE_LEVEL",
+        "ruleCode": "KOREAN_L4_PLUS",
+        "actor": "USER",
+        "required": false,
+        "estimatedAdditionalScore": 40,
+        "availableFrom": null,
+        "targetDate": null,
+        "requiredEvidence": [
+          "TOPIK 성적표 또는 사회통합프로그램 이수증·사전평가 성적표"
+        ],
+        "title": "TOPIK 4급 취득",
+        "description": "한국어를 TOPIK 4급, 사회통합프로그램 4단계, 또는 사전평가 81점 이상으로 올리면 +40점"
+      },
+      {
+        "order": 2,
+        "kind": "OBTAIN_BONUS",
+        "ruleCode": "REC_CENTRAL",
+        "actor": "GOVERNMENT",
+        "required": false,
+        "estimatedAdditionalScore": 30,
+        "availableFrom": null,
+        "targetDate": null,
+        "requiredEvidence": [
+          "중앙부처 추천서"
+        ],
+        "title": "중앙부처·광역지자체 추천 받기",
+        "description": "중앙부처 또는 광역지자체 추천을 받으면 +30점(둘 중 하나만 인정)"
+      },
+      {
+        "order": 3,
+        "kind": "OBTAIN_BONUS",
+        "ruleCode": "QUALIFICATION",
+        "actor": "USER",
+        "required": false,
+        "estimatedAdditionalScore": 20,
+        "availableFrom": null,
+        "targetDate": null,
+        "requiredEvidence": [
+          "국내 자격증 사본 또는 국내 학위증 사본"
+        ],
+        "title": "국내 자격증·학위 취득",
+        "description": "지금 하는 일과 관련된 국내 기사·산업기사·기능사 자격증, 또는 국내 전문학사 이상 학위를 받으면 +20점"
+      },
+      {
+        "order": 4,
+        "kind": "APPLY",
+        "ruleCode": null,
+        "actor": "USER",
+        "required": true,
+        "estimatedAdditionalScore": null,
+        "availableFrom": "2026-10-25",
+        "targetDate": "2027-10-04",
+        "requiredEvidence": [],
+        "title": "E-7-4 전환 신청",
+        "description": "2026-10-25부터 체류 만료일(2027-10-04) 전까지 출입국·외국인관서에 신청"
+      }
+    ],
+    "projectedScore": {
+      "afterRequiredSteps": 305,
+      "afterAllSteps": 395
+    },
+    "missingInputs": [],
+    "warnings": [
+      "DRAFT_RULES",
+      "RULES_EXPIRE"
+    ],
+    "text": {
+      "source": "TEMPLATE",
+      "modelId": null,
+      "promptVersion": null,
+      "fallbackReason": null
+    },
+    "isMock": true
+  }
+}
