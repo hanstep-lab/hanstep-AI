@@ -15,6 +15,8 @@ from app.visa.e74.service import calculate
 from app.visa.tools import (
     CALCULATE_E74_SCORE,
     GET_VISA_ROADMAP,
+    LEGAL_DECLARATION_ITEMS,
+    LEGAL_DECLARATION_KEY,
     SEARCH_VISA_POLICIES,
     CalculateE74ScoreInput,
     E74AssessmentToolResponse,
@@ -26,6 +28,7 @@ from app.visa.tools import (
     VisaToolRecords,
     e74_records,
     policy_search_records,
+    recorded_arguments,
     roadmap_records,
     tool_definitions,
 )
@@ -93,6 +96,53 @@ def test_tool_inputs_accept_camel_case_and_reject_unknown_fields() -> None:
         SearchVisaPoliciesInput.model_validate({"query": "추천", "top_k": 3})  # snake_case 거부
     with pytest.raises(ValidationError):
         SearchVisaPoliciesInput.model_validate({"query": "추천", "topK": 9})  # 상한 8
+
+
+def test_recorded_arguments_keep_only_which_legal_items_were_answered() -> None:
+    arguments: dict[str, Any] = {
+        "asOfDate": "2026-10-25",
+        "legalDeclaration": {
+            "finesUnder1mCount": 2,
+            "hasFine1mOrMore": False,
+            "hasCurrentTaxArrears": None,
+        },
+    }
+    recorded = recorded_arguments(arguments)
+
+    assert recorded == {
+        "asOfDate": "2026-10-25",
+        "legalDeclaration": {"answered": ["finesUnder1mCount", "hasFine1mOrMore"]},
+    }
+    # 도구 실행에 쓰는 원래 인자는 바뀌지 않는다.
+    assert arguments["legalDeclaration"]["finesUnder1mCount"] == 2
+    # 문항 이름은 LLM 도구 스키마의 이름과 같다.
+    schema = CalculateE74ScoreInput.model_json_schema(by_alias=True)
+    assert LEGAL_DECLARATION_KEY in schema["properties"]
+    assert list(LEGAL_DECLARATION_ITEMS) == list(
+        schema["$defs"]["LegalDeclarationIn"]["properties"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("declaration", "answered"),
+    [
+        ("벌금 2회", []),
+        (["finesUnder1mCount", 2], []),
+        ({"finesUnder1mCount": 1, "unknownItem": "detail"}, ["finesUnder1mCount"]),
+    ],
+)
+def test_recorded_arguments_drop_malformed_legal_values(
+    declaration: Any, answered: list[str]
+) -> None:
+    # LLM이 모양을 틀리거나 다른 도구 인자에 넣어도 값·모르는 키는 남지 않는다.
+    recorded = recorded_arguments({"query": "E-7-4", "legalDeclaration": declaration})
+
+    assert recorded == {"query": "E-7-4", "legalDeclaration": {"answered": answered}}
+
+
+def test_recorded_arguments_without_legal_answers_are_unchanged() -> None:
+    for arguments in ({"query": "E-7-4", "topK": 3}, {"asOfDate": None, "legalDeclaration": None}):
+        assert recorded_arguments(arguments) == arguments
 
 
 # --- Spring 응답 샘플 → 채팅 기록 ------------------------------------------------------------

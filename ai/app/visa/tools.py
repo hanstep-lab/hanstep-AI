@@ -10,11 +10,13 @@
   다시 볼 때는 그 행을 읽는다(재계산·LLM 재호출 없음).
 - 화면 카드(chat_messages.blocks_json)의 숫자는 도구 결과에서만 채운다. LLM이 쓴 숫자를 넣지 않는다.
 - ``*_records`` 함수가 도구 결과 하나로 LLM에 돌려줄 요약, 결과 참조, 근거, 카드를 한 번에 만든다.
+- 채팅 기록(chat_tool_calls.arguments_json)에는 LLM 인자를 그대로 남기지 않고
+  ``recorded_arguments``를 거친 값을 남긴다(감점·제외 6문항 답 값 제외).
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from enum import StrEnum
 from typing import Annotated, Any, Literal
@@ -99,6 +101,30 @@ def tool_definitions() -> list[dict[str, Any]]:
         schema.pop("title", None)
         definitions.append({"name": name, "description": description, "input_schema": schema})
     return definitions
+
+
+# 채팅 기록에 값을 남기지 않는 인자: 감점·제외 6문항 답(벌금·체납·출입국 위반 등 자기신고).
+LEGAL_DECLARATION_KEY = to_camel("legal_declaration")
+LEGAL_DECLARATION_ITEMS = tuple(
+    field.alias or name for name, field in LegalDeclarationIn.model_fields.items()
+)
+
+
+def recorded_arguments(arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """채팅 기록에 남길 도구 인자(agent.tool_call의 arguments → chat_tool_calls.arguments_json).
+
+    도구 실행에는 원래 인자를 쓰고, 기록에는 이 값을 쓴다. legalDeclaration은 값 대신 답한 문항
+    이름만 남긴다(예: {"answered": ["finesUnder1mCount"]}). LLM이 인자를 잘못 채워 다른 도구에
+    넣거나 모양이 틀려도 값이 남지 않게, 도구 이름이나 형식 검사와 상관없이 바꾼다.
+    """
+    recorded = dict(arguments)
+    declaration = recorded.get(LEGAL_DECLARATION_KEY)
+    if declaration is not None:
+        answers = declaration if isinstance(declaration, Mapping) else {}
+        recorded[LEGAL_DECLARATION_KEY] = {
+            "answered": [key for key in LEGAL_DECLARATION_ITEMS if answers.get(key) is not None]
+        }
+    return recorded
 
 
 # --- 2. 도구가 부르는 Spring 내부 API(AI → Spring, 경로는 백엔드와 확정 전 초안) ---------------
