@@ -99,8 +99,11 @@ class Settings(BaseSettings):
 
     # E-7-4 계산에 승인 전(DRAFT) 규칙 버전도 쓸지. 운영은 false, 로컬·시연에서만 true.
     e74_include_draft_rules: bool = False
-    # 로드맵 단계 문장을 LLM(agent_model)으로 쓸지. 꺼져 있거나 키가 없으면 템플릿 문장.
+    # 로드맵 단계 문장을 LLM(roadmap_text_model_id)으로 쓸지. 꺼져 있거나 키가 없으면 템플릿 문장.
     roadmap_llm_text: bool = False
+    # 로드맵 단계 문장 전용 모델. 비우면 AGENT_MODEL(roadmap_text_model_id 참고).
+    # 문장 다듬기라 thinking은 코드에서 끈다(app/visa/roadmap/text.py).
+    roadmap_text_model: str = ""
     # 문장 생성 전체(재시도 포함)의 시간. 넘기면 템플릿 문장. Spring 호출 타임아웃보다 짧게 둔다.
     roadmap_llm_timeout_seconds: float = Field(default=15.0, gt=0, le=60)
 
@@ -200,6 +203,11 @@ class Settings(BaseSettings):
 
     def anthropic_configured(self) -> bool:
         return not is_placeholder(self.anthropic_api_key.get_secret_value())
+
+    @property
+    def roadmap_text_model_id(self) -> str:
+        """로드맵 단계 문장 모델: ROADMAP_TEXT_MODEL, 비어 있으면 AGENT_MODEL(기존 .env 호환)."""
+        return self.roadmap_text_model.strip() or self.agent_model
 
     @property
     def chat_model_id(self) -> str:

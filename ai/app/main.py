@@ -68,7 +68,7 @@ def _roadmap_writer(settings: Settings) -> StepWriter | None:
         timeout=budget,
         max_retries=0,
     )
-    return LlmStepWriter(client, settings.agent_model, timeout_seconds=budget)
+    return LlmStepWriter(client, settings.roadmap_text_model_id, timeout_seconds=budget)
 
 
 def build_state(settings: Settings) -> AppState:
