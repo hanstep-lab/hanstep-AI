@@ -342,30 +342,37 @@ def test_judgment_questions_load() -> None:
     assert by_id["F07"]["category"] == "finance"
 
 
+def _amounts(text: str) -> set[Decimal]:
+    return {value for _, value, kind, _ in scan_numbers(text) if kind in ("amount", "number")}
+
+
 def test_judgment_conclusion_numbers_match_fixture() -> None:
-    """Numbers in expectedConclusion equal the values computed from the chat fixture."""
+    """Numbers in expectedConclusion equal the values computed from the chat fixture and the
+    amount the question itself asks about (so editing one without the other fails)."""
     v = _fixture_value
     spare = v("spare")
     assert spare == (
         v("avgMonthlyIncome") - v("fixedLiving") - v("remittance") - v("variableExpense.avg")
     )
+    by_id = {q["id"]: q for q in EVAL.load_questions()["questions"]}
+
+    def asked(qid: str) -> Decimal:
+        (amount,) = _amounts(by_id[qid]["text"])
+        return amount
+
+    assert asked("J03") == v("remittance")
     expected = {
         "J01": {spare, v("remittance")},
-        "J03": {spare, v("remittance")},
+        "J03": {spare, asked("J03")},
         "J05": {spare},
-        "J06": {spare - 200_000},
-        "J07": {Decimal(1_000_000), spare, 1_000_000 - spare},
-        "J08": {Decimal(500_000), spare},
-        "J09": {Decimal(800_000), spare},
-        "J10": {spare - 100_000},
+        "J06": {spare - asked("J06")},
+        "J07": {asked("J07"), spare, asked("J07") - spare},
+        "J08": {asked("J08"), spare},
+        "J09": {asked("J09"), spare},
+        "J10": {spare - asked("J10")},
     }
-    by_id = {q["id"]: q for q in EVAL.load_questions()["questions"]}
     for qid in [f"J{i:02d}" for i in range(1, 11)]:
-        found = {
-            value
-            for _, value, kind, _ in scan_numbers(by_id[qid]["expectedConclusion"])
-            if kind in ("amount", "number")
-        }
+        found = _amounts(by_id[qid]["expectedConclusion"])
         assert found == expected.get(qid, set()), qid
 
 
@@ -643,12 +650,14 @@ def test_summary_splits_existing_and_holdout(tmp_path: Path) -> None:
         "maxUsd": 1, "startedAt": "t", "status": "completed",
         "variants": [{"name": "v", "model": "m"}],
     }  # fmt: skip
+    # Graded rows (J01, X01, X09; X02 failed) get their own column: a right answer may calculate.
     table = [
         "| 구분 | 판단형 채점 목록 | 계산 참조값 (포함 / 다른 숫자 / 값 없음) | "
-        "근거 없는 숫자 (답변 / 숫자 수) |",
-        "|---|---|---|---|",
-        "| 기존 문항 | 1 | 2개: 1 / 1 / 0 | 2/3 / 2 |",
-        "| hold-out | 3 | 2개: 1 / 0 / 1 | 3/4 / 3 |",
+        "근거 없는 숫자, 채점 문항 제외 (답변 / 숫자 수) | "
+        "채점 문항의 표에 없는 숫자 (답변 / 숫자 수) |",
+        "|---|---|---|---|---|",
+        "| 기존 문항 | 1 | 2개: 1 / 1 / 0 | 2/2 / 2 | 0/1 / 0 |",
+        "| hold-out | 3 | 2개: 1 / 0 / 1 | 1/2 / 1 | 2/2 / 2 |",
     ]
     summary = EVAL.render_summary(conditions, rows)
     assert "\n".join(table) in summary
@@ -659,3 +668,153 @@ def test_summary_splits_existing_and_holdout(tmp_path: Path) -> None:
     rescored = tmp_path / "rescored.jsonl"
     assert EVAL.main(["--rescore", str(output), "--output", str(rescored)]) == 0
     assert "\n".join(table) in rescored.with_suffix(".md").read_text(encoding="utf-8")
+
+
+def test_graded_numbers_are_counted_apart() -> None:
+    # Facts off: the expected conclusion of J06 calculates 475,317, which the tool result lacks.
+    question = next(q for q in EVAL.load_questions()["questions"] if q["id"] == "J06")
+    rows = [
+        _fake_row("J06", question["expectedConclusion"]),
+        _fake_row("C04", "About 9,000,000 KRW a year."),
+    ]
+    conditions = {
+        "target": "ai", "mode": "fake", "questions": [], "repeats": 1, "warmup": 0,
+        "maxUsd": 1, "startedAt": "t", "status": "completed",
+        "variants": [{"name": "v", "model": "m"}],
+    }  # fmt: skip
+    summary = EVAL.render_summary(conditions, rows)
+    assert "- 근거 없는 숫자가 있는 답변(사람 채점 문항 제외): 1/1 — C04: " in summary
+    assert "J06" not in summary.split("(사람 채점 문항 제외)", 1)[1].split("\n", 1)[0]
+    assert "확인): 1/1 — J06: about 475,317 KRW" in summary
+
+
+@pytest.mark.parametrize(
+    ("variant", "problem"),
+    [
+        ({"name": "baseline-sonnet", "model": "claude-sonnet-5-5"}, "model claude-haiku-5-5"),
+        (
+            {"name": "no-facts", "model": "claude-haiku-5-5", "judgmentFacts": False},
+            "judgmentFacts True != False",
+        ),
+        (
+            {"name": "v1", "model": "claude-haiku-5-5", "promptVersion": "v1"},
+            "promptVersion chat-v1.1 != chat-v1",
+        ),
+    ],  # fmt: skip
+)
+def test_stops_when_server_ignores_the_variant(
+    tmp_path: Path, variant: dict[str, Any], problem: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # CHAT_ALLOW_CONFIG_OVERRIDE is off, so the server runs its defaults (haiku, facts, v1.1).
+    variants = tmp_path / "variants.json"
+    variants.write_text(json.dumps([variant]), encoding="utf-8")
+    output = tmp_path / "run.jsonl"
+    code = _run(
+        _settings(), "--questions", "F01,F03", "--variants", str(variants),
+        "--output", str(output),
+    )  # fmt: skip
+    assert code == 3
+    assert len(_rows(output)) == 1
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["status"] == "config_mismatch"
+    out = capsys.readouterr().out
+    assert problem in out and "CHAT_ALLOW_CONFIG_OVERRIDE=true" in out
+
+
+def test_stdout_leaves_out_judgment_answers(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output = tmp_path / "run.jsonl"
+    assert _run(_settings(), "--questions", "J01", "--output", str(output)) == 0
+    answer = _rows(output)[0]["answer"]
+    assert answer
+    out = capsys.readouterr().out
+    assert answer not in out and "## 판단형 문항" not in out
+    assert "판단형 답변 전문은 요약 .md 파일에만 남긴다." in out
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    assert "## 판단형 문항(사람 채점)" in summary and " ".join(answer.split()) in summary
+
+
+def test_budget_uses_the_estimate_until_a_paid_call(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    body = "".join(f"event: {n}\ndata: {json.dumps(d)}\n\n" for n, d in EMPTY_ANSWER_RUN)
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) == 1:  # the first call of variant b fails at no cost
+            return httpx.Response(500, json={"code": "AGENT_INTERNAL_ERROR"})
+        return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
+
+    variants = tmp_path / "variants.json"
+    variants.write_text(
+        json.dumps(
+            [{"name": "b", "model": "claude-haiku-5-5"}, {"name": "a", "model": "claude-haiku-5-5"}]
+        ),  # fmt: skip
+        encoding="utf-8",
+    )
+    output = tmp_path / "run.jsonl"
+    # Estimate $0.0026 a call, a paid call costs $0.0013. b1 fails ($0), a1 pays; b2 would need
+    # 0.0013 + 0.0026 > 0.003, so it stops (with an observed $0 it would have gone on).
+    code = _run(
+        _settings(), "--questions", "F01", "--repeats", "2", "--variants", str(variants),
+        "--llm-mode", "anthropic", "--yes", "--max-usd", "0.003", "--output", str(output),
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )  # fmt: skip
+    assert code == 0
+    assert [(r["variant"], r["status"]) for r in _rows(output)] == [
+        ("b", "http_error"),
+        ("a", "error"),
+    ]
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["status"] == "budget_stopped"
+    assert conditions["unfinishedQuestions"] == ["F01"]
+    out = capsys.readouterr().out
+    assert "WARN: 예상 최대가 상한보다 큽니다" in out and "(F01 등)" in out
+    assert "다 돌지 못한 문항: F01" in out
+    assert "- 다 돌지 못한 문항: F01" in output.with_suffix(".md").read_text(encoding="utf-8")
+
+
+def test_network_failure_is_saved(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    output = tmp_path / "run.jsonl"
+    code = _run(
+        _settings(), "--questions", "F01,F03", "--output", str(output),
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )  # fmt: skip
+    assert code == 1
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["status"] == "failed"
+    assert conditions["error"] == "ReadTimeout: timed out"
+    assert conditions["unfinishedQuestions"] == ["F01", "F03"]
+    assert "FAILED after 0/2 calls" in capsys.readouterr().out
+    assert "- 실패: ReadTimeout" in output.with_suffix(".md").read_text(encoding="utf-8")
+
+
+def test_judgment_section_needs_a_matching_variant() -> None:
+    rows = [_fake_row("J01", "Yes.")]
+    assert EVAL.judgment_section({"variants": [{"name": "other"}]}, rows) == []
+    section = EVAL.judgment_section({"variants": [{"name": "v"}]}, rows)
+    assert section[:4] == ["", "## 판단형 문항(사람 채점)", "", "### v"]
+    assert section[-1].startswith("| J01 | 1 |")
+
+
+def test_run_marks_tool_data_that_differs_from_the_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    same = tmp_path / "same.jsonl"
+    assert _run(_settings(), "--questions", "J01", "--output", str(same)) == 0
+    assert json.loads(same.read_text(encoding="utf-8").splitlines()[0])["contextMatchesFixture"]
+
+    other = {**EVAL.fixture_context(), "reanalyzed": True}
+    monkeypatch.setattr(EVAL, "tool_context", lambda *_: other)
+    output = tmp_path / "run.jsonl"
+    assert _run(_settings(), "--questions", "J01", "--output", str(output)) == 0
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["contextMatchesFixture"] is False
+    assert "WARN: 이 run의 도구 데이터가 데모 fixture와 다르다" in capsys.readouterr().out
+    section = output.with_suffix(".md").read_text(encoding="utf-8").split("## 판단형", 1)[1]
+    assert "주의: 이 run의 도구 데이터가 데모 fixture와 다르다" in section
