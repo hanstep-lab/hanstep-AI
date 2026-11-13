@@ -90,3 +90,29 @@ def test_app_renders_samples_and_errors() -> None:
     at.text_area(key="profile_text").input("{ broken").run()
     assert not at.exception
     assert any("계산할 수 없음" in element.value for element in at.error)
+
+
+def test_chat_shows_tool_error_instead_of_traceback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Streamlit이 있을 때만 실행: uv run --project ai --with streamlit pytest ..."""
+    testing = pytest.importorskip("streamlit.testing.v1")
+    from app.core.config import get_settings
+    from playground import e74_chat
+
+    def broken_turn(*_: object) -> e74_chat.ChatTurn:
+        raise RuntimeError("홍길동 010-0000-0000")
+
+    # e74_app은 실행할 때마다 e74_chat에서 run_turn을 가져오므로 모듈 속성을 바꾸면 된다.
+    monkeypatch.setattr(e74_chat, "run_turn", broken_turn)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-0000")
+    get_settings.cache_clear()
+    try:
+        at = testing.AppTest.from_file(str(APP), default_timeout=30).run()
+        at.chat_input[0].set_value("제 점수는?").run()
+    finally:
+        get_settings.cache_clear()
+
+    assert not at.exception
+    texts = [element.value for element in at.markdown]
+    assert any("도구 실행 오류(RuntimeError)" in text for text in texts)
+    # 예외 메시지(입력 값이 섞일 수 있음)는 화면에 보이지 않는다.
+    assert not any("홍길동" in text for text in texts)
