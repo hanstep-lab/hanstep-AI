@@ -55,7 +55,7 @@ import httpx
 from app.chat.fake_llm import FAKE_MODEL_ID
 from app.chat.judgment import judgment_facts
 from app.chat.number_check import check_answer, rounded_values, scan_numbers
-from app.chat.prompts import PROMPT_VERSIONS
+from app.chat.prompts import PROMPT_VERSIONS, system_prompt
 from app.chat.tools import FIXTURE, summarize
 from app.core.config import Settings, get_settings
 from app.integrations.spring_client import SpringInternalClient
@@ -63,6 +63,8 @@ from app.rag.cli import EXIT_BLOCKED, EXIT_FAILED, EXIT_OK
 
 AI_ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
+# 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
+PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
 EXIT_INTERRUPTED = 130
 EXIT_USAGE = 2
 
@@ -151,6 +153,24 @@ def select_questions(
             parser.error(f"unknown or empty --questions: {unknown}")
         questions = [q for q in questions if q["id"] in wanted]
     return questions
+
+
+def row_prompt_version(
+    variant: dict[str, Any], done: dict[str, Any], metrics: dict[str, Any] | None
+) -> str | None:
+    """이 회차의 프롬프트 버전(설정값 v1·v1.1·v2). 서버가 보고한 값이 먼저, 없으면 variant 값."""
+    reported = done.get("promptVersion") or ((metrics or {}).get("config") or {}).get(
+        "promptVersion"
+    )
+    key = next((k for k, v in PROMPT_VERSIONS.items() if v == reported), None)
+    return key or variant.get("promptVersion")
+
+
+def expected_tools(question: dict[str, Any], prompt_version: str | None) -> list[str]:
+    """문항의 기대 도구. byPromptVersion에 이 버전이 있으면 그 값(예: O01은 v2에서 점수 도구)."""
+    override = (question.get("byPromptVersion") or {}).get(prompt_version or "")
+    tools: list[str] = (override or question)["expectedTools"]
+    return list(tools)
 
 
 def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]:
@@ -376,6 +396,16 @@ def reference_check(
     return {"verdict": verdict, "matched": matched, "unsupported": unsupported}
 
 
+def prompt_fixed_numbers(row: dict[str, Any]) -> list[str]:
+    """이 행의 프롬프트(서버가 보고한 promptVersion)에 들어 있는 고정 번호. 모르면 없음."""
+    version_id = ((row.get("metrics") or {}).get("config") or {}).get("promptVersion")
+    key = next((k for k, v in PROMPT_VERSIONS.items() if v == version_id), None)
+    if key is None:
+        return []
+    prompt = system_prompt("en", key)
+    return [number for number in PROMPT_FIXED_NUMBERS if number in prompt]
+
+
 def score(row: dict[str, Any]) -> None:
     """Number check, reference check and expected-tool match from what the row already holds."""
     answer = row.get("answer") or ""
@@ -385,7 +415,7 @@ def score(row: dict[str, Any]) -> None:
         facts = judgment_facts(row["toolResult"], row["contextTexts"][0])
         if facts is not None:
             tool_results.append(facts)
-    check = check_answer(answer, tool_results, row["contextTexts"])
+    check = check_answer(answer, tool_results, [*row["contextTexts"], *prompt_fixed_numbers(row)])
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
@@ -832,6 +862,7 @@ def main(
             answered_by = answering_model(done, metrics)
             model = answered_by or (metrics or {}).get("config", {}).get("model")
             usage = run_usage(done, metrics)
+            prompt_version = row_prompt_version(variant, done, metrics)
             row: dict[str, Any] = {
                 "variant": variant["name"],
                 "questionId": question["id"],
@@ -852,7 +883,9 @@ def main(
                 "tools": result["tools"],
                 "answer": "".join(result["deltas"]),
                 "deltaTimesMs": result["deltaMs"],
-                "expectedTools": question["expectedTools"],
+                # 기대 도구는 프롬프트 버전마다 다를 수 있다(byPromptVersion).
+                "promptVersion": prompt_version,
+                "expectedTools": expected_tools(question, prompt_version),
                 "referenceValues": question.get("referenceValues"),
                 # Listed for a person to grade: judgment questions and humanGraded ones only
                 # (other calculation questions keep their conclusion in the spec, not here).

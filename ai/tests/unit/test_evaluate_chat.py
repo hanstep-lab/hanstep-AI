@@ -311,7 +311,7 @@ def _fixture_value(name: str) -> Decimal:
 def test_reference_values_match_fixture() -> None:
     """Hand-written referenceValues equal the formula computed from the chat fixture."""
     spec = EVAL.load_questions()
-    assert spec["version"] == "v1.3"
+    assert spec["version"] == "v1.4"
     assert spec["latencySubset"] == ["F01", "F03", "F07", "F09", "H01"]
     # Hold-out formulas are prose copied as is (see test_holdout_values_match_fixture).
     with_refs = [q for q in spec["questions"] if q.get("referenceValues") and "source" not in q]
@@ -376,6 +376,27 @@ def test_judgment_conclusion_numbers_match_fixture() -> None:
         assert found == expected.get(qid, set()), qid
 
 
+@pytest.mark.parametrize(
+    ("prompt_version", "supported"),
+    [("chat-v2", True), ("chat-v1.1", False), (None, False)],
+)
+def test_prompt_fixed_number_is_supported_only_for_its_prompt(
+    prompt_version: str | None, supported: bool
+) -> None:
+    # HiKorea 1345는 v2 프롬프트(visa_rules.md)에만 있다.
+    # 다른 버전이나 버전을 모르는 행에서는 그대로 근거 없는 숫자로 센다.
+    row: dict[str, Any] = {
+        "answer": "Please check with HiKorea at 1345.",
+        "toolResult": EVAL.tool_context(_settings(), 1, "fake"),
+        "contextTexts": ["What is my E-7-4 visa score?"],
+        "expectedTools": [],
+        "tools": [],
+        "metrics": {"config": {"promptVersion": prompt_version}},
+    }
+    EVAL.score(row)
+    assert (row["numberCheck"]["unsupported"] == []) is supported
+
+
 def _calc_row(question_id: str, answer: str) -> dict[str, Any]:
     question = next(q for q in EVAL.load_questions()["questions"] if q["id"] == question_id)
     row: dict[str, Any] = {
@@ -426,7 +447,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
 
     lines = output.read_text(encoding="utf-8").splitlines()
     conditions = json.loads(lines[0])
-    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.3"}
+    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.4"}
     rows = _rows(output)
     for row in rows:
         assert len(row["deltaTimesMs"]) == row["events"].count("agent.delta") > 0
@@ -434,7 +455,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
         assert row["deltaTimesMs"][0] == row["timings"]["firstDeltaMs"]
         assert row["referenceCheck"]["verdict"] in ("reference", "wrong_number", "no_value")
     summary = output.with_suffix(".md").read_text(encoding="utf-8")
-    assert "- 질문 세트: eval_questions_v1.json (v1.3)" in summary
+    assert "- 질문 세트: eval_questions_v1.json (v1.4)" in summary
     assert "- 계산 질문 2개: 참조값 포함 " in summary
 
     # --rescore recomputes the reference check from the saved answer.
@@ -555,10 +576,10 @@ def test_judgment_variants_run_and_are_shown(tmp_path: Path) -> None:
 HOLDOUT_IDS = [f"X{i:02d}" for i in range(1, 13)]
 
 
-def test_question_set_v1_3_with_holdout() -> None:
+def test_question_set_v1_4_with_holdout() -> None:
     spec = EVAL.load_questions()
     ids = [q["id"] for q in spec["questions"]]
-    assert spec["version"] == "v1.3"
+    assert spec["version"] == "v1.4"
     assert len(ids) == 49 and len(set(ids)) == 49
     assert spec["holdoutSubset"] == HOLDOUT_IDS
     assert [q["id"] for q in spec["questions"] if q.get("source") == "holdout_v1"] == HOLDOUT_IDS
@@ -580,6 +601,49 @@ def test_question_set_v1_3_with_holdout() -> None:
     x09 = by_id["X09"]
     assert (x09["expectedValue"], x09["unit"], x09["humanGraded"]) == (3, None, True)
     assert "referenceValues" not in x09
+
+
+@pytest.mark.parametrize(
+    ("setting", "reported", "called", "expected", "match"),
+    [
+        # v1·v1.1: 비자 점수는 아직 안 된다고 거절하는 것이 기대값(도구 없음).
+        ("v1.1", "chat-v1.1", [], [], True),
+        ("v1", "chat-v1", [], [], True),
+        # v2: 비자 도구가 있으므로 점수 도구를 부르는 것이 기대값. 거절하면 불일치다.
+        ("v2", "chat-v2", ["calculate_e74_score"], ["calculate_e74_score"], True),
+        ("v2", "chat-v2", [], ["calculate_e74_score"], False),
+        # 서버가 보고한 버전으로 고른다(로컬 설정과 다른 서버 기본값을 잴 때).
+        ("v1.1", "chat-v2", ["calculate_e74_score"], ["calculate_e74_score"], True),
+    ],
+    ids=["v1.1", "v1", "v2", "v2-declined", "server-reported"],
+)
+def test_o01_expected_tools_follow_prompt_version(
+    tmp_path: Path,
+    setting: str,
+    reported: str,
+    called: list[str],
+    expected: list[str],
+    match: bool,
+) -> None:
+    events: list[tuple[str, dict[str, Any]]] = [
+        ("agent.tool_call", {"toolName": name, "status": "SUCCEEDED"}) for name in called
+    ]
+    events.append(
+        ("agent.done", {"content": "ok", "modelId": "fake-chat-model", "promptVersion": reported})
+    )
+    output = tmp_path / "run.jsonl"
+    code = _run(
+        _settings(chat_prompt_version=setting), "--questions", "O01", "--output", str(output),
+        client=_sse_server(*events),
+    )  # fmt: skip
+    assert code == 0
+    row = _rows(output)[0]
+    version = next(k for k, v in EVAL.PROMPT_VERSIONS.items() if v == reported)
+    assert (row["promptVersion"], row["expectedTools"], row["toolMatch"]) == (
+        version,
+        expected,
+        match,
+    )
 
 
 def test_holdout_values_match_fixture() -> None:

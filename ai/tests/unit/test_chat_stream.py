@@ -722,6 +722,6 @@ def test_judgment_and_prompt_override_only_when_allowed(monkeypatch: pytest.Monk
     bad = _post(
         _client(chat_allow_config_override=True),
         _body(),
-        **{"X-Chat-Config": json.dumps({"promptVersion": "v2"})},
+        **{"X-Chat-Config": json.dumps({"promptVersion": "v9"})},
     )
     assert bad.status_code == 400

@@ -20,7 +20,7 @@ PLACEHOLDER_MARKERS = ("your-", "CHANGE_ME", "example.", "username:password")
 
 ChatThinking = Literal["model_default", "adaptive", "between_tools", "disabled"]
 ChatEffort = Literal["", "low", "medium", "high"]
-ChatPromptVersion = Literal["v1", "v1.1"]
+ChatPromptVersion = Literal["v1", "v1.1", "v2"]
 # Efforts allowed when thinking is turned off (between_tools / disabled).
 _EFFORTS_WITHOUT_THINKING = {"", "low", "medium", "high"}
 
@@ -120,7 +120,8 @@ class Settings(BaseSettings):
     chat_fake_delta_delay_ms: int = Field(default=30, ge=0, le=5000)
     # Add code-computed judgment facts (judgmentFacts) to the finance tool result.
     chat_judgment_facts: bool = True
-    # System prompt version (app/chat/prompts): v1 | v1.1.
+    # System prompt version (app/chat/prompts): v1 | v1.1 | v2.
+    # 비자 도구는 v2(v1.1 + 비자 규칙)에서만 붙는다(app/api/routes/chat.py).
     chat_prompt_version: ChatPromptVersion = "v1.1"
     # Measurement only: honour the per-request X-Chat-Config header.
     chat_allow_config_override: bool = False

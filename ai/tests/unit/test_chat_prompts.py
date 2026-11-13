@@ -1,4 +1,4 @@
-"""Chat system prompt versions: v1 is the default and unchanged, v1.1 differs in two lines."""
+"""Chat system prompt versions: v1 is unchanged, v1.1 differs in two lines, v2 adds visa rules."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.chat.prompts import PROMPT_VERSION, PROMPT_VERSIONS, system_prompt
+from app.chat.prompts import PROMPT_VERSION, PROMPT_VERSIONS, _with_visa_rules, system_prompt
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import build_messages
 from app.core.config import Settings
@@ -24,6 +24,11 @@ V11_NUMBERS = (
     "calculate new numbers yourself. If an exact number is not in the tool result, still give the "
     "conclusion the available numbers support and say the exact amount is not shown."
 )
+V11_VISA_UNAVAILABLE = (
+    "- Visa scores and financial product recommendations are not available in chat yet. "
+    "Say so briefly."
+)
+V2_PRODUCTS = "- Financial product recommendations are not available in chat yet. Say so briefly."
 V1_JUDGMENT = "- Do not present anything as an actual approval, a credit score or a guarantee."
 V11_JUDGMENT = (
     "- You may give judgments based on past averages, such as whether an amount fits the usual "
@@ -40,7 +45,7 @@ def _settings(**overrides: object) -> Settings:
 def test_v1_unchanged_when_judgment_is_off() -> None:
     # The off setting (judgmentFacts false, v1) still sends the v1 prompt byte for byte.
     assert PROMPT_VERSION == "chat-v1"
-    assert PROMPT_VERSIONS == {"v1": "chat-v1", "v1.1": "chat-v1.1"}
+    assert PROMPT_VERSIONS == {"v1": "chat-v1", "v1.1": "chat-v1.1", "v2": "chat-v2"}
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
     assert system_prompt("ko") == system_prompt("ko", "v1")
@@ -59,6 +64,28 @@ def test_default_is_judgment_facts_v1_1_haiku() -> None:
     assert config.model == "claude-haiku-5-5"
     assert config.judgment_facts is True
     assert (config.prompt_version, config.prompt_version_id) == ("v1.1", "chat-v1.1")
+
+
+def test_v2_is_v1_1_plus_visa_rules() -> None:
+    # v2는 복사본이 아니라 v1.1 + visa_rules.md로 만든다.
+    # 바뀌는 v1.1 줄은 "비자 점수는 아직 안 됨" 하나다.
+    v11 = system_prompt("en", "v1.1").splitlines()
+    v2 = system_prompt("en", "v2").splitlines()
+    visa = (PROMPTS / "visa_rules.md").read_text(encoding="utf-8").splitlines()
+    assert V11_VISA_UNAVAILABLE in v11
+    assert not (PROMPTS / "system_v2.md").exists()
+    expected = [V2_PRODUCTS if line == V11_VISA_UNAVAILABLE else line for line in v11]
+    assert v2 == [*expected, "", *visa]
+    # v1.1의 숫자·판단 규칙은 그대로 남는다.
+    assert V11_NUMBERS in v2
+    assert V11_JUDGMENT in v2
+    for name in ("calculate_e74_score", "search_visa_policies", "HiKorea (1345)", "pre-check"):
+        assert any(name in line for line in visa)
+
+
+def test_v2_fails_fast_when_v1_1_line_moves() -> None:
+    with pytest.raises(ValueError, match="visa-unavailable line"):
+        _with_visa_rules("Rules:\n- something else", "- visa")
 
 
 def test_v1_1_differs_only_in_two_lines() -> None:

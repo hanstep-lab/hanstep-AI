@@ -23,7 +23,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
 
-from app.chat.tools import TOOL_SCHEMA, FinanceTool
+from app.chat.tools import ChatTool
 
 
 class ChatState(TypedDict):
@@ -68,12 +68,12 @@ def _thinking_blocks(message: AIMessageChunk) -> int:
 
 
 def build_graph(
-    model: BaseChatModel, tool: FinanceTool, *, max_tool_calls: int, run_started: float
+    model: BaseChatModel, tool: ChatTool, *, max_tool_calls: int, run_started: float
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
-    with_tools = model.bind_tools([TOOL_SCHEMA])
+    with_tools = model.bind_tools(tool.schemas)
     # Tool limit reached: the messages hold tool_use blocks, so keep the definition but forbid use.
     # BaseChatModel types tool_choice as str; ChatAnthropic takes the API dict form too.
-    without_tools = model.bind_tools([TOOL_SCHEMA], tool_choice=cast(Any, {"type": "none"}))
+    without_tools = model.bind_tools(tool.schemas, tool_choice=cast(Any, {"type": "none"}))
     # The graph is built per run, so this counts the LLM calls of one run.
     llm_calls = 0
 
@@ -130,6 +130,7 @@ def build_graph(
                     "latencyMs": outcome.latency_ms,
                     "errorCode": outcome.error_code,
                     "sources": outcome.sources,
+                    "blocks": outcome.blocks,
                 }
             )
             results.append(
