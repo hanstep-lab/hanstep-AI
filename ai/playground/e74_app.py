@@ -1,7 +1,10 @@
 """E-7-4 점수 계산·채팅 테스트 화면(개발·규칙 검토용).
 
 실행(저장소 루트): uv run --project ai --with streamlit streamlit run ai/playground/e74_app.py
-- 점수 계산 탭: 엔진(assess_e74)을 직접 부른다. API·DB·LLM 없이 동작한다.
+- 점수 계산 탭: 계산 경로는 세 가지다(사이드바에서 고름, 채팅의 점수 계산 도구도 같은 경로).
+  - 엔진 직접(기본): 엔진(assess_e74)을 이 프로세스에서 부른다. API·DB·LLM 없이 동작한다.
+  - AI API: ai-server 계산 API로 편집기 프로필을 계산한다(저장 없음).
+  - Spring 경유: Spring 평가 API로 MySQL 프로필을 계산·저장한다(같은 입력이면 저장된 결과 재사용).
 - 채팅 탭: Claude(`AGENT_MODEL`)가 정책 문서 검색과 점수 계산을 도구로 쓴다.
   Anthropic API 비용이 든다. 검색 방식은 두 가지다.
   - 테스트 인덱스(기본): 이 PC 메모리에 만든 인덱스(승인 전 문서 포함, 승인 확인 없음)
@@ -26,12 +29,15 @@ from app.core.config import get_settings
 from app.rag.embeddings import BgeM3Embedder
 from app.visa.e74.engine import E74Assessment, EligibilityStatus
 from app.visa.e74.schemas import E74Profile
+from app.visa.tools import e74_records
 from playground.e74_chat import (
     CHAT_THINKING,
     PROMPT_ID,
+    CalculateFn,
     ChatTurn,
     SearchFn,
     ToolContext,
+    assessment_payload,
     run_turn,
 )
 from playground.e74_views import (
@@ -46,6 +52,12 @@ from playground.e74_views import (
     plan_text,
     run,
 )
+from playground.live_e74 import (
+    LiveCalculateError,
+    assess_via_spring,
+    calculate_via_ai,
+    live_client,
+)
 from playground.live_search import live_search_client, live_search_payload
 from playground.rag_test_index import TestIndex, build_index, search_payload
 
@@ -53,6 +65,9 @@ st.set_page_config(page_title="E-7-4 점수 계산 테스트", layout="wide")
 SAMPLES = load_samples()
 SEARCH_TEST_INDEX = "테스트 인덱스"
 SEARCH_LIVE = "운영 경로"
+CALC_ENGINE = "엔진 직접"
+CALC_AI = "AI API"
+CALC_SPRING = "Spring 경유"
 
 
 def _use_sample() -> None:
@@ -99,15 +114,17 @@ def _summary(assessment: E74Assessment, previous: E74Assessment | None) -> None:
     )
 
 
-def _render_score(
-    profile: E74Profile | None, errors: list[str], as_of: date, include_draft: bool
-) -> None:
-    if profile is None:
-        st.error("입력을 계산할 수 없음")
-        for error in errors:
-            st.write(f"- {error}")
-        return
-    assessment = run(profile, as_of, include_draft)
+@st.cache_resource(show_spinner=False)
+def _spring_client() -> httpx.Client:
+    settings = get_settings()
+    return live_client(
+        settings.spring_internal_api_url,
+        settings.spring_internal_api_key.get_secret_value(),
+        settings.internal_token_header,
+    )
+
+
+def _show_assessment(assessment: E74Assessment) -> None:
     previous: E74Assessment | None = st.session_state.get("previous")
     _status_banner(assessment)
     _summary(assessment, previous)
@@ -139,6 +156,87 @@ def _render_score(
 
     if previous is None or previous.request_key != assessment.request_key:
         st.session_state["previous"] = assessment
+
+
+def _render_score(
+    profile: E74Profile | None,
+    errors: list[str],
+    as_of: date,
+    include_draft: bool,
+    mode: str,
+    user_id: int | None,
+) -> None:
+    if mode == CALC_ENGINE:
+        if profile is None:
+            st.error("입력을 계산할 수 없음")
+            for error in errors:
+                st.write(f"- {error}")
+            return
+        _show_assessment(run(profile, as_of, include_draft))
+        return
+
+    settings = get_settings()
+    if mode == CALC_AI:
+        st.caption(
+            f"AI API({settings.playground_ai_server_url}): 편집기 프로필로 계산, 저장 없음. "
+            "DRAFT 규칙 허용은 ai-server 설정(E74_INCLUDE_DRAFT_RULES)을 따른다."
+        )
+        if profile is None:
+            st.error("편집기 프로필 JSON 오류를 먼저 고쳐야 함")
+            return
+        sent = profile.model_dump_json()
+    else:
+        if user_id is None:
+            st.info("사이드바에 Spring 사용자 id를 입력해야 계산할 수 있다.")
+            return
+        st.caption(
+            f"Spring 경유({settings.spring_internal_api_url}): 사용자 {user_id}의 MySQL 프로필로 "
+            "계산·저장. 감점·제외 6문항은 편집기 프로필의 legalDeclaration 값을 보낸다."
+        )
+        # 프로필이 깨진 채 보내면 감점 문항이 빈 채로 저장되므로 계산하지 않는다.
+        if profile is None:
+            st.error("편집기 프로필 JSON 오류를 먼저 고쳐야 함(감점·제외 6문항을 여기서 보냄)")
+            return
+        declaration = profile.legal_declaration
+        sent = declaration.model_dump_json() if declaration is not None else ""
+    # 결과를 만든 입력. 사용자 id·기준일·보낸 프로필이 바뀌면 이전 결과를 보여 주지 않는다.
+    inputs = (mode, user_id, as_of, sent)
+    # 운영 경로는 버튼을 눌렀을 때만 부른다(화면이 다시 그려질 때마다 요청하지 않게).
+    if st.button("계산 요청", key="live_calculate"):
+        try:
+            with st.spinner("계산 요청 중"):
+                if mode == CALC_AI:
+                    st.session_state["live_result"] = (
+                        inputs,
+                        None,
+                        calculate_via_ai(_live_client(), profile, as_of),
+                    )
+                else:
+                    assert user_id is not None
+                    saved = assess_via_spring(
+                        _spring_client(), user_id, as_of, profile.legal_declaration
+                    )
+                    st.session_state["live_result"] = (inputs, saved, saved.result)
+        except LiveCalculateError as exc:
+            st.session_state.pop("live_result", None)
+            st.error(str(exc))
+            return
+    stored = st.session_state.get("live_result")
+    if stored is None:
+        st.info("'계산 요청'을 누르면 계산한다.")
+        return
+    if stored[0] != inputs:
+        st.info(
+            "입력(계산 경로·사용자 id·기준일·프로필)이 바뀜. '계산 요청'을 누르면 다시 계산한다."
+        )
+        return
+    _, saved, assessment = stored
+    if saved is not None:
+        st.success(
+            f"assessmentId {saved.assessment_id} · "
+            + ("저장된 결과 재사용(reused)" if saved.reused else "새로 저장")
+        )
+    _show_assessment(assessment)
 
 
 # --- 채팅 탭 -----------------------------------------------------------------------------
@@ -207,7 +305,18 @@ def _show_turn(entry: dict[str, Any]) -> None:
         )
 
 
-def _render_chat(profile: E74Profile | None, include_draft: bool) -> None:
+def _calculate_error(message: str) -> CalculateFn:
+    """계산하지 않고 도구 오류(message)를 돌려주는 계산 함수. 운영 경로 입력이 모자랄 때 쓴다."""
+
+    def calculate(_: date) -> dict[str, Any]:
+        raise LiveCalculateError(message)
+
+    return calculate
+
+
+def _render_chat(
+    profile: E74Profile | None, include_draft: bool, mode_calc: str, user_id: int | None
+) -> None:
     settings = get_settings()
     mode = st.radio(
         "검색 방식",
@@ -224,7 +333,7 @@ def _render_chat(profile: E74Profile | None, include_draft: bool) -> None:
     )
     st.caption(
         f"모델 {settings.agent_model} · 프롬프트 {PROMPT_ID} · thinking {CHAT_THINKING['type']} · "
-        f"검색: {search_label} · 점수: 왼쪽 프로필로 엔진 계산"
+        f"검색: {search_label} · 점수: {mode_calc}"
     )
     log: list[dict[str, Any]] = st.session_state.setdefault("chat_log", [])
     history: list[dict[str, Any]] = st.session_state.setdefault("chat_history", [])
@@ -270,7 +379,29 @@ def _render_chat(profile: E74Profile | None, include_draft: bool) -> None:
     elif index is not None:
         embedder, ready = _embedder(), index
         search = lambda query, top_k: search_payload(ready, embedder, query, top_k)  # noqa: E731
-    ctx = ToolContext(profile=profile, include_draft=include_draft, search=search)
+    calculate: CalculateFn | None = None
+    if mode_calc == CALC_AI and profile is not None:
+        ai_profile = profile
+        calculate = lambda as_of: assessment_payload(  # noqa: E731
+            calculate_via_ai(_live_client(), ai_profile, as_of)
+        )
+    elif mode_calc == CALC_SPRING and user_id is None:
+        calculate = _calculate_error("Spring 경유 계산: 사이드바에 Spring 사용자 id를 입력해야 함")
+    elif mode_calc == CALC_SPRING and profile is None:
+        # 프로필이 깨진 채 보내면 감점 문항이 빈 채로 저장되므로 계산하지 않는다.
+        calculate = _calculate_error(
+            "Spring 경유 계산: 편집기 프로필 JSON 오류를 먼저 고쳐야 함"
+            "(감점·제외 6문항을 여기서 보냄)"
+        )
+    elif mode_calc == CALC_SPRING and user_id is not None and profile is not None:
+        declaration = profile.legal_declaration
+        spring_user = user_id
+        calculate = lambda as_of: e74_records(  # noqa: E731
+            assess_via_spring(_spring_client(), spring_user, as_of, declaration)
+        ).llm_output
+    ctx = ToolContext(
+        profile=profile, include_draft=include_draft, search=search, calculate=calculate
+    )
     try:
         with st.spinner("답변 생성 중"):
             turn = run_turn(_client(), settings.agent_model, history, question, ctx)
@@ -301,7 +432,27 @@ def main() -> None:
         include_draft = st.checkbox(
             "DRAFT 규칙 허용", value=True, help="2026 규칙은 팀 확인 전이라 DRAFT 상태"
         )
-        st.caption("합성 데이터만 사용. 계산은 이 PC에서 엔진을 직접 호출한다.")
+        mode = st.radio(
+            "점수 계산 경로",
+            [CALC_ENGINE, CALC_AI, CALC_SPRING],
+            key="calc_mode",
+            help="점수 계산 탭과 채팅의 점수 계산 도구가 같은 경로를 쓴다.",
+        )
+        user_id: int | None = None
+        if mode == CALC_SPRING:
+            # 기본값을 두지 않는다. 비자 프로필이 없는 사용자로 잘못 계산하지 않게 직접 입력한다.
+            entered = st.number_input(
+                "Spring 사용자 id",
+                min_value=1,
+                step=1,
+                value=None,
+                placeholder="예: 185",
+                key="spring_user_id",
+                help="users.id. 비자 프로필이 있는 사용자만 계산된다. 로컬 필리핀 테스트 사용자는 "
+                "external_user_key = demo-e9-ph-reyes",
+            )
+            user_id = int(entered) if entered is not None else None
+        st.caption("합성 데이터만 사용. 엔진 직접은 이 PC에서, 나머지는 서버 API로 계산한다.")
 
     left, right = st.columns([2, 3])
     with left:
@@ -312,9 +463,9 @@ def main() -> None:
     with right:
         score_tab, chat_tab = st.tabs(["점수 계산", "채팅"])
         with score_tab:
-            _render_score(profile, errors, as_of, include_draft)
+            _render_score(profile, errors, as_of, include_draft, mode, user_id)
         with chat_tab:
-            _render_chat(profile, include_draft)
+            _render_chat(profile, include_draft, mode, user_id)
 
 
 main()
