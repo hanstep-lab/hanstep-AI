@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date
 from typing import Any
 
@@ -60,6 +61,8 @@ from playground.live_e74 import (
 )
 from playground.live_search import live_search_client, live_search_payload
 from playground.rag_test_index import TestIndex, build_index, search_payload
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="E-7-4 점수 계산 테스트", layout="wide")
 SAMPLES = load_samples()
@@ -402,16 +405,26 @@ def _render_chat(
     ctx = ToolContext(
         profile=profile, include_draft=include_draft, search=search, calculate=calculate
     )
+    # 실패한 턴은 run_turn이 대화 기록에서 뺀다(도구 결과까지 함께).
     try:
         with st.spinner("답변 생성 중"):
             turn = run_turn(_client(), settings.agent_model, history, question, ctx)
         log.append({"role": "assistant", "text": turn.text, "turn": turn})
     except anthropic.APIStatusError as exc:
-        history.pop()  # 실패한 질문은 대화 기록에서 뺀다
         log.append({"role": "assistant", "text": f"API 오류 {exc.status_code}: {exc.message}"})
     except anthropic.APIConnectionError:
-        history.pop()
         log.append({"role": "assistant", "text": "네트워크 오류로 Anthropic API에 연결하지 못함"})
+    except Exception as exc:
+        # 도구 실행 중 예외 등. 화면에는 예외 종류만 남기고(메시지에 입력 값이 있을 수 있음)
+        # 원인은 터미널 로그에 남긴다. st.rerun·st.stop의 제어 예외는 BaseException이라 잡지 않는다.
+        logger.exception("test chat turn failed")
+        log.append(
+            {
+                "role": "assistant",
+                "text": f"도구 실행 오류({type(exc).__name__}): 이 질문은 대화 기록에서 뺌. "
+                "자세한 내용은 터미널 로그 확인",
+            }
+        )
     st.rerun()
 
 
