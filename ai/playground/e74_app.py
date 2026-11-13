@@ -184,6 +184,7 @@ def _render_score(
         if profile is None:
             st.error("편집기 프로필 JSON 오류를 먼저 고쳐야 함")
             return
+        sent = profile.model_dump_json()
     else:
         if user_id is None:
             st.info("사이드바에 Spring 사용자 id를 입력해야 계산할 수 있다.")
@@ -192,29 +193,42 @@ def _render_score(
             f"Spring 경유({settings.spring_internal_api_url}): 사용자 {user_id}의 MySQL 프로필로 "
             "계산·저장. 감점·제외 6문항은 편집기 프로필의 legalDeclaration 값을 보낸다."
         )
+        # 프로필이 깨진 채 보내면 감점 문항이 빈 채로 저장되므로 계산하지 않는다.
+        if profile is None:
+            st.error("편집기 프로필 JSON 오류를 먼저 고쳐야 함(감점·제외 6문항을 여기서 보냄)")
+            return
+        declaration = profile.legal_declaration
+        sent = declaration.model_dump_json() if declaration is not None else ""
+    # 결과를 만든 입력. 사용자 id·기준일·보낸 프로필이 바뀌면 이전 결과를 보여 주지 않는다.
+    inputs = (mode, user_id, as_of, sent)
     # 운영 경로는 버튼을 눌렀을 때만 부른다(화면이 다시 그려질 때마다 요청하지 않게).
     if st.button("계산 요청", key="live_calculate"):
         try:
             with st.spinner("계산 요청 중"):
                 if mode == CALC_AI:
-                    assert profile is not None
                     st.session_state["live_result"] = (
-                        mode,
+                        inputs,
                         None,
                         calculate_via_ai(_live_client(), profile, as_of),
                     )
                 else:
                     assert user_id is not None
-                    declaration = profile.legal_declaration if profile is not None else None
-                    saved = assess_via_spring(_spring_client(), user_id, as_of, declaration)
-                    st.session_state["live_result"] = (mode, saved, saved.result)
+                    saved = assess_via_spring(
+                        _spring_client(), user_id, as_of, profile.legal_declaration
+                    )
+                    st.session_state["live_result"] = (inputs, saved, saved.result)
         except LiveCalculateError as exc:
             st.session_state.pop("live_result", None)
             st.error(str(exc))
             return
     stored = st.session_state.get("live_result")
-    if stored is None or stored[0] != mode:
+    if stored is None:
         st.info("'계산 요청'을 누르면 계산한다.")
+        return
+    if stored[0] != inputs:
+        st.info(
+            "입력(계산 경로·사용자 id·기준일·프로필)이 바뀜. '계산 요청'을 누르면 다시 계산한다."
+        )
         return
     _, saved, assessment = stored
     if saved is not None:
@@ -291,8 +305,13 @@ def _show_turn(entry: dict[str, Any]) -> None:
         )
 
 
-def _missing_user_id(_: date) -> dict[str, Any]:
-    raise LiveCalculateError("Spring 경유 계산: 사이드바에 Spring 사용자 id를 입력해야 함")
+def _calculate_error(message: str) -> CalculateFn:
+    """계산하지 않고 도구 오류(message)를 돌려주는 계산 함수. 운영 경로 입력이 모자랄 때 쓴다."""
+
+    def calculate(_: date) -> dict[str, Any]:
+        raise LiveCalculateError(message)
+
+    return calculate
 
 
 def _render_chat(
@@ -367,9 +386,15 @@ def _render_chat(
             calculate_via_ai(_live_client(), ai_profile, as_of)
         )
     elif mode_calc == CALC_SPRING and user_id is None:
-        calculate = _missing_user_id
-    elif mode_calc == CALC_SPRING and user_id is not None:
-        declaration = profile.legal_declaration if profile is not None else None
+        calculate = _calculate_error("Spring 경유 계산: 사이드바에 Spring 사용자 id를 입력해야 함")
+    elif mode_calc == CALC_SPRING and profile is None:
+        # 프로필이 깨진 채 보내면 감점 문항이 빈 채로 저장되므로 계산하지 않는다.
+        calculate = _calculate_error(
+            "Spring 경유 계산: 편집기 프로필 JSON 오류를 먼저 고쳐야 함"
+            "(감점·제외 6문항을 여기서 보냄)"
+        )
+    elif mode_calc == CALC_SPRING and user_id is not None and profile is not None:
+        declaration = profile.legal_declaration
         spring_user = user_id
         calculate = lambda as_of: e74_records(  # noqa: E731
             assess_via_spring(_spring_client(), spring_user, as_of, declaration)

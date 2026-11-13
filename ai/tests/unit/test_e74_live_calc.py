@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -12,6 +13,7 @@ import pytest
 
 from app.visa.e74.schemas import E74CalculateRequest
 from app.visa.e74.service import calculate
+from app.visa.tools import E74AssessmentToolResponse
 from playground.e74_chat import ToolContext, execute_tool
 from playground.live_e74 import (
     ASSESSMENT_PATH,
@@ -27,6 +29,7 @@ pytestmark = pytest.mark.unit
 
 TOKEN = "test-internal-token-0123456789abcdef"
 AS_OF = date(2026, 11, 12)
+APP = Path(__file__).resolve().parents[2] / "playground" / "e74_app.py"
 
 
 def _engine_response(profile_id: str = "P05") -> dict[str, Any]:
@@ -111,6 +114,8 @@ def test_spring_path_sends_user_id_in_path_and_legal_answers_in_body() -> None:
             "입력 검증",
         ),
         (422, {"code": "INSUFFICIENT_DATA"}, "데이터가 부족"),
+        # Spring 502는 대부분 Spring→ai-server 호출 실패다.
+        (502, {"code": "AI_UPSTREAM_ERROR"}, "ai-server 계산 결과를 받지 못함"),
         (500, {"code": "INTERNAL_ERROR"}, "HTTP 500"),
     ],
 )
@@ -169,3 +174,43 @@ def test_chat_tool_without_calculate_path_still_uses_engine() -> None:
 
     assert not is_error
     assert json.loads(output)["score"]["total"] == 235
+
+
+def test_app_spring_result_hides_on_input_change_and_skips_broken_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Streamlit이 있을 때만 실행: uv run --project ai --with streamlit pytest ..."""
+    testing = pytest.importorskip("streamlit.testing.v1")
+    from playground import live_e74
+
+    users: list[int] = []
+
+    def fake_assess(
+        _: httpx.Client, user_id: int, as_of: date, declaration: object
+    ) -> E74AssessmentToolResponse:
+        users.append(user_id)
+        return E74AssessmentToolResponse.model_validate(
+            {"assessmentId": 74, "reused": False, "result": _engine_response()}
+        )
+
+    # e74_app은 실행할 때마다 live_e74에서 함수를 가져오므로 모듈 속성을 바꾸면 된다.
+    monkeypatch.setattr(live_e74, "assess_via_spring", fake_assess)
+    at = testing.AppTest.from_file(str(APP), default_timeout=30).run()
+    at.radio(key="calc_mode").set_value("Spring 경유").run()
+    at.number_input(key="spring_user_id").set_value(185).run()
+    at.button(key="live_calculate").click().run()
+    assert not at.exception
+    assert users == [185]
+    assert any("assessmentId 74" in element.value for element in at.success)
+
+    # 사용자 id를 바꾸면 185의 결과를 보여 주지 않는다.
+    at.number_input(key="spring_user_id").set_value(186).run()
+    assert not any("assessmentId" in element.value for element in at.success)
+    assert any("입력" in element.value and "바뀜" in element.value for element in at.info)
+
+    # 편집기 프로필이 깨지면 감점 문항 없이 보내지 않는다(계산 요청 버튼도 없음).
+    at.text_area(key="profile_text").input("{ broken").run()
+    assert not at.exception
+    assert any("프로필 JSON 오류" in element.value for element in at.error)
+    assert not [button for button in at.button if button.key == "live_calculate"]
+    assert users == [185]

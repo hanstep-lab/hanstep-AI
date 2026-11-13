@@ -44,7 +44,12 @@ _STATUS_HINTS = {
     401: "토큰 확인(AI API는 AI_INTERNAL_API_TOKEN, Spring은 SPRING_INTERNAL_API_KEY)",
     404: "사용자가 없음(사용자 id 확인)",
     422: "계산에 필요한 데이터가 부족함",
-    502: "Spring이 AI 응답을 저장하지 못함",
+    # Spring AI_UPSTREAM_ERROR. 대부분 Spring→ai-server 호출 실패이고, AI 응답이 저장 형식에
+    # 맞지 않을 때도 502다.
+    502: (
+        "Spring이 ai-server 계산 결과를 받지 못함(ai-server가 떠 있는지, "
+        "Spring의 AI_INTERNAL_API_URL·AI_INTERNAL_API_TOKEN 확인)"
+    ),
     503: "계산 서버를 쓸 수 없음(ai-server·Spring이 떠 있는지 확인)",
 }
 
