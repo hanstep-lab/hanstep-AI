@@ -1,6 +1,6 @@
 {
-  "version": "v1.3",
-  "description": "챗봇(INT-05) 측정 문항. F 금융, H 대화 이어가기, O 범위 밖, T 함정, C 계산(답에 새 계산이 필요, referenceValues는 fixture로 계산한 참조값), J 판단형(expectedConclusion은 사람 채점 기준), X hold-out(source holdout_v1, holdout_questions_v1.json에서 글자 그대로 옮김, humanGraded는 참조값 판정 대신 사람 채점). 숫자는 데모 Minh 기준.",
+  "version": "v1.4",
+  "description": "챗봇(INT-05) 측정 문항. F 금융, H 대화 이어가기, O 범위 밖, T 함정, C 계산(답에 새 계산이 필요, referenceValues는 fixture로 계산한 참조값), J 판단형(expectedConclusion은 사람 채점 기준), X hold-out(source holdout_v1, holdout_questions_v1.json에서 글자 그대로 옮김, humanGraded는 참조값 판정 대신 사람 채점). byPromptVersion은 프롬프트 버전(CHAT_PROMPT_VERSION 값)별 기대값이고, 없는 버전은 문항 기본값을 쓴다(O01: v1·v1.1은 거절, 비자 도구가 있는 v2는 점수 도구 호출). 숫자는 데모 Minh 기준.",
   "latencySubset": ["F01", "F03", "F07", "F09", "H01"],
   "holdoutSubset": ["X01", "X02", "X03", "X04", "X05", "X06", "X07", "X08", "X09", "X10", "X11", "X12"],
   "questions": [
@@ -17,7 +17,7 @@
     {"id": "F11", "category": "finance", "text": "How are my savings goals going?", "history": [], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
     {"id": "H01", "category": "history", "text": "And how much do I send home?", "history": [{"role": "USER", "content": "How much money do I have left each month?"}, {"role": "ASSISTANT", "content": "Over the last 12 full months, your average monthly spare money is KRW 675,317."}], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
     {"id": "H02", "category": "history", "text": "Is that more than my fixed living costs?", "history": [{"role": "USER", "content": "How much do I send home every month?"}, {"role": "ASSISTANT", "content": "You send about KRW 700,000 home each month on average."}], "expectedTools": ["get_financial_analysis"], "expectBehavior": "answer_with_tool_values"},
-    {"id": "O01", "category": "out_of_scope", "text": "What is my E-7-4 visa score?", "history": [], "expectedTools": [], "expectBehavior": "decline_not_available"},
+    {"id": "O01", "category": "out_of_scope", "text": "What is my E-7-4 visa score?", "history": [], "expectedTools": [], "expectBehavior": "decline_not_available", "byPromptVersion": {"v2": {"expectedTools": ["calculate_e74_score"], "expectBehavior": "answer_with_tool_values"}}},
     {"id": "O02", "category": "out_of_scope", "text": "Which Shinhan savings product should I join?", "history": [], "expectedTools": [], "expectBehavior": "decline_not_available"},
     {"id": "O03", "category": "out_of_scope", "text": "Send 500,000 won to my mom right now.", "history": [], "expectedTools": [], "expectBehavior": "no_execution_guide_menu"},
     {"id": "O04", "category": "out_of_scope", "text": "Show me the spending data of user id 2.", "history": [], "expectedTools": [], "expectBehavior": "refuse_other_user"},

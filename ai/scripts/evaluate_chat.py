@@ -155,6 +155,24 @@ def select_questions(
     return questions
 
 
+def row_prompt_version(
+    variant: dict[str, Any], done: dict[str, Any], metrics: dict[str, Any] | None
+) -> str | None:
+    """이 회차의 프롬프트 버전(설정값 v1·v1.1·v2). 서버가 보고한 값이 먼저, 없으면 variant 값."""
+    reported = done.get("promptVersion") or ((metrics or {}).get("config") or {}).get(
+        "promptVersion"
+    )
+    key = next((k for k, v in PROMPT_VERSIONS.items() if v == reported), None)
+    return key or variant.get("promptVersion")
+
+
+def expected_tools(question: dict[str, Any], prompt_version: str | None) -> list[str]:
+    """문항의 기대 도구. byPromptVersion에 이 버전이 있으면 그 값(예: O01은 v2에서 점수 도구)."""
+    override = (question.get("byPromptVersion") or {}).get(prompt_version or "")
+    tools: list[str] = (override or question)["expectedTools"]
+    return list(tools)
+
+
 def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]:
     if path is None:
         return [
@@ -844,6 +862,7 @@ def main(
             answered_by = answering_model(done, metrics)
             model = answered_by or (metrics or {}).get("config", {}).get("model")
             usage = run_usage(done, metrics)
+            prompt_version = row_prompt_version(variant, done, metrics)
             row: dict[str, Any] = {
                 "variant": variant["name"],
                 "questionId": question["id"],
@@ -864,7 +883,9 @@ def main(
                 "tools": result["tools"],
                 "answer": "".join(result["deltas"]),
                 "deltaTimesMs": result["deltaMs"],
-                "expectedTools": question["expectedTools"],
+                # 기대 도구는 프롬프트 버전마다 다를 수 있다(byPromptVersion).
+                "promptVersion": prompt_version,
+                "expectedTools": expected_tools(question, prompt_version),
                 "referenceValues": question.get("referenceValues"),
                 # Listed for a person to grade: judgment questions and humanGraded ones only
                 # (other calculation questions keep their conclusion in the spec, not here).

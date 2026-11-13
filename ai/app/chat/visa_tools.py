@@ -59,6 +59,26 @@ E74_FAILURES = {
     "RULE_SET_NOT_APPROVED": "E-7-4 scoring rules are not approved yet, so no score is available",
     "NO_APPLICABLE_RULE_SET": "no E-7-4 scoring rules apply to this date",
 }
+# Spring이 입력·저장 데이터 문제로 거부한 4xx(키: details.reason, 없으면 오류 코드). 다시 불러도
+# 같은 결과라 "지금 쓸 수 없음"(5xx·시간 초과·연결 오류)과 나눠 REJECTED로 돌려준다.
+# {fields}에는 필드 경로·사유만 넣는다(값은 넣지 않음).
+E74_REJECTIONS = {
+    "VALIDATION_ERROR": (
+        "invalid arguments (VALIDATION_ERROR): {fields}. "
+        "Fix these arguments and call again, or ask the user"
+    ),
+    "PROFILE_REJECTED": (
+        "the user's saved visa profile did not pass the score checks (PROFILE_REJECTED): "
+        "{fields}. Changing the arguments will not help; ask the user to check this "
+        "information in the app"
+    ),
+    "RULE_SET_NOT_REGISTERED": (
+        "the E-7-4 scoring rules for this date are not set up on the server "
+        "(RULE_SET_NOT_REGISTERED). Changing the arguments will not help"
+    ),
+}
+# Spring은 감점·제외 답을 profile.legalDeclaration 아래로 검증한다. LLM이 쓰는 인자 이름으로 바꾼다.
+_LEGAL_FIELD_PREFIX = "profile.legalDeclaration"
 
 
 class E74AssessmentSource(Protocol):
@@ -175,14 +195,19 @@ class VisaTools:
         except (TimeoutError, httpx.TimeoutException):
             return outcome("TIMEOUT", UNAVAILABLE, error_code="SPRING_TIMEOUT")
         except SpringApiError as exc:
+            error_code = f"SPRING_HTTP_{exc.status}"
+            rejection = E74_REJECTIONS.get(exc.reason or exc.code)
+            if rejection is not None and 400 <= exc.status < 500:
+                content = rejection.format(fields=_field_list(exc.fields))
+                return outcome("REJECTED", content, error_code=error_code)
             message = E74_FAILURES.get(exc.reason or "", UNAVAILABLE)
-            return outcome("FAILED", message, error_code=f"SPRING_HTTP_{exc.status}")
+            return outcome("FAILED", message, error_code=error_code)
         except ValidationError:
             return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
         except Exception as exc:  # 연결 실패 등: 점수 없이 답하게 한다
             logger.warning("e74 assessment failed: %s", type(exc).__name__)
             return outcome("FAILED", UNAVAILABLE, error_code="SPRING_ERROR")
-        return _succeeded(outcome, e74_records(response))
+        return _succeeded(outcome, lambda: e74_records(response))
 
     async def _search_policies(
         self, parsed: SearchVisaPoliciesInput, outcome: OutcomeFn
@@ -204,11 +229,29 @@ class VisaTools:
         except Exception as exc:
             logger.warning("policy search failed: %s", type(exc).__name__)
             return outcome("FAILED", UNAVAILABLE, error_code="SEARCH_ERROR")
-        return _succeeded(outcome, policy_search_records(hits))
+        return _succeeded(outcome, lambda: policy_search_records(hits))
 
 
-def _succeeded(outcome: OutcomeFn, records: VisaToolRecords) -> ToolOutcome:
-    data = records.model_dump(mode="json", by_alias=True)
+def _field_list(fields: tuple[tuple[str, str], ...]) -> str:
+    names = [
+        f"{path.removeprefix('profile.') if path.startswith(_LEGAL_FIELD_PREFIX) else path}"
+        f" ({reason})"
+        for path, reason in fields
+    ]
+    return ", ".join(names) or "no field details"
+
+
+def _succeeded(outcome: OutcomeFn, build: Callable[[], VisaToolRecords]) -> ToolOutcome:
+    """도구 결과로 결과 참조·근거·카드를 만들어 SUCCEEDED로 끝낸다.
+
+    만들다 실패하면(기록 모델 제약에 맞지 않는 결과 등) 이 도구만 FAILED로 끝낸다. 예외를 밖으로
+    내보내면 채팅 실행 전체가 AGENT_INTERNAL_ERROR로 끝나 답변이 사라진다.
+    """
+    try:
+        data = build().model_dump(mode="json", by_alias=True)
+    except Exception as exc:
+        logger.warning("visa tool result could not be recorded: %s", type(exc).__name__)
+        return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESULT")
     return outcome(
         "SUCCEEDED",
         data["llmOutput"],

@@ -189,7 +189,39 @@ def test_calculate_rejects_invalid_arguments_without_calling_spring(
             "SPRING_HTTP_409",
             "not approved yet",
         ),
+        # 입력·저장 데이터 문제(4xx)는 REJECTED: 코드와 필드 경로·사유를 넘긴다(값은 없음).
+        (
+            SpringApiError(
+                400,
+                "VALIDATION_ERROR",
+                "",
+                fields=(("profile.legalDeclaration.finesUnder1mCount", "int_parsing"),),
+            ),
+            "REJECTED",
+            "SPRING_HTTP_400",
+            "(VALIDATION_ERROR): legalDeclaration.finesUnder1mCount (int_parsing)",
+        ),
+        (
+            SpringApiError(
+                422,
+                "INSUFFICIENT_DATA",
+                "",
+                "PROFILE_REJECTED",
+                (("profile.employments.1", "value_error"),),
+            ),
+            "REJECTED",
+            "SPRING_HTTP_422",
+            "(PROFILE_REJECTED): profile.employments.1 (value_error)",
+        ),
+        (
+            SpringApiError(409, "INVALID_STATE", "", "RULE_SET_NOT_REGISTERED"),
+            "REJECTED",
+            "SPRING_HTTP_409",
+            "RULE_SET_NOT_REGISTERED",
+        ),
+        # 5xx·시간 초과·연결 오류는 "지금 쓸 수 없음".
         (SpringApiError(500, "INTERNAL_ERROR", ""), "FAILED", "SPRING_HTTP_500", "unavailable"),
+        (SpringApiError(502, "AI_UPSTREAM_ERROR", ""), "FAILED", "SPRING_HTTP_502", "unavailable"),
         (httpx.ReadTimeout("slow"), "TIMEOUT", "SPRING_TIMEOUT", "unavailable"),
         (httpx.ConnectError("refused"), "FAILED", "SPRING_ERROR", "unavailable"),
     ],
@@ -285,6 +317,30 @@ def test_spring_e74_assessment_posts_once_and_reads_reason() -> None:
     assert len(seen) == 1  # 재시도하지 않는다
 
 
+def test_spring_e74_error_keeps_only_field_paths_and_reasons() -> None:
+    def rejected(_: httpx.Request) -> httpx.Response:
+        fields = [
+            {"field": "scenario.addEvidences.0.evidenceType", "reason": "enum"},
+            {"field": "scenario", "reason": "must be an object"},
+            {"field": "profile.legalDeclaration.finesUnder1mCount", "reason": "010-1234-5678"},
+            {"field": "이름 홍길동", "reason": "missing"},
+            "not a field",
+        ]
+        payload = {"code": "VALIDATION_ERROR", "details": {"fields": fields}}
+        return httpx.Response(400, json=payload)
+
+    body = {"asOfDate": "2026-11-12", "scenario": None, "legalDeclaration": None}
+    with pytest.raises(SpringApiError) as info:
+        _spring(rejected).e74_assessment(185, body, timeout=5)
+
+    # 경로·코드 모양이 아닌 값은 넘기지 않는다(사유는 invalid, 경로가 아니면 항목을 뺀다).
+    assert info.value.fields == (
+        ("scenario.addEvidences.0.evidenceType", "enum"),
+        ("scenario", "must be an object"),
+        ("profile.legalDeclaration.finesUnder1mCount", "invalid"),
+    )
+
+
 # --- 그래프·스트림까지 -------------------------------------------------------------------------
 
 
@@ -374,6 +430,31 @@ def test_stream_carries_visa_tool_call_sources_and_score_card() -> None:
     blocks = by_name["agent.done"]["blocks"]
     assert [b["type"] for b in blocks] == ["E74_SCORE_CARD"]
     assert by_name["agent.done"]["promptVersion"] == "chat-v2"
+
+
+def test_record_failure_ends_only_that_tool_and_answer_continues(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_records(_: E74AssessmentToolResponse) -> Any:
+        raise ValueError("result does not fit the record models")
+
+    # 결과 참조·근거·카드를 만들다 실패해도 채팅 실행 전체(AGENT_INTERNAL_ERROR)로 번지지 않는다.
+    monkeypatch.setattr("app.chat.visa_tools.e74_records", broken_records)
+    events = asyncio.run(_run_e74_chat())
+    names = [name for name, _ in events]
+    by_name = {name: data for name, data in events}
+
+    assert names == ["agent.tool_call", "agent.delta", "agent.done"]
+    call = by_name["agent.tool_call"]
+    assert (call["toolName"], call["status"], call["errorCode"]) == (
+        CALCULATE_E74_SCORE,
+        "FAILED",
+        "INVALID_RESULT",
+    )
+    # 결과 참조·근거·카드는 남지 않는다(agent.sources 없음, done.blocks null).
+    assert call["resultRef"] is None
+    assert by_name["agent.done"]["content"] == "305점이에요."
+    assert by_name["agent.done"]["blocks"] is None
 
 
 # --- 라우트: 프롬프트 버전별 도구 ----------------------------------------------------------
