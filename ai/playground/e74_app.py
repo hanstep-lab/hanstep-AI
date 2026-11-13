@@ -402,15 +402,14 @@ def _render_chat(
     ctx = ToolContext(
         profile=profile, include_draft=include_draft, search=search, calculate=calculate
     )
+    # 실패한 턴은 run_turn이 대화 기록에서 뺀다(도구 결과까지 함께).
     try:
         with st.spinner("답변 생성 중"):
             turn = run_turn(_client(), settings.agent_model, history, question, ctx)
         log.append({"role": "assistant", "text": turn.text, "turn": turn})
     except anthropic.APIStatusError as exc:
-        history.pop()  # 실패한 질문은 대화 기록에서 뺀다
         log.append({"role": "assistant", "text": f"API 오류 {exc.status_code}: {exc.message}"})
     except anthropic.APIConnectionError:
-        history.pop()
         log.append({"role": "assistant", "text": "네트워크 오류로 Anthropic API에 연결하지 못함"})
     st.rerun()
 

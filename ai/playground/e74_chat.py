@@ -268,7 +268,26 @@ def run_turn(
     user_text: str,
     ctx: ToolContext,
 ) -> ChatTurn:
-    """사용자 메시지 하나를 처리한다. history는 제자리에서 늘어난다(다음 턴에 그대로 보냄)."""
+    """사용자 메시지 하나를 처리한다. history는 제자리에서 늘어난다(다음 턴에 그대로 보냄).
+
+    실패하면 이 턴에서 넣은 메시지를 모두 빼고 예외를 그대로 올린다. 도구를 쓴 뒤 실패했을 때
+    짝 없는 tool_use가 남으면 이후 요청이 모두 400이 된다.
+    """
+    start = len(history)
+    try:
+        return _run_rounds(client, model, history, user_text, ctx)
+    except BaseException:
+        del history[start:]
+        raise
+
+
+def _run_rounds(
+    client: ClaudeClient,
+    model: str,
+    history: list[dict[str, Any]],
+    user_text: str,
+    ctx: ToolContext,
+) -> ChatTurn:
     history.append({"role": "user", "content": user_text})
     calls: list[ToolCall] = []
     input_tokens = output_tokens = 0
