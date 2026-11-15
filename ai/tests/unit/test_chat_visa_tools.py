@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage, T
 from langchain_core.outputs import ChatGenerationChunk
 
 from app.chat.fake_llm import FAKE_MODEL_ID, FakeChatModel
+from app.chat.remittance_tools import GET_FX_RATE, GET_REMITTANCE_RECIPIENTS, QUOTE_REMITTANCE
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import ChatRunOptions, run_chat
 from app.chat.tools import TOOL_NAME, ChatToolset, FinanceTool, FixtureFinanceContext
@@ -465,9 +466,21 @@ def test_record_failure_ends_only_that_tool_and_answer_continues(
     [
         ("v1.1", [TOOL_NAME]),  # 측정에 쓴 버전은 금융 도구만(측정 조건 유지)
         ("v2", [TOOL_NAME, SEARCH_VISA_POLICIES, CALCULATE_E74_SCORE]),
+        # v3: v2 + 송금 조회 도구 세 개.
+        (
+            "v3",
+            [
+                TOOL_NAME,
+                SEARCH_VISA_POLICIES,
+                CALCULATE_E74_SCORE,
+                GET_REMITTANCE_RECIPIENTS,
+                GET_FX_RATE,
+                QUOTE_REMITTANCE,
+            ],
+        ),
     ],
 )
-def test_route_attaches_visa_tools_only_for_v2(
+def test_route_attaches_tools_by_prompt_version(
     monkeypatch: pytest.MonkeyPatch, version: str, names: list[str]
 ) -> None:
     seen: list[list[str]] = []

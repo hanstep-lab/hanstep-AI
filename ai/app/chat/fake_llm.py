@@ -8,6 +8,11 @@ Behaviour:
   so tests can check that thinking is filtered from deltas and kept across the tool round trip.
 - ``pre_tool_text``: a text block streamed before the tool call (a model ignoring the prompt's
   "no text before the tool call"), so tests can measure text sent before tools.
+- remittance (only when quote_remittance is bound, prompt v3): when a user message in the
+  conversation asks to send money, it calls get_remittance_recipients, reads the recipient, the
+  currency and the amount from the user messages (later ones win), then either asks about the
+  first unclear one (recipient, amount, currency) or calls quote_remittance and answers with the
+  quote amounts. Keyword rules only (see _remittance_slots); good enough for scenario tests.
 
 Test-only triggers in the user message (documented here, two at most):
 - ``[fake-llm-error]``: raise an Anthropic connection error (-> LLM_UPSTREAM_ERROR).
@@ -31,6 +36,7 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_core.runnables import Runnable
 from pydantic import Field
 
+from app.chat.remittance_tools import GET_REMITTANCE_RECIPIENTS, QUOTE_REMITTANCE
 from app.chat.tools import NO_ANALYSIS, TOOL_NAME, UNAVAILABLE
 
 FAKE_MODEL_ID = "fake-chat-model"
@@ -68,11 +74,70 @@ def answer_from_tool_result(result: str | None) -> str:
     )
 
 
+_REMIT_REQUEST = re.compile(r"\b(send|remit|transfer|transfr|snd|put)\b", re.IGNORECASE)
+_AMOUNT = re.compile(r"(\d[\d,]*)(?:\s*(k)(?![a-z]))?", re.IGNORECASE)
+_KRW = re.compile(r"(?<![a-z])(won|krw)\b", re.IGNORECASE)
+_RECEIVE_CURRENCY = re.compile(r"(?<![a-z])(pesos?|php)\b", re.IGNORECASE)
+_MOTHER = re.compile(r"\b(mom|mama|mother|nanay|lorna|bdo)\b", re.IGNORECASE)
+_SELF = re.compile(r"\b(bpi|my own|mark)\b", re.IGNORECASE)
+
+
+def _remittance_slots(texts: list[str]) -> dict[str, Any]:
+    """Recipient relationship, currency and amount from user messages (later ones win).
+
+    A message naming both recipients (e.g. "mom bpi") leaves the recipient unclear.
+    """
+    slots: dict[str, Any] = {"recipient": None, "currency": None, "amount": None}
+    for text in texts:
+        amount = _AMOUNT.search(text)
+        if amount:
+            value = int(amount.group(1).replace(",", ""))
+            slots["amount"] = value * 1000 if amount.group(2) else value
+        if _KRW.search(text):
+            slots["currency"] = "KRW"
+        elif _RECEIVE_CURRENCY.search(text):
+            slots["currency"] = "PHP"
+        mother, own = bool(_MOTHER.search(text)), bool(_SELF.search(text))
+        if mother or own:
+            slots["recipient"] = None if mother and own else ("MOTHER" if mother else "SELF")
+    return slots
+
+
+def _tool_call_chunk(name: str, args: dict[str, Any], call_id: str) -> AIMessageChunk:
+    return AIMessageChunk(
+        content=[{"type": "tool_use", "id": call_id, "name": name, "input": args, "index": 1}],
+        tool_call_chunks=[
+            {
+                "type": "tool_call_chunk",
+                "name": name,
+                "args": json.dumps(args),
+                "id": call_id,
+                "index": 1,
+            }
+        ],
+    )
+
+
+def _quote_answer(result: str) -> str:
+    try:
+        quote = json.loads(result)
+        send, receive = quote["sendAmount"], quote["receiveAmount"]
+        name = quote["recipient"]["nameEn"]
+    except (ValueError, KeyError, TypeError):
+        return "I could not prepare this remittance right now. Please try again."
+    return (
+        f"{name} will receive {receive['amount']:,} {receive['currency']} for "
+        f"{send['amount']:,} {send['currency']}. Please check the confirmation card and send it "
+        "on the transfer screen."
+    )
+
+
 class FakeChatModel(BaseChatModel):
     delta_delay_ms: int = 30
     emit_thinking: bool = False
     pre_tool_text: str = ""
     tools_bound: bool = False
+    bound_tool_names: tuple[str, ...] = ()
     # Shared with copies made by bind_tools; tests read "calls" and "cancelled".
     probe: dict[str, Any] = Field(default_factory=dict)
 
@@ -88,7 +153,10 @@ class FakeChatModel(BaseChatModel):
         **kwargs: Any,
     ) -> Runnable[Any, Any]:
         none = isinstance(tool_choice, dict) and tool_choice.get("type") == "none"
-        return self.model_copy(update={"tools_bound": bool(tools) and not none})
+        names = tuple(t["name"] for t in tools if isinstance(t, dict) and "name" in t)
+        return self.model_copy(
+            update={"tools_bound": bool(tools) and not none, "bound_tool_names": names}
+        )
 
     def _generate(
         self,
@@ -121,6 +189,19 @@ class FakeChatModel(BaseChatModel):
                 if self.emit_thinking
                 else []
             )
+            remittance = self._remittance_step(messages, tool_results)
+            if remittance is not None:
+                kind, value = remittance
+                if kind == "tool":
+                    name, args = value
+                    chunk = _tool_call_chunk(name, args, f"toolu_fake_{self.probe['calls']}")
+                    yield ChatGenerationChunk(message=chunk)
+                    yield self._final_chunk("tool_use")
+                    return
+                async for piece in self._stream_text(value):
+                    yield piece
+                yield self._final_chunk("end_turn")
+                return
             if self.tools_bound and not tool_results:
                 call_id = f"toolu_fake_{self.probe['calls']}"
                 # Content blocks merge by index, so the tool_use goes after the text block.
@@ -163,15 +244,56 @@ class FakeChatModel(BaseChatModel):
                 return
             last = tool_results[-1] if tool_results else None
             answer = answer_from_tool_result(None if last is None else str(last.content))
-            for word in re.findall(r"\S+\s*", answer):
-                await asyncio.sleep(self.delta_delay_ms / 1000)
-                yield ChatGenerationChunk(
-                    message=AIMessageChunk(content=[{"type": "text", "text": word, "index": 1}])
-                )
+            async for piece in self._stream_text(answer):
+                yield piece
             yield self._final_chunk("end_turn")
         except asyncio.CancelledError:
             self.probe["cancelled"] = True
             raise
+
+    async def _stream_text(self, answer: str) -> AsyncIterator[ChatGenerationChunk]:
+        for word in re.findall(r"\S+\s*", answer):
+            await asyncio.sleep(self.delta_delay_ms / 1000)
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(content=[{"type": "text", "text": word, "index": 1}])
+            )
+
+    def _remittance_step(
+        self, messages: list[BaseMessage], tool_results: list[ToolMessage]
+    ) -> tuple[str, Any] | None:
+        """("tool", (name, args)) or ("text", answer) for a remittance turn, else None."""
+        if not self.tools_bound or QUOTE_REMITTANCE not in self.bound_tool_names:
+            return None
+        texts = [_content_text(m) for m in messages if isinstance(m, HumanMessage)]
+        if not any(_REMIT_REQUEST.search(text) for text in texts):
+            return None
+        results = {m.name: str(m.content) for m in tool_results}
+        if QUOTE_REMITTANCE in results:
+            return ("text", _quote_answer(results[QUOTE_REMITTANCE]))
+        if GET_REMITTANCE_RECIPIENTS not in results:
+            return ("tool", (GET_REMITTANCE_RECIPIENTS, {}))
+        try:
+            recipients = json.loads(results[GET_REMITTANCE_RECIPIENTS])["recipients"]
+        except (ValueError, KeyError, TypeError):
+            return ("text", "I could not load your saved recipients right now. Please try again.")
+        slots = _remittance_slots(texts)
+        if slots["recipient"] is None:
+            names = " or ".join(f"{r['nameEn']} ({r['bankName']})" for r in recipients)
+            return ("text", f"Who should receive the money: {names}?")
+        if slots["amount"] is None:
+            return ("text", "How much would you like to send?")
+        if slots["currency"] is None:
+            amount = f"{slots['amount']:,}"
+            return ("text", f"Is the {amount} amount in KRW you send or PHP they receive?")
+        recipient = next((r for r in recipients if r["relationship"] == slots["recipient"]), None)
+        if recipient is None:
+            return ("text", "That recipient is not saved. Please add the recipient in the app.")
+        args = {
+            "recipientId": recipient["recipientId"],
+            "amount": slots["amount"],
+            "currency": slots["currency"],
+        }
+        return ("tool", (QUOTE_REMITTANCE, args))
 
     @staticmethod
     def _final_chunk(stop_reason: str) -> ChatGenerationChunk:
