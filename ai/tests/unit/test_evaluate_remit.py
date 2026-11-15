@@ -540,3 +540,43 @@ def test_unclear_rate_unit_goes_to_a_person_and_into_the_summary() -> None:
         in summary
     )
     assert "| 환율 단위 | 사람 확인 |" in summary
+
+
+# --- 환율 표기 비교 측정 설정(이슈 #45) --------------------------------------------------
+
+
+def test_rate_text_variants_differ_only_in_prompt_version() -> None:
+    specs = Path(EVAL.AI_ROOT) / "specs" / "chat"
+    base = EVAL.load_variants(specs / "variants_remit_v1.json", _settings())[0]
+    loaded = EVAL.load_variants(specs / "variants_rate_text_v1.json", _settings())
+    assert [(v["name"], v["promptVersion"]) for v in loaded] == [
+        ("rate-v3", "v3"),
+        ("rate-v3.1", "v3.1"),
+        ("rate-v3.2", "v3.2"),
+    ]
+    same = {k: v for k, v in base.items() if k not in ("name", "promptVersion")}
+    for variant in loaded:
+        assert {k: v for k, v in variant.items() if k not in ("name", "promptVersion")} == same
+
+
+def test_rate_text_variants_run_in_fake_mode(tmp_path: Path) -> None:
+    settings = _settings()
+    variants = Path(EVAL.AI_ROOT) / "specs" / "chat" / "variants_rate_text_v1.json"
+    output = tmp_path / "rate.jsonl"
+    code = EVAL.main(
+        ["--base-url", "http://testserver", "--question-set", "remit", "--questions", "S01,S14",
+         "--variants", str(variants), "--output", str(output)],
+        client=_client(settings),
+        settings=settings,
+        confirm=lambda _: "n",
+    )  # fmt: skip
+    assert code == 0
+    lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    rows = [r for r in lines if r["type"] == "call"]
+    assert sorted({r["variant"] for r in rows}) == ["rate-v3", "rate-v3.1", "rate-v3.2"]
+    assert all(r["remitCheck"]["outcome"] == "correct" for r in rows)
+    assert {r["metrics"]["config"]["promptVersion"] for r in rows} == {
+        "chat-v3",
+        "chat-v3.1",
+        "chat-v3.2",
+    }
