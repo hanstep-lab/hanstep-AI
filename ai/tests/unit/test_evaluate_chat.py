@@ -884,3 +884,14 @@ def test_run_marks_tool_data_that_differs_from_the_fixture(
     assert "WARN: 이 run의 도구 데이터가 데모 fixture와 다르다" in capsys.readouterr().out
     section = output.with_suffix(".md").read_text(encoding="utf-8").split("## 판단형", 1)[1]
     assert "주의: 이 run의 도구 데이터가 데모 fixture와 다르다" in section
+
+
+@pytest.mark.parametrize("version", ["v3.1", "v3.2"])
+def test_v3_x_inherits_v3_expected_tools(version: str) -> None:
+    by_id = {q["id"]: q for q in EVAL.load_questions()["questions"]}
+    for qid in ("O01", "O03"):  # O01은 v2, O03은 v3 기대값을 물려받는다
+        assert EVAL.expected_tools(by_id[qid], version) == EVAL.expected_tools(by_id[qid], "v3")
+    assert EVAL.expected_tools(by_id["O03"], version) == [
+        "get_remittance_recipients",
+        "quote_remittance",
+    ]

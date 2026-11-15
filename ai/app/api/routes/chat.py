@@ -47,9 +47,9 @@ router = APIRouter(prefix="/agent/chat", tags=["chat"])
 
 # 비자 도구(정책 검색·E-7-4 점수)를 설명하는 프롬프트 버전. 이 버전에서만 비자 도구를 붙인다.
 # v1·v1.1은 금융 도구만 붙어서 그 버전으로 잰 측정 조건이 그대로 남는다.
-VISA_PROMPT_VERSIONS = frozenset({"v2", "v3"})
+VISA_PROMPT_VERSIONS = frozenset({"v2", "v3", "v3.1", "v3.2"})
 # 송금 조회 도구(받는 분·환율·견적)를 설명하는 프롬프트 버전. v1~v2의 도구 구성은 그대로다.
-REMITTANCE_PROMPT_VERSIONS = frozenset({"v3"})
+REMITTANCE_PROMPT_VERSIONS = frozenset({"v3", "v3.1", "v3.2"})
 
 
 @dataclass(frozen=True)

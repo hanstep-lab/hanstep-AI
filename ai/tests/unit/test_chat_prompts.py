@@ -56,6 +56,8 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v1.1": "chat-v1.1",
         "v2": "chat-v2",
         "v3": "chat-v3",
+        "v3.1": "chat-v3.1",
+        "v3.2": "chat-v3.2",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -128,6 +130,34 @@ def test_v3_is_v2_plus_remittance_rules() -> None:
         "Do not use bold",
     ):
         assert phrase in text, phrase
+
+
+@pytest.mark.parametrize(
+    ("version", "rule"),
+    [
+        (
+            "v3.1",
+            "- When you mention the exchange rate, copy appliedRate.rateText exactly. "
+            "Do not restate it in other units or directions.",
+        ),
+        (
+            "v3.2",
+            "- Do not state the exchange rate in remittance replies. The confirmation card shows "
+            "it. Say only who receives how much.",
+        ),
+    ],
+)
+def test_v3_x_is_v3_plus_one_rate_rule(version: str, rule: str) -> None:
+    # remittance_rules.md는 그대로 두고 v3 끝(송금 규칙 절)에 한 줄만 더한다.
+    v3 = system_prompt("en", "v3").splitlines()
+    assert system_prompt("en", version).splitlines() == [*v3, rule]
+    assert rule not in (PROMPTS / "remittance_rules.md").read_text(encoding="utf-8")
+    config = LlmConfig.from_settings(_settings(chat_prompt_version=version))
+    assert config.prompt_version_id == f"chat-{version}"
+
+
+def test_default_stays_v2() -> None:
+    assert _settings().chat_prompt_version == "v2"
 
 
 def test_v3_fails_fast_when_v2_line_moves() -> None:
