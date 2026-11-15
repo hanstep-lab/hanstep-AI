@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -14,14 +15,17 @@ from langchain_core.messages import AIMessageChunk, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGenerationChunk
 
 from app.chat.fake_llm import FAKE_MODEL_ID, FakeChatModel
+from app.chat.number_check import check_answer
 from app.chat.remittance_tools import (
     CARD_NOTE,
     GET_FX_RATE,
     GET_REMITTANCE_RECIPIENTS,
     QUOTE_REMITTANCE,
+    AppliedRate,
     FixtureRemittanceSource,
     RemittanceTools,
     SpringRemittanceSource,
+    rate_text,
 )
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import ChatRunOptions, run_chat
@@ -57,7 +61,11 @@ RATE = {
     "asOf": "2026-11-06",
     "isMock": True,
 }
-RATE_FOR_LLM = {k: v for k, v in RATE.items() if k != "isMock"}
+# LLM에 주는 환율: isMock은 빼고 방향이 분명한 rateText를 붙인다(카드에는 없음).
+RATE_FOR_LLM = {
+    **{k: v for k, v in RATE.items() if k != "isMock"},
+    "rateText": "1 PHP = 22.32 KRW",
+}
 
 
 def _run(tools: RemittanceTools, name: str, arguments: dict[str, Any]) -> ToolOutcome:
@@ -334,3 +342,57 @@ def test_stream_puts_the_card_in_done_blocks() -> None:
     assert card["type"] == "REMITTANCE_CONFIRM"
     assert (card["sendAmount"]["amount"], card["receiveAmount"]["amount"]) == (500_000, 22_401)
     assert card["transferPath"] == "/transfer?recipientId=11&amount=500000"
+
+
+# --- rateText(환율 방향 문장) ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("currency", "unit", "rate", "text"),
+    [
+        ("PHP", 1, "22.32", "1 PHP = 22.32 KRW"),
+        ("VND", 100, "5.43", "100 VND = 5.43 KRW"),
+        ("PHP", 1, "22.30", "1 PHP = 22.3 KRW"),  # 끝자리 0은 뺀다
+        ("JPY", 100, "910.00", "100 JPY = 910 KRW"),
+        ("USD", 1, "1400", "1 USD = 1400 KRW"),  # 지수 표기(1.4E+3) 없이
+    ],
+)
+def test_rate_text_format(currency: str, unit: int, rate: str, text: str) -> None:
+    applied = AppliedRate.model_validate(
+        {**RATE, "currency": currency, "unit": unit, "rate": Decimal(rate)}
+    )
+    assert rate_text(applied) == text
+
+
+def test_quote_description_explains_rate_text() -> None:
+    (quote,) = [s for s in _fixture_tools().schemas if s["name"] == QUOTE_REMITTANCE]
+    assert quote["description"].endswith(
+        "appliedRate.rateText states the rate as '<unit> <currency> = <rate> KRW'."
+    )
+
+
+def test_card_keeps_its_rate_without_rate_text() -> None:
+    args = {"recipientId": 11, "amount": 500_000, "currency": "KRW"}
+    outcome = _run(_fixture_tools(), QUOTE_REMITTANCE, args)
+    assert json.loads(outcome.content)["appliedRate"]["rateText"] == "1 PHP = 22.32 KRW"
+    assert outcome.blocks[0]["appliedRate"] == RATE
+
+
+@pytest.mark.parametrize(
+    ("rate", "answer"),
+    [
+        (RATE, "The applied rate is 1 PHP = 22.32 KRW."),
+        (
+            {**RATE, "currency": "VND", "unit": 100, "rate": 5.43},
+            "The reference rate is 100 VND = 5.43 KRW.",
+        ),
+    ],
+)
+def test_rate_text_numbers_are_supported(rate: dict[str, Any], answer: str) -> None:
+    # 도구 결과(LLM이 받은 그대로)에 rateText가 있으면 그 숫자는 근거 있는 숫자다.
+    applied = AppliedRate.model_validate(rate)
+    tool_result = {
+        **{k: v for k, v in rate.items() if k != "isMock"},
+        "rateText": rate_text(applied),
+    }
+    assert check_answer(answer, [tool_result], []).unsupported == []

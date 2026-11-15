@@ -7,6 +7,8 @@
   결과에서만 채우고, 사용자는 카드의 송금 화면 경로(transferPath)에서 확인하고 보낸다.
 - 견적은 그 사용자의 저장된 받는 분에게만, KRW(보낼 금액) 또는 받는 분 통화(받을 금액)로만 낸다.
 - LLM에는 isMock을 주지 않는다(금융 도구와 같은 원칙).
+- LLM에 주는 환율(get_fx_rate, quote_remittance의 appliedRate)에는 방향이 분명한 rateText
+  ("1 PHP = 22.32 KRW")를 코드가 붙인다. 확인 카드 형식은 그대로다.
 """
 
 from __future__ import annotations
@@ -80,7 +82,8 @@ TOOL_SCHEMAS: tuple[dict[str, Any], ...] = (
             "amount the recipient receives and the applied rate. currency KRW means the user "
             "sends `amount` won; the recipient's currency (e.g. PHP) means the recipient "
             "receives `amount`. Does not send money: the user checks the confirmation card and "
-            "sends on the transfer screen."
+            "sends on the transfer screen. "
+            "appliedRate.rateText states the rate as '<unit> <currency> = <rate> KRW'."
         ),
         "input_schema": {
             "type": "object",
@@ -316,6 +319,20 @@ def _for_llm(model: Contract) -> dict[str, Any]:
     return result
 
 
+def rate_text(rate: AppliedRate) -> str:
+    """환율을 방향이 분명한 문장으로: "1 PHP = 22.32 KRW", "100 VND = 5.43 KRW".
+
+    rate는 끝자리 0을 빼고 지수 표기 없이 쓴다(22.30 → 22.3, 1E+3 → 1000).
+    """
+    value = format(rate.rate.normalize(), "f")
+    return f"{rate.unit} {rate.currency} = {value} KRW"
+
+
+def _rate_for_llm(rate: AppliedRate) -> dict[str, Any]:
+    """LLM에 줄 환율: 계약 필드(isMock 제외) + 코드가 만든 rateText. 확인 카드에는 넣지 않는다."""
+    return {**_for_llm(rate), "rateText": rate_text(rate)}
+
+
 # Spring 4xx 중 인자를 고치거나 사용자에게 물어야 하는 것: LLM에 알려 줄 문장.
 REJECTIONS = {
     "RECIPIENT_NOT_FOUND": (
@@ -409,7 +426,7 @@ class RemittanceTools:
         rate = await self._source.fx_rate(parsed.currency, self._request_id)
         if rate.currency != parsed.currency:
             return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
-        return outcome("SUCCEEDED", _for_llm(rate))
+        return outcome("SUCCEEDED", _rate_for_llm(rate))
 
     async def _quote(self, parsed: QuoteInput, outcome: OutcomeFn) -> ToolOutcome:
         listed = await self._source.recipients(self._user_id, self._request_id)
@@ -432,7 +449,12 @@ class RemittanceTools:
         )
         if not _quote_matches(quote, recipient, parsed):
             return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
-        content = {"recipient": _for_llm(recipient), **_for_llm(quote), "note": CARD_NOTE}
+        content = {
+            "recipient": _for_llm(recipient),
+            **_for_llm(quote),
+            "appliedRate": _rate_for_llm(quote.applied_rate),
+            "note": CARD_NOTE,
+        }
         return outcome("SUCCEEDED", content, blocks=[confirm_block(recipient, quote)])
 
 

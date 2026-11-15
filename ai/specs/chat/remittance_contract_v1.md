@@ -39,6 +39,7 @@ AI 쪽에서 정한 초안이며, Spring 구현 때 이 문서에 다시 맞춘�
 | isMock | boolean | true |
 
 AI는 `isMock`을 LLM에 주지 않고, 확인 카드에는 그대로 싣는다.
+LLM에 줄 때는 AI가 `rateText`(`"{unit} {currency} = {rate} KRW"`, 예: `1 PHP = 22.32 KRW`, `100 VND = 5.43 KRW`)를 붙인다. Spring 응답과 확인 카드에는 없는 필드다.
 
 ### money
 
