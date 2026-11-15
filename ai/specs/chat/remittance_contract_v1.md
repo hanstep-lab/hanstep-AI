@@ -107,3 +107,23 @@ AI는 견적의 `recipientId`, 통화, 요청한 쪽 금액이 요청과 다르�
 
 - 보낼 KRW → 받을 금액: `floor(amount ÷ (rate ÷ unit))`. 500,000 KRW → 22,401 PHP
 - 받을 금액 → 보낼 KRW: `ceil(amount × (rate ÷ unit))`. 20,000 PHP → 446,400 KRW
+
+## 확인 카드(chat.done blocks)
+
+견적이 성공하면 AI는 `agent.done`의 `blocks`에 카드 하나를 넣는다(Spring은 `chat_messages.blocks_json`에 저장, 화면이 그린다).
+숫자는 견적 결과에서만 채운다. 송금은 사용자가 송금 화면에서 확인하고 실행한다.
+
+```json
+{
+  "type": "REMITTANCE_CONFIRM",
+  "recipient": {"recipientId": 11, "nameEn": "LORNA REYES", "relationship": "MOTHER",
+                "countryCode": "PH", "currency": "PHP", "bankName": "BDO", "accountLast4": "5566"},
+  "sendAmount": {"amount": 500000, "currency": "KRW"},
+  "receiveAmount": {"amount": 22401, "currency": "PHP"},
+  "appliedRate": {"currency": "PHP", "unit": 1, "rate": 22.32,
+                  "sourceLabel": "ECB 기준환율 기반 참고값", "asOf": "2026-11-06", "isMock": true},
+  "transferPath": "/transfer?recipientId=11&amount=500000"
+}
+```
+
+`transferPath`의 `amount`는 보낼 원화 금액(`sendAmount.amount`)이다.

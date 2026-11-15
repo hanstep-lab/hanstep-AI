@@ -3,6 +3,8 @@
 계약은 specs/chat/remittance_contract_v1.md(Spring 내부 API 세 개)를 따른다.
 - 사용자 id와 요청 id는 요청마다 고정된다. LLM 인자로는 다른 사용자를 지정할 수 없다.
 - 금액은 코드(Spring 견적)만 계산한다. LLM은 견적 결과의 숫자를 옮겨 쓴다.
+- 견적이 성공하면 확인 카드(REMITTANCE_CONFIRM, agent.done의 blocks)를 낸다. 카드 숫자는 견적
+  결과에서만 채우고, 사용자는 카드의 송금 화면 경로(transferPath)에서 확인하고 보낸다.
 - 견적은 그 사용자의 저장된 받는 분에게만, KRW(보낼 금액) 또는 받는 분 통화(받을 금액)로만 낸다.
 - LLM에는 isMock을 주지 않는다(금융 도구와 같은 원칙).
 """
@@ -17,7 +19,8 @@ from collections.abc import Awaitable, Callable
 from datetime import date
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from pathlib import Path
-from typing import Annotated, Any, Protocol
+from typing import Annotated, Any, Literal, Protocol
+from urllib.parse import urlencode
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, ValidationError
@@ -147,6 +150,36 @@ class Quote(Contract):
     send_amount: Money
     receive_amount: Money
     applied_rate: AppliedRate
+
+
+TRANSFER_PATH = "/transfer"
+# LLM에 카드가 화면에 나간다는 것만 알린다(카드 내용은 견적 결과와 같다).
+CARD_NOTE = "A confirmation card with these amounts is shown to the user."
+
+
+class RemittanceConfirmBlock(Contract):
+    """송금 확인 카드(chat_messages.blocks_json). 사용자가 송금 화면에서 확인하고 보낸다."""
+
+    type: Literal["REMITTANCE_CONFIRM"] = "REMITTANCE_CONFIRM"
+    recipient: Recipient
+    send_amount: Money
+    receive_amount: Money
+    applied_rate: AppliedRate
+    transfer_path: str = Field(description="송금 화면 경로. amount는 보낼 원화 금액")
+
+
+def confirm_block(recipient: Recipient, quote: Quote) -> dict[str, Any]:
+    """견적 결과만으로 확인 카드를 만든다."""
+    query = urlencode({"recipientId": recipient.recipient_id, "amount": quote.send_amount.amount})
+    block = RemittanceConfirmBlock(
+        recipient=recipient,
+        send_amount=quote.send_amount,
+        receive_amount=quote.receive_amount,
+        applied_rate=quote.applied_rate,
+        transfer_path=f"{TRANSFER_PATH}?{query}",
+    )
+    data: dict[str, Any] = block.model_dump(mode="json", by_alias=True)
+    return data
 
 
 class QuoteInput(BaseModel):
@@ -399,8 +432,8 @@ class RemittanceTools:
         )
         if not _quote_matches(quote, recipient, parsed):
             return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
-        content = {"recipient": _for_llm(recipient), **_for_llm(quote)}
-        return outcome("SUCCEEDED", content)
+        content = {"recipient": _for_llm(recipient), **_for_llm(quote), "note": CARD_NOTE}
+        return outcome("SUCCEEDED", content, blocks=[confirm_block(recipient, quote)])
 
 
 def _quote_matches(quote: Quote, recipient: Recipient, parsed: QuoteInput) -> bool:

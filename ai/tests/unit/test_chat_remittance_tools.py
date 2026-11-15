@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
 import pytest
+from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
+from langchain_core.messages import AIMessageChunk, BaseMessage, ToolMessage
+from langchain_core.outputs import ChatGenerationChunk
 
+from app.chat.fake_llm import FAKE_MODEL_ID, FakeChatModel
 from app.chat.remittance_tools import (
+    CARD_NOTE,
     GET_FX_RATE,
     GET_REMITTANCE_RECIPIENTS,
     QUOTE_REMITTANCE,
@@ -17,7 +23,9 @@ from app.chat.remittance_tools import (
     RemittanceTools,
     SpringRemittanceSource,
 )
-from app.chat.tools import UNAVAILABLE, ToolOutcome
+from app.chat.schemas import ChatStreamRequest, LlmConfig
+from app.chat.stream import ChatRunOptions, run_chat
+from app.chat.tools import UNAVAILABLE, ChatToolset, ToolOutcome
 from app.integrations.spring_client import SpringInternalClient
 
 pytestmark = pytest.mark.unit
@@ -101,7 +109,19 @@ def test_quote_from_fixture(arguments: dict[str, Any], send: int, receive: int) 
         "sendAmount": {"amount": send, "currency": "KRW"},
         "receiveAmount": {"amount": receive, "currency": "PHP"},
         "appliedRate": RATE_FOR_LLM,
+        "note": CARD_NOTE,
     }
+    # 확인 카드: 견적 결과 그대로, 환율은 isMock까지, 송금 화면 경로의 amount는 보낼 원화 금액.
+    assert outcome.blocks == [
+        {
+            "type": "REMITTANCE_CONFIRM",
+            "recipient": recipient,
+            "sendAmount": {"amount": send, "currency": "KRW"},
+            "receiveAmount": {"amount": receive, "currency": "PHP"},
+            "appliedRate": RATE,
+            "transferPath": f"/transfer?recipientId={arguments['recipientId']}&amount={send}",
+        }
+    ]
 
 
 @pytest.mark.parametrize(
@@ -242,3 +262,75 @@ def test_quote_that_does_not_match_the_request_is_not_used() -> None:
     )
     assert (outcome.status, outcome.error_code) == ("FAILED", "INVALID_RESPONSE")
     assert outcome.blocks == []
+
+
+def test_only_a_successful_quote_has_a_card() -> None:
+    tools = _fixture_tools()
+    assert _run(tools, GET_REMITTANCE_RECIPIENTS, {}).blocks == []
+    assert _run(tools, GET_FX_RATE, {"currency": "PHP"}).blocks == []
+
+
+# --- 그래프·스트림까지: 카드가 agent.done의 blocks로 나간다 ---------------------------------
+
+
+class QuoteModel(FakeChatModel):
+    """첫 호출에 quote_remittance를 부르고, 도구 결과를 받으면 짧게 답하는 가짜 모델."""
+
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        if not any(isinstance(m, ToolMessage) for m in messages):
+            args = {"recipientId": 11, "amount": 500_000, "currency": "KRW"}
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(
+                    content=[
+                        {"type": "tool_use", "id": "toolu_q", "name": QUOTE_REMITTANCE,
+                         "input": args, "index": 1}
+                    ],
+                    tool_call_chunks=[
+                        {"type": "tool_call_chunk", "name": QUOTE_REMITTANCE,
+                         "args": json.dumps(args), "id": "toolu_q", "index": 1}
+                    ],
+                )
+            )  # fmt: skip
+            yield self._final_chunk("tool_use")
+            return
+        text = "Please check the confirmation card."
+        yield ChatGenerationChunk(
+            message=AIMessageChunk(content=[{"type": "text", "text": text, "index": 1}])
+        )
+        yield self._final_chunk("end_turn")
+
+
+def test_stream_puts_the_card_in_done_blocks() -> None:
+    body = {"runId": "run_r", "userId": 1, "sessionId": 1, "language": "en", "message": "send"}
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    async def run() -> None:
+        async for event in run_chat(
+            ChatStreamRequest.model_validate(body),
+            config=LlmConfig(model="m", thinking="model_default", effort="", max_tokens=100),
+            model=QuoteModel(delta_delay_ms=0),
+            tool=ChatToolset(_fixture_tools()),
+            options=ChatRunOptions(3, 30, False, FAKE_MODEL_ID),
+        ):
+            assert event.raw_data is not None
+            events.append((str(event.event), json.loads(event.raw_data)))
+
+    asyncio.run(run())
+    by_name = dict(events)
+    assert [name for name, _ in events] == ["agent.tool_call", "agent.delta", "agent.done"]
+    call = by_name["agent.tool_call"]
+    assert (call["toolName"], call["status"], call["resultRef"]) == (
+        QUOTE_REMITTANCE,
+        "SUCCEEDED",
+        None,
+    )
+    (card,) = by_name["agent.done"]["blocks"]
+    assert card["type"] == "REMITTANCE_CONFIRM"
+    assert (card["sendAmount"]["amount"], card["receiveAmount"]["amount"]) == (500_000, 22_401)
+    assert card["transferPath"] == "/transfer?recipientId=11&amount=500000"
