@@ -20,14 +20,18 @@ from app.rag.experiments.product_corpus import (
 )
 from app.rag.experiments.product_eval import (
     VARIANTS,
+    BM25Index,
     CorpusChunk,
     DenseRetriever,
     EmbeddingCache,
+    HybridRetriever,
     aggregate,
+    bm25_tokens,
     category_summary,
     embedding_input,
     question_table,
     render_markdown,
+    rrf_fuse,
     run_variants,
     score_question,
     select_variant,
@@ -242,6 +246,10 @@ def test_run_variants_shares_chunks_and_skips_invalid(tmp_path: Path) -> None:
     baseline = report["variants"]["1"]
     assert baseline["metrics"]["all"]["recall@1"] == 1.0
     assert baseline["index"]["dense"]["cache"] == "miss"
+    # ③의 dense는 ①과 같은 캐시 키를 쓴다(다시 계산하지 않음).
+    hybrid = report["variants"]["3"]["index"]
+    assert hybrid["dense"]["cache"] == "hit"
+    assert hybrid["dense"]["key"] == baseline["index"]["dense"]["key"]
 
     full = {
         **report,
@@ -322,3 +330,31 @@ def test_category_summary_counts_fixed_and_new_failures() -> None:
     assert summary[2]["n"] == 1 and summary[2]["new_failures"] == {"2": 1}
     table = question_table(report, {"a": "B"})
     assert table[0]["rank"] == {"1": 2, "2": 1} and table[2]["category"] == "-"
+
+
+def test_bm25_tokens_split_words_and_hangul_bigrams() -> None:
+    assert bm25_tokens("SOL 적금 1년") == ["sol", "적금", "1년", "2:적금"]
+
+
+def test_bm25_ranks_matching_chunk_and_skips_zero_scores() -> None:
+    index = BM25Index(["중도해지 이율 안내", "가입 금액 안내", "만기 자동 해지"], 1.5, 0.75)
+    ranked = index.search("중도해지 이율", 3)
+    assert ranked[0][0] == 0
+    assert all(score > 0 for _, score in ranked)
+    assert index.search("없는말", 3) == []
+
+
+class _Fixed:
+    def __init__(self, order: list[int]) -> None:
+        self.order = order
+
+    def search(self, query: str, k: int) -> list[tuple[int, float]]:
+        return [(i, 1.0) for i in self.order[:k]]
+
+
+def test_rrf_fuse_rewards_agreement_and_breaks_ties_by_index() -> None:
+    fused = rrf_fuse([[(3, 0.9), (1, 0.8)], [(1, 5.0), (2, 4.0)]], 60)
+    assert [i for i, _ in fused] == [1, 3, 2]
+    assert fused[0][1] == pytest.approx(1 / 62 + 1 / 61)
+    hybrid = HybridRetriever(_Fixed([3, 1]), _Fixed([1, 2]), rrf_k=60, depth=20)
+    assert [i for i, _ in hybrid.search("q", 2)] == [1, 3]

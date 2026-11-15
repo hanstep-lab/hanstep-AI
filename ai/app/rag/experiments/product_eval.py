@@ -7,6 +7,8 @@ variant는 ``VariantConfig``로 받는다. 청크를 임베딩할 텍스트(``ch
 - ①: chunk_blocks 기본 설정(600/900/80) + BGE-M3 dense 코사인.
 - ②: ①과 같은 청크, 임베딩 입력에만 "[상품명] {문서 이름} / [섹션] {섹션 제목}\\n"을 붙인다.
   섹션 제목은 chunk_blocks가 준 ``section_title``만 쓰고, 없으면 상품명만 붙인다. 질의는 그대로.
+- ③: ① dense(prefix 없음)와 같은 청크 본문 BM25(k1=1.5, b=0.75)를 각각 상위 20개씩 RRF(k=60)로
+  합친다. BM25 토큰은 공백으로 나눈 토큰(소문자) + 공백을 뺀 한글 글자 2-gram.
 
 지표 정의(모두 상위 ``top_k`` 청크 기준):
 - 문서 순위: 상위 청크를 순서대로 보며 같은 문서의 청크는 첫 순위만 남긴 문서 목록의 순위.
@@ -19,9 +21,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import statistics
 import time
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
@@ -41,8 +45,8 @@ from app.rag.experiments.product_corpus import (
 
 # 청크를 임베딩할 때 본문 앞에 붙이는 문맥. "none"은 청크 원문 그대로다.
 ChunkPrefix = Literal["none", "title_section"]
-# 검색 방식. "dense"는 BGE-M3 dense 벡터의 코사인 유사도다.
-RetrievalMode = Literal["dense"]
+# 검색 방식. "dense"는 BGE-M3 dense 벡터의 코사인 유사도, "dense_bm25_rrf"는 dense와 BM25의 RRF.
+RetrievalMode = Literal["dense", "dense_bm25_rrf"]
 
 WARMUP_QUERY = "정기예금 가입 조건"
 
@@ -57,6 +61,11 @@ class VariantConfig:
     chunk_prefix: ChunkPrefix = "none"
     retrieval: RetrievalMode = "dense"
     top_k: int = 5
+    # dense_bm25_rrf에서만 쓴다.
+    bm25_k1: float = 1.5
+    bm25_b: float = 0.75
+    rrf_k: int = 60
+    rrf_depth: int = 20
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -72,6 +81,11 @@ VARIANTS: dict[str, VariantConfig] = {
         key="2",
         description="①과 같은 청크 + 임베딩 입력에만 '[상품명] … / [섹션] …' prefix, dense top-5",
         chunk_prefix="title_section",
+    ),
+    "3": VariantConfig(
+        key="3",
+        description="① dense + 청크 본문 BM25(k1=1.5, b=0.75), 각 상위 20개 RRF(k=60) top-5",
+        retrieval="dense_bm25_rrf",
     ),
 }
 
@@ -223,6 +237,76 @@ class DenseRetriever:
         return [(int(i), float(scores[i])) for i in order]
 
 
+def _is_hangul(char: str) -> bool:
+    return "가" <= char <= "힣"
+
+
+def bm25_tokens(text: str) -> list[str]:
+    """공백으로 나눈 토큰(영문 소문자) + 공백을 뺀 한글 글자 2-gram("2:" 접두로 구분)."""
+    words = text.lower().split()
+    compact = "".join(text.split())
+    bigrams = [
+        f"2:{compact[i : i + 2]}"
+        for i in range(len(compact) - 1)
+        if _is_hangul(compact[i]) and _is_hangul(compact[i + 1])
+    ]
+    return words + bigrams
+
+
+class BM25Index:
+    """Okapi BM25(idf = ln(1 + (N - df + 0.5) / (df + 0.5))). 질의 토큰은 중복 없이 센다."""
+
+    def __init__(self, texts: Sequence[str], k1: float, b: float) -> None:
+        self._k1 = k1
+        self._b = b
+        self._tfs = [Counter(bm25_tokens(text)) for text in texts]
+        self._lengths = [sum(tf.values()) for tf in self._tfs]
+        self._avg = statistics.mean(self._lengths) if self._lengths else 0.0
+        df: Counter[str] = Counter(term for tf in self._tfs for term in tf)
+        n = len(texts)
+        self._idf = {term: math.log(1 + (n - d + 0.5) / (d + 0.5)) for term, d in df.items()}
+
+    def scores(self, query: str) -> list[float]:
+        terms = [t for t in dict.fromkeys(bm25_tokens(query)) if t in self._idf]
+        result: list[float] = []
+        for tf, length in zip(self._tfs, self._lengths, strict=True):
+            norm = self._k1 * (1 - self._b + self._b * length / self._avg) if self._avg else 0.0
+            result.append(
+                sum(self._idf[t] * tf[t] * (self._k1 + 1) / (tf[t] + norm) for t in terms if tf[t])
+            )
+        return result
+
+    def search(self, query: str, k: int) -> list[tuple[int, float]]:
+        """점수가 0보다 큰 청크만, 점수 내림차순(동점은 청크 순서)."""
+        scored = [(i, s) for i, s in enumerate(self.scores(query)) if s > 0]
+        return sorted(scored, key=lambda item: (-item[1], item[0]))[:k]
+
+
+def rrf_fuse(
+    rankings: Sequence[Sequence[tuple[int, float]]], rrf_k: int
+) -> list[tuple[int, float]]:
+    """순위 목록들을 Reciprocal Rank Fusion(Σ 1/(rrf_k + 순위))으로 합친다. 동점은 청크 순서."""
+    fused: dict[int, float] = {}
+    for ranking in rankings:
+        for rank, (index, _) in enumerate(ranking, start=1):
+            fused[index] = fused.get(index, 0.0) + 1.0 / (rrf_k + rank)
+    return sorted(fused.items(), key=lambda item: (-item[1], item[0]))
+
+
+class HybridRetriever:
+    """dense와 BM25 각각 상위 ``depth``개를 RRF로 합친다."""
+
+    def __init__(self, dense: Retriever, bm25: Retriever, rrf_k: int, depth: int) -> None:
+        self._dense = dense
+        self._bm25 = bm25
+        self._rrf_k = rrf_k
+        self._depth = depth
+
+    def search(self, query: str, k: int) -> list[tuple[int, float]]:
+        rankings = [self._dense.search(query, self._depth), self._bm25.search(query, self._depth)]
+        return rrf_fuse(rankings, self._rrf_k)[:k]
+
+
 def build_retriever(
     variant: VariantConfig,
     embedder: Embedder,
@@ -238,6 +322,17 @@ def build_retriever(
             inputs, variant.chunk_prefix, embedder.embed_documents, clock
         )
         return DenseRetriever(embedder, vectors), {"dense": info}
+    if variant.retrieval == "dense_bm25_rrf":
+        # dense는 ①과 같은 prefix 없는 입력(캐시 공유), BM25는 같은 청크 본문.
+        inputs = with_prefix(chunks, documents, "none")
+        vectors, info = cache.get_or_compute(inputs, "none", embedder.embed_documents, clock)
+        start = clock()
+        bm25 = BM25Index([c.text for c in chunks], variant.bm25_k1, variant.bm25_b)
+        bm25_seconds = round(clock() - start, 3)
+        retriever = HybridRetriever(
+            DenseRetriever(embedder, vectors), bm25, variant.rrf_k, variant.rrf_depth
+        )
+        return retriever, {"dense": info, "bm25_seconds": bm25_seconds}
     raise NotImplementedError(f"retrieval {variant.retrieval!r}")
 
 
