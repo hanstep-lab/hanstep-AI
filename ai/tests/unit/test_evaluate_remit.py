@@ -104,7 +104,11 @@ def test_fake_run_scores_the_scenarios(tmp_path: Path) -> None:
     output = _run_remit(tmp_path, "S01,S04,S10,S14,S18,S21,S25,S29")
     rows = _rows(output)
     conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
-    assert conditions["questionSet"] == {"file": "remit_questions_v1.json", "version": "v1"}
+    assert conditions["questionSet"]["file"] == "remit_questions_v1.json"
+    assert (conditions["questionSet"]["count"], conditions["questionSet"]["external"]) == (
+        30,
+        False,
+    )
 
     def check(qid: str) -> dict[str, Any]:
         result: dict[str, Any] = rows[qid]["remitCheck"]
@@ -363,3 +367,96 @@ def test_rescore_rereads_expected_tools_and_infers_remittance_data(tmp_path: Pat
     assert after["numberCheck"]["unsupported"] == []
     summary = rescored.with_suffix(".md").read_text(encoding="utf-8")
     assert "- 다시 채점: 기대 도구는 eval_questions_v1.json (v1.5) 기준" in summary
+
+
+# --- 외부 질문 파일(--remit-questions) ---------------------------------------------------
+
+
+def _external_file(tmp_path: Path, questions: list[dict[str, Any]]) -> Path:
+    path = tmp_path / "other_remit_questions.json"
+    path.write_text(json.dumps({"version": "x1", "questions": questions}), encoding="utf-8")
+    return path
+
+
+def _external_questions() -> list[dict[str, Any]]:
+    fixed = _questions()
+    return [
+        {**fixed["S01"], "id": "R01"},
+        # id는 고정 세트 S14, 내용은 S10(받는 분을 물어야 함): 고정 세트 기대값을 쓰면 안 된다.
+        {**fixed["S10"], "id": "S14"},
+        {**fixed["S29"], "id": "R03"},
+    ]
+
+
+def test_external_question_file(tmp_path: Path) -> None:
+    path = _external_file(tmp_path, _external_questions())
+    settings = _settings()
+    variants = Path(EVAL.AI_ROOT) / "specs" / "chat" / "variants_remit_v1.json"
+    output = tmp_path / "external.jsonl"
+    code = EVAL.main(
+        ["--base-url", "http://testserver", "--remit-questions", str(path),
+         "--variants", str(variants), "--output", str(output)],
+        client=_client(settings),
+        settings=settings,
+        confirm=lambda _: "n",
+    )  # fmt: skip
+    assert code == 0
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["questionSet"] == {
+        "file": "other_remit_questions.json",
+        "version": "x1",
+        "path": str(path.resolve()),
+        "count": 3,
+        "external": True,
+    }
+    rows = _rows(output)
+    assert rows["R01"]["remitCheck"]["outcome"] == "correct"
+    s14 = rows["S14"]
+    assert s14["followUpExpected"] is None
+    assert s14["remitCheck"]["second"]["quote"] == {
+        "recipient": "MOTHER",
+        "currency": "KRW",
+        "amount": 500_000,
+    }
+    # 2턴 뒤 받는 분은 질문 파일에 없으니 사람이 본다(고정 세트 S14의 PHP 20,000과 비교하지 않음).
+    assert s14["remitCheck"]["outcome"] == "correct"
+    assert s14["remitCheck"]["guessErrors"] == []
+    assert s14["remitCheck"]["reason"] == "2턴 값(recipient)은 사람 확인"
+    assert rows["R03"]["remitCheck"]["outcome"] == "declined"
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    assert f"질문 파일 {path.resolve()} (문항 3개, 레포 밖 파일)" in summary
+
+    # 다시 채점은 외부 파일을 다시 읽지 않는다.
+    path.unlink()
+    rescored = tmp_path / "rescored.jsonl"
+    assert EVAL.main(["--rescore", str(output), "--output", str(rescored)]) == 0
+    again = json.loads(rescored.read_text(encoding="utf-8").splitlines()[0])
+    assert "expectedToolsFrom" not in again
+    assert _rows(rescored)["S14"]["remitCheck"]["outcome"] == "correct"
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"expectedAction": "ASK_AMOUNT"}, "R01: category/expectedAction mismatch"),
+        ({"expectedCurrency": "USD"}, "R01: bad expectedCurrency"),
+        ({"followUpReply": "to mama"}, "R01: followUpReply only (and always)"),
+        ({"note": None, "extra": 1}, "R01: fields must be"),
+    ],
+)
+def test_external_question_file_is_validated_before_any_call(
+    tmp_path: Path, change: dict[str, Any], message: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    questions = _external_questions()
+    questions[0] = {**questions[0], **change}
+    path = _external_file(tmp_path, questions)
+    with pytest.raises(SystemExit):
+        EVAL.main(
+            ["--remit-questions", str(path), "--output", str(tmp_path / "x.jsonl")],
+            settings=_settings(),
+        )
+    assert message in capsys.readouterr().err
+
+
+def test_fixed_set_passes_the_same_validation() -> None:
+    assert EVAL.remit_spec_errors(EVAL.load_questions(EVAL.REMIT_QUESTIONS)) == []

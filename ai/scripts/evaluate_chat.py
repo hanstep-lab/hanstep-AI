@@ -22,6 +22,9 @@ gets a remitCheck from tool arguments, done.blocks and answer rules only: correc
 clarification (proceeded while ambiguous), unnecessary question (asked while clear), wrong
 guess (recipient, currency or amount), out-of-scope handling, turns to completion. Anything the
 rules cannot settle is marked needsReview and listed for a person in the .md.
+--remit-questions <path> runs another file with the same schema (checked before any call; the
+path may be outside the repo, e.g. a hold-out set). Its expected values after the second turn are
+unknown, so those are left to a person; --rescore never re-reads such a file.
 
 Writes one JSONL line per call as it goes (the first line holds the conditions) and a summary
 markdown next to it (same name, .md). Variants run round-robin inside each question and
@@ -257,6 +260,75 @@ _ASK_CURRENCY = re.compile(r"\bcurrency\b", re.IGNORECASE)
 _ASK_AMOUNT = re.compile(r"\bhow much\b|\b(what|which) amount\b", re.IGNORECASE)
 
 
+REMIT_FIELDS = {
+    "id",
+    "text",
+    "category",
+    "expectedAction",
+    *REMIT_SLOTS,
+    "followUpReply",
+    "note",
+}
+REMIT_ACTIONS = {
+    "clear": {"PROCEED_TO_CONFIRM"},
+    "ambiguous": {"ASK_RECIPIENT", "ASK_CURRENCY", "ASK_AMOUNT", "ASK_MORE_THAN_ONE"},
+    "out_of_scope": {"DECLINE_OR_GUIDE"},
+}
+ASKED_SLOT = {
+    "ASK_RECIPIENT": "expectedRecipient",
+    "ASK_CURRENCY": "expectedCurrency",
+    "ASK_AMOUNT": "expectedAmount",
+}
+
+
+def remit_spec_errors(spec: Any) -> list[str]:
+    """remit_questions_v1.json과 같은 스키마인지(문항 수·id 형식은 보지 않는다). 오류 문장 목록."""
+    if not isinstance(spec, dict) or set(spec) != {"version", "questions"}:
+        return ["top level must be {version, questions}"]
+    questions = spec["questions"]
+    if not isinstance(questions, list) or not questions:
+        return ["questions must be a non-empty list"]
+    errors: list[str] = []
+    ids = [q.get("id") for q in questions if isinstance(q, dict)]
+    if len(ids) != len(questions) or len(set(ids)) != len(ids):
+        errors.append("every question needs a unique id")
+    for i, q in enumerate(questions):
+        name = q.get("id", f"#{i + 1}") if isinstance(q, dict) else f"#{i + 1}"
+        if not isinstance(q, dict) or set(q) != REMIT_FIELDS:
+            errors.append(f"{name}: fields must be {sorted(REMIT_FIELDS)}")
+            continue
+        action, category = q["expectedAction"], q["category"]
+        amount = q["expectedAmount"]
+        checks = [
+            (isinstance(q["text"], str) and bool(q["text"].strip()), "empty text"),
+            (action in REMIT_ACTIONS.get(category, set()), "category/expectedAction mismatch"),
+            (q["expectedRecipient"] in ("MOTHER", "SELF", None), "bad expectedRecipient"),
+            (q["expectedCurrency"] in ("KRW", "PHP", None), "bad expectedCurrency"),
+            (
+                amount is None or (type(amount) is int and amount > 0),
+                "expectedAmount must be a positive integer or null",
+            ),
+            (
+                bool(q["followUpReply"]) == (category == "ambiguous"),
+                "followUpReply only (and always) for ambiguous questions",
+            ),
+            (
+                action not in ASKED_SLOT or q[ASKED_SLOT.get(action, "")] is None,
+                "the asked item must be null",
+            ),
+            (
+                category != "clear" or all(q[slot] is not None for slot in REMIT_SLOTS),
+                "clear questions need recipient, currency and amount",
+            ),
+            (
+                action != "ASK_MORE_THAN_ONE" or sum(q[s] is None for s in REMIT_SLOTS) >= 2,
+                "ASK_MORE_THAN_ONE needs at least two null items",
+            ),
+        ]
+        errors += [f"{name}: {message}" for ok, message in checks if not ok]
+    return errors
+
+
 def is_remit_question(question: dict[str, Any]) -> bool:
     return "expectedAction" in question
 
@@ -446,11 +518,21 @@ def remit_check(row: dict[str, Any]) -> dict[str, Any]:
             return done("asked_other", review=review)
         return done("unclear", review=review or "2턴이 없음")
     if second["proceeded"]:
-        final = FOLLOW_UP_EXPECTED.get(row["questionId"])
+        # 고정 세트는 FOLLOW_UP_EXPECTED, 외부 질문 파일은 2턴 뒤 값을 모른다(행에 null로 남김).
+        # followUpExpected가 없는 이전 행은 고정 세트로 잰 것이다.
+        final = (
+            row["followUpExpected"]
+            if "followUpExpected" in row
+            else FOLLOW_UP_EXPECTED.get(row["questionId"])
+        )
         expected = (
             dict(zip(("recipient", "currency", "amount"), final, strict=True)) if final else stated
         )
         result["guessErrors"] = _guess_errors(second["quote"], expected)
+        if not final and not review:
+            unknown = [k for k in ("recipient", "currency", "amount") if stated[k] is None]
+            if unknown:
+                review = f"2턴 값({', '.join(unknown)})은 사람 확인"
         if review == "다른 항목을 물음":
             return done("asked_other", turns=2, review=review)
         if result["guessErrors"]:
@@ -736,7 +818,10 @@ def refresh_expected_tools(
     기대 결론·참조값은 행에 저장된 값(그 run의 채점 기준)을 그대로 쓴다. 질문 세트 파일을 모르거나
     문항이 없어진 행은 저장된 기대 도구를 둔다. 돌려주는 값은 읽은 질문 세트(파일·버전).
     """
-    name = (conditions.get("questionSet") or {}).get("file")
+    question_set = conditions.get("questionSet") or {}
+    name = question_set.get("file")
+    if question_set.get("external"):
+        return None  # --remit-questions로 잰 run: 레포 밖 파일은 다시 읽지 않는다
     path = next((p for p in QUESTION_SETS.values() if p.name == name), None)
     if path is None:
         return None
@@ -828,7 +913,15 @@ def render_summary(
         "",
         f"- 대상: {conditions['target']}, 모드(--llm-mode): {conditions['mode']}",
         f"- 질문 세트: {(conditions.get('questionSet') or {}).get('file', '-')} "
-        f"({(conditions.get('questionSet') or {}).get('version', '-')})",
+        f"({(conditions.get('questionSet') or {}).get('version', '-')})"
+        + (
+            f", 질문 파일 {conditions['questionSet']['path']} "
+            f"(문항 {conditions['questionSet'].get('count')}개"
+            + (", 레포 밖 파일" if conditions["questionSet"].get("external") else "")
+            + ")"
+            if (conditions.get("questionSet") or {}).get("path")
+            else ""
+        ),
         f"- 시작: {conditions['startedAt']}, 상태: {conditions.get('status')}",
         f"- 문항 {len(conditions['questions'])}개, 반복 {conditions['repeats']}, "
         f"설정마다 워밍업 {conditions['warmup']}",
@@ -1192,6 +1285,13 @@ def main(
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--warmup", type=int, default=0, help="calls per variant, not summarized")
     parser.add_argument("--output", type=Path, default=None, help="JSONL path (required)")
+    parser.add_argument(
+        "--remit-questions",
+        type=Path,
+        default=None,
+        help="remit question file (same schema as remit_questions_v1.json, may be outside the "
+        "repo); implies --question-set remit",
+    )
     parser.add_argument("--max-usd", type=float, default=1.0)
     parser.add_argument("--rescore", type=Path, default=None, help="re-score a saved JSONL")
     parser.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
@@ -1227,11 +1327,19 @@ def main(
     if args.target == "ai" and not settings.internal_token_configured():
         print("BLOCKED: AI_INTERNAL_API_TOKEN is not configured")
         return EXIT_BLOCKED
-    remit = args.question_set == "remit"
+    external = args.remit_questions is not None
+    remit = args.question_set == "remit" or external
     if remit and args.subset:
         parser.error("--subset works with --question-set eval only")
-    question_file = QUESTION_SETS[args.question_set]
-    spec = load_questions(question_file)
+    question_file = args.remit_questions if external else QUESTION_SETS[args.question_set]
+    try:
+        spec = load_questions(question_file)
+    except (OSError, ValueError) as exc:
+        parser.error(f"cannot read {question_file}: {type(exc).__name__}")
+    if remit:
+        errors = remit_spec_errors(spec)
+        if errors:
+            parser.error(f"{question_file}: " + "; ".join(errors[:5]))
     questions = select_questions(spec, args.questions, args.subset, parser)
     if remit:
         questions = [remit_question(q) for q in questions]
@@ -1296,7 +1404,13 @@ def main(
         "baseUrl": base_url,
         "userId": args.user_id,
         "variants": [{k: v for k, v in variant.items() if k != "override"} for variant in variants],
-        "questionSet": {"file": question_file.name, "version": spec.get("version")},
+        "questionSet": {
+            "file": question_file.name,
+            "version": spec.get("version"),
+            "path": str(question_file.resolve()),
+            "count": len(spec["questions"]),
+            "external": external,
+        },
         "questions": [q["id"] for q in questions],
         "repeats": args.repeats,
         "warmup": args.warmup,
@@ -1420,6 +1534,9 @@ def main(
                     }
                 )
                 row["followUp"] = follow_up
+                # 2턴 뒤 기대값은 고정 세트에만 있다(외부 질문 파일은 id가 겹쳐도 쓰지 않는다).
+                final = None if external else FOLLOW_UP_EXPECTED.get(question["id"])
+                row["followUpExpected"] = list(final) if final else None
             if remit_ctx is not None:
                 row["remitContext"] = remit_ctx
             score(row)

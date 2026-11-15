@@ -447,7 +447,9 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
 
     lines = output.read_text(encoding="utf-8").splitlines()
     conditions = json.loads(lines[0])
-    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.5"}
+    assert conditions["questionSet"]["file"] == "eval_questions_v1.json"
+    assert conditions["questionSet"]["version"] == "v1.5"
+    assert conditions["questionSet"]["external"] is False
     rows = _rows(output)
     for row in rows:
         assert len(row["deltaTimesMs"]) == row["events"].count("agent.delta") > 0
