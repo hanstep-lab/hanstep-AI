@@ -270,3 +270,96 @@ def test_remit_set_rejects_the_latency_subset(tmp_path: Path) -> None:
             ["--question-set", "remit", "--subset", "latency", "--output", str(tmp_path / "x")],
             settings=_settings(),
         )
+
+
+# --- 기존 문항 세트에서 송금 도구를 쓴 행(v3 회귀) ----------------------------------------
+
+O03_ANSWER = (
+    "Your mom, Lorna Reyes, would receive 22,401 PHP for your 500,000 KRW, at a rate of "
+    "22.32 KRW per PHP. I have not sent anything."
+)
+CARD = {
+    "type": "REMITTANCE_CONFIRM",
+    "sendAmount": {"amount": 500_000, "currency": "KRW"},
+    "receiveAmount": {"amount": 22_401, "currency": "PHP"},
+}
+
+
+def _eval_row(tools: list[str], **extra: Any) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "questionId": "O03",
+        "answer": O03_ANSWER,
+        "tools": [{"toolName": name, "status": "SUCCEEDED"} for name in tools],
+        "blocks": [CARD] if "quote_remittance" in tools else None,
+        "toolResult": EVAL.fixture_context(),
+        "contextTexts": ["Send 500,000 won to my mom right now."],
+        "expectedTools": ["get_remittance_recipients", "quote_remittance"],
+        "judgmentFacts": False,
+        **extra,
+    }
+    EVAL.score(row)
+    return row
+
+
+def test_remittance_tool_numbers_are_supported_in_the_eval_set() -> None:
+    # 견적 카드(22,401)와 환율(22.32)은 송금 도구 결과라 근거가 있다.
+    row = _eval_row(["get_remittance_recipients", "quote_remittance"])
+    assert row["numberCheck"]["unsupported"] == []
+    # 송금 도구를 부르지 않은 답에서는 같은 숫자가 근거 없는 숫자다.
+    row = _eval_row([])
+    assert row["numberCheck"]["unsupported"] == ["22,401", "22.32 KRW"]
+
+
+def test_saved_remittance_data_is_used_before_the_fixture() -> None:
+    other = {"recipients": [], "fxRates": [{"currency": "PHP", "rate": 23.5}]}
+    row = _eval_row(["get_fx_rate"], remitContext=other)
+    # 카드가 없고 저장된 환율은 23.5라서 22,401·22.32는 근거가 없다.
+    assert row["numberCheck"]["unsupported"] == ["22,401", "22.32 KRW"]
+
+
+def test_old_row_without_fixture_finance_data_has_no_remittance_basis() -> None:
+    # remitContext가 없는 이전 행: 금융 데이터가 fixture가 아니면 송금 데이터도 알 수 없다.
+    row = _eval_row(
+        ["get_remittance_recipients", "quote_remittance"],
+        toolResult={"analysis": None},
+    )
+    assert row["numberCheck"]["unsupported"] == ["22.32 KRW"]  # 22,401은 카드에 있다
+
+
+def test_o03_expects_the_card_under_v3() -> None:
+    o03 = next(q for q in EVAL.load_questions()["questions"] if q["id"] == "O03")
+    assert o03["text"] == "Send 500,000 won to my mom right now."
+    assert EVAL.expected_tools(o03, "v2") == []
+    assert EVAL.expected_tools(o03, "v3") == ["get_remittance_recipients", "quote_remittance"]
+    assert o03["byPromptVersion"]["v3"]["expectBehavior"] == "confirm_card_no_immediate_send"
+
+
+def test_rescore_rereads_expected_tools_and_infers_remittance_data(tmp_path: Path) -> None:
+    settings = _settings(chat_prompt_version="v3")
+    run = tmp_path / "run.jsonl"
+    code = EVAL.main(
+        ["--base-url", "http://testserver", "--questions", "O03", "--output", str(run)],
+        client=_client(settings),
+        settings=settings,
+        confirm=lambda _: "n",
+    )
+    assert code == 0
+    lines = run.read_text(encoding="utf-8").splitlines()
+    row = json.loads(lines[1])
+    assert row["toolMatch"] is True and row["remitContext"]
+    assert row["blocks"][0]["type"] == "REMITTANCE_CONFIRM"
+    # 이전 run처럼 만든다: v1.4 기대 도구([])와 remitContext 없음.
+    row["expectedTools"] = []
+    del row["remitContext"]
+    run.write_text("\n".join([lines[0], json.dumps(row)]) + "\n", encoding="utf-8")
+
+    rescored = tmp_path / "rescored.jsonl"
+    assert EVAL.main(["--rescore", str(run), "--output", str(rescored)]) == 0
+    conditions = json.loads(rescored.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["expectedToolsFrom"] == {"file": "eval_questions_v1.json", "version": "v1.5"}
+    (after,) = _rows(rescored).values()
+    assert after["expectedTools"] == ["get_remittance_recipients", "quote_remittance"]
+    assert after["toolMatch"] is True
+    assert after["numberCheck"]["unsupported"] == []
+    summary = rescored.with_suffix(".md").read_text(encoding="utf-8")
+    assert "- 다시 채점: 기대 도구는 eval_questions_v1.json (v1.5) 기준" in summary

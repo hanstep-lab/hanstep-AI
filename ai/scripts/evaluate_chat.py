@@ -35,7 +35,10 @@ in the .md only: stdout gets the summary without answers (they can hold a user's
 Their numbers are counted apart from the unsupported-number count, since a right answer may
 calculate one. Expected conclusions are worked out on the demo fixture; a run whose tool data
 differs from it is marked. --rescore re-runs the checks but keeps the expectedConclusion and
-referenceValues saved in each row (the basis that run was graded on).
+referenceValues saved in each row (the basis that run was graded on); only the expected tools are
+re-read from the current question set (noted as expectedToolsFrom).
+Numbers from the remittance tools (recipients, rate, quote card) count as supported when the row
+called one of them.
 With judgmentFacts on, the number check also allows the judgment facts the server added
 (app/chat/judgment.py on the same summary and question).
 With --target ai the run stops if the server's model, judgmentFacts or prompt version differ
@@ -63,6 +66,7 @@ from typing import Any
 import _bootstrap  # noqa: F401
 import httpx
 
+from app.api.routes.chat import REMITTANCE_PROMPT_VERSIONS
 from app.chat.fake_llm import FAKE_MODEL_ID
 from app.chat.judgment import judgment_facts
 from app.chat.number_check import check_answer, rounded_values, scan_numbers
@@ -71,6 +75,7 @@ from app.chat.remittance_tools import FIXTURE as REMITTANCE_FIXTURE
 from app.chat.remittance_tools import (
     GET_REMITTANCE_RECIPIENTS,
     QUOTE_REMITTANCE,
+    REMITTANCE_TOOL_NAMES,
 )
 from app.chat.tools import FIXTURE, summarize
 from app.core.config import Settings, get_settings
@@ -280,8 +285,26 @@ def remit_context(settings: Settings, user_id: int, llm_mode: str) -> dict[str, 
         finally:
             client.close()
         return {"recipients": recipients, "fxRates": rates}
+    return fixture_remit_context()
+
+
+def fixture_remit_context() -> dict[str, Any]:
     data = json.loads(REMITTANCE_FIXTURE.read_text(encoding="utf-8"))
     return {"recipients": data["recipients"], "fxRates": data["fxRates"]}
+
+
+def row_remit_context(row: dict[str, Any]) -> dict[str, Any]:
+    """이 행의 송금 도구 데이터. remitContext가 없는 행(이전 run)은 금융 도구 데이터로 추정한다.
+
+    서버는 금융·송금 도구 모두 같은 조건(anthropic 모드 + Spring 설정)일 때만 Spring을 쓰므로,
+    금융 데이터가 fixture와 같으면 송금 데이터도 fixture다. 다르면 알 수 없어서 비워 둔다.
+    """
+    saved: dict[str, Any] | None = row.get("remitContext")
+    if saved:
+        return saved
+    if row.get("toolResult") == fixture_context():
+        return fixture_remit_context()
+    return {}
 
 
 def turn_facts(
@@ -705,6 +728,30 @@ def prompt_fixed_numbers(row: dict[str, Any]) -> list[str]:
     return [number for number in PROMPT_FIXED_NUMBERS if number in prompt]
 
 
+def refresh_expected_tools(
+    conditions: dict[str, Any], rows: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """--rescore: 기대 도구만 지금 질문 세트에서 다시 읽는다(측정 뒤 고친 byPromptVersion 반영).
+
+    기대 결론·참조값은 행에 저장된 값(그 run의 채점 기준)을 그대로 쓴다. 질문 세트 파일을 모르거나
+    문항이 없어진 행은 저장된 기대 도구를 둔다. 돌려주는 값은 읽은 질문 세트(파일·버전).
+    """
+    name = (conditions.get("questionSet") or {}).get("file")
+    path = next((p for p in QUESTION_SETS.values() if p.name == name), None)
+    if path is None:
+        return None
+    spec = load_questions(path)
+    by_id = {q["id"]: q for q in spec["questions"]}
+    for row in rows:
+        question = by_id.get(row["questionId"])
+        if question is None:
+            continue
+        if is_remit_question(question):
+            question = remit_question(question)
+        row["expectedTools"] = expected_tools(question, row.get("promptVersion"))
+    return {"file": name, "version": spec.get("version")}
+
+
 def score(row: dict[str, Any]) -> None:
     """Number check, reference check and expected-tool match from what the row already holds."""
     answer = row.get("answer") or ""
@@ -714,12 +761,19 @@ def score(row: dict[str, Any]) -> None:
         facts = judgment_facts(row["toolResult"], row["contextTexts"][0])
         if facts is not None:
             tool_results.append(facts)
+    follow = row.get("followUp") or {}
     if row.get("expectedAction"):
-        # 송금 문항: 두 턴의 답변을 함께 본다. 받는 분·환율과 견적 카드의 숫자는 근거가 있다.
-        follow = row.get("followUp") or {}
+        # 송금 문항: 두 턴의 답변을 함께 본다.
         answer = "\n\n".join(a for a in (answer, follow.get("answer") or "") if a)
+    called_remittance = any(
+        t.get("toolName") in REMITTANCE_TOOL_NAMES
+        for t in [*row.get("tools", []), *follow.get("tools", [])]
+    )
+    if row.get("expectedAction") or called_remittance:
+        # 송금 도구 결과도 근거다. 받는 분·환율(get_remittance_recipients·get_fx_rate)은
+        # remitContext, 견적(quote_remittance)은 그 결과로 만든 확인 카드(blocks)와 숫자가 같다.
         tool_results += [
-            row.get("remitContext") or {},
+            row_remit_context(row),
             *(row.get("blocks") or []),
             *(follow.get("blocks") or []),
         ]
@@ -790,6 +844,9 @@ def render_summary(
     if conditions["target"] == "spring":
         out.append("- spring 대상은 지연만 기록(토큰은 ai 대상에서 잰다).")
         out.append("- spring 대상은 H 문항의 history 를 보내지 못한다(대화 기록은 MySQL 에 있음).")
+    if conditions.get("expectedToolsFrom"):
+        source = conditions["expectedToolsFrom"]
+        out.append(f"- 다시 채점: 기대 도구는 {source.get('file')} ({source.get('version')}) 기준")
     if conditions.get("error"):
         out.append(f"- 실패: {conditions['error']}")
     if conditions.get("unfinishedQuestions"):
@@ -1148,9 +1205,12 @@ def main(
 
     if args.rescore is not None:
         saved_conditions, saved_rows = read_jsonl(args.rescore)
+        refreshed = refresh_expected_tools(saved_conditions, saved_rows)
         for saved in saved_rows:
             score(saved)
         saved_conditions["rescoredFrom"] = str(args.rescore)
+        if refreshed:
+            saved_conditions["expectedToolsFrom"] = refreshed
         write_jsonl(args.output, saved_conditions, saved_rows)
         print(f"rescored {len(saved_rows)} calls -> {args.output} (+ .md)")
         return EXIT_OK
@@ -1222,7 +1282,11 @@ def main(
         return EXIT_OK
 
     context = tool_context(settings, args.user_id, args.llm_mode)
-    remit_ctx = remit_context(settings, args.user_id, args.llm_mode) if remit else None
+    # 송금 도구가 붙는 버전(v3)을 재면 기존 문항 세트에서도 송금 도구 데이터를 남긴다(숫자 근거).
+    uses_remittance = remit or any(
+        v.get("promptVersion") in REMITTANCE_PROMPT_VERSIONS for v in variants
+    )
+    remit_ctx = remit_context(settings, args.user_id, args.llm_mode) if uses_remittance else None
     matches_fixture = context == fixture_context()
     if not matches_fixture:
         print("WARN: " + FIXTURE_WARNING[len("- 주의: ") :], flush=True)
@@ -1355,8 +1419,9 @@ def main(
                         for key in ("expectedAction", *REMIT_SLOTS, "followUpReply")
                     }
                 )
-                row["remitContext"] = remit_ctx
                 row["followUp"] = follow_up
+            if remit_ctx is not None:
+                row["remitContext"] = remit_ctx
             score(row)
             rows.append(row)
             if row["costUsd"] > 0:

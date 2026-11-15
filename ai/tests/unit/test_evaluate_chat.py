@@ -311,7 +311,7 @@ def _fixture_value(name: str) -> Decimal:
 def test_reference_values_match_fixture() -> None:
     """Hand-written referenceValues equal the formula computed from the chat fixture."""
     spec = EVAL.load_questions()
-    assert spec["version"] == "v1.4"
+    assert spec["version"] == "v1.5"
     assert spec["latencySubset"] == ["F01", "F03", "F07", "F09", "H01"]
     # Hold-out formulas are prose copied as is (see test_holdout_values_match_fixture).
     with_refs = [q for q in spec["questions"] if q.get("referenceValues") and "source" not in q]
@@ -447,7 +447,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
 
     lines = output.read_text(encoding="utf-8").splitlines()
     conditions = json.loads(lines[0])
-    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.4"}
+    assert conditions["questionSet"] == {"file": "eval_questions_v1.json", "version": "v1.5"}
     rows = _rows(output)
     for row in rows:
         assert len(row["deltaTimesMs"]) == row["events"].count("agent.delta") > 0
@@ -455,7 +455,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
         assert row["deltaTimesMs"][0] == row["timings"]["firstDeltaMs"]
         assert row["referenceCheck"]["verdict"] in ("reference", "wrong_number", "no_value")
     summary = output.with_suffix(".md").read_text(encoding="utf-8")
-    assert "- 질문 세트: eval_questions_v1.json (v1.4)" in summary
+    assert "- 질문 세트: eval_questions_v1.json (v1.5)" in summary
     assert "- 계산 질문 2개: 참조값 포함 " in summary
 
     # --rescore recomputes the reference check from the saved answer.
@@ -576,10 +576,10 @@ def test_judgment_variants_run_and_are_shown(tmp_path: Path) -> None:
 HOLDOUT_IDS = [f"X{i:02d}" for i in range(1, 13)]
 
 
-def test_question_set_v1_4_with_holdout() -> None:
+def test_question_set_v1_5_with_holdout() -> None:
     spec = EVAL.load_questions()
     ids = [q["id"] for q in spec["questions"]]
-    assert spec["version"] == "v1.4"
+    assert spec["version"] == "v1.5"
     assert len(ids) == 49 and len(set(ids)) == 49
     assert spec["holdoutSubset"] == HOLDOUT_IDS
     assert [q["id"] for q in spec["questions"] if q.get("source") == "holdout_v1"] == HOLDOUT_IDS
