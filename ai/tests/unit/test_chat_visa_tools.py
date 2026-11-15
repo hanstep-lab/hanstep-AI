@@ -393,7 +393,7 @@ async def _run_e74_chat() -> list[tuple[str, dict[str, Any]]]:
         FinanceTool(FixtureFinanceContext(), user_id=185, request_id="req_v", timeout=5),
         _tools(FakeE74Source()),
     )
-    # 비자 규칙이 있는 v2(기본값 v1.1은 금융 도구만 쓴다).
+    # 비자 규칙이 있는 v2(기본값이지만 기본값이 바뀌어도 이 테스트는 v2로 고정한다).
     settings = Settings(_env_file=None, chat_prompt_version="v2")  # type: ignore[call-arg]
     events = []
     async for event in run_chat(

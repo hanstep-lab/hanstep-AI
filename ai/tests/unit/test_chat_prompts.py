@@ -54,16 +54,17 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
     assert config.judgment_facts is False
 
 
-def test_default_is_judgment_facts_v1_1_haiku() -> None:
-    # Chosen by the judgment facts comparison (2026-11-12): haiku-facts-prompt.
+def test_default_is_judgment_facts_v2_haiku() -> None:
+    # Model and judgment facts: judgment facts comparison (2026-11-12).
+    # Prompt v2: v1.1 vs v2 regression run (2026-11-15).
     settings = _settings()
     assert settings.chat_judgment_facts is True
-    assert settings.chat_prompt_version == "v1.1"
+    assert settings.chat_prompt_version == "v2"
     assert settings.chat_model == "claude-haiku-5-5"
     config = LlmConfig.from_settings(settings)
     assert config.model == "claude-haiku-5-5"
     assert config.judgment_facts is True
-    assert (config.prompt_version, config.prompt_version_id) == ("v1.1", "chat-v1.1")
+    assert (config.prompt_version, config.prompt_version_id) == ("v2", "chat-v2")
 
 
 def test_v2_is_v1_1_plus_visa_rules() -> None:

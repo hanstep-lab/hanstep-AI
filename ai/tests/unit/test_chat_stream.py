@@ -672,7 +672,7 @@ def test_chat_config_is_checked_against_the_model_chat_uses() -> None:
 
 
 def test_default_settings_reach_the_stream(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Defaults (haiku-facts-prompt, 2026-11-12), not the pinned off setting of _settings().
+    # Defaults (haiku, judgment facts, prompt v2), not the pinned off setting of _settings().
     seen: dict[str, Any] = {}
 
     def spy(*args: Any, **kwargs: Any) -> FinanceTool:
@@ -691,8 +691,8 @@ def test_default_settings_reach_the_stream(monkeypatch: pytest.MonkeyPatch) -> N
     config = events[-2][1]["config"]
     assert config["model"] == "claude-haiku-5-5"
     assert config["judgmentFacts"] is True
-    assert config["promptVersion"] == "chat-v1.1"
-    assert events[-1][1]["promptVersion"] == "chat-v1.1"
+    assert config["promptVersion"] == "chat-v2"
+    assert events[-1][1]["promptVersion"] == "chat-v2"
     assert seen["judgment_facts"] is True
 
 

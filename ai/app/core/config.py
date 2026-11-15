@@ -107,7 +107,8 @@ class Settings(BaseSettings):
     # Chat agent (INT-05). fake runs the same graph without an API key.
     chat_llm_mode: Literal["fake", "anthropic"] = "fake"
     # Chat-only model. Empty: AGENT_MODEL (see chat_model_id).
-    # Defaults (model, judgment facts, prompt v1.1): judgment facts comparison, 2026-11-12.
+    # Defaults (model, judgment facts): judgment facts comparison, 2026-11-12.
+    # Prompt v2: v1.1 vs v2 regression run, 2026-11-15 (specs/chat/variants_prompt_v2.json).
     chat_model: str = "claude-haiku-5-5"
     # model_default sends no thinking parameter (both 5.5 models then think adaptively).
     chat_thinking: ChatThinking = "model_default"
@@ -122,7 +123,7 @@ class Settings(BaseSettings):
     chat_judgment_facts: bool = True
     # System prompt version (app/chat/prompts): v1 | v1.1 | v2.
     # 비자 도구는 v2(v1.1 + 비자 규칙)에서만 붙는다(app/api/routes/chat.py).
-    chat_prompt_version: ChatPromptVersion = "v1.1"
+    chat_prompt_version: ChatPromptVersion = "v2"
     # Measurement only: honour the per-request X-Chat-Config header.
     chat_allow_config_override: bool = False
 

@@ -762,14 +762,14 @@ def test_graded_numbers_are_counted_apart() -> None:
         ),
         (
             {"name": "v1", "model": "claude-haiku-5-5", "promptVersion": "v1"},
-            "promptVersion chat-v1.1 != chat-v1",
+            "promptVersion chat-v2 != chat-v1",
         ),
     ],  # fmt: skip
 )
 def test_stops_when_server_ignores_the_variant(
     tmp_path: Path, variant: dict[str, Any], problem: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # CHAT_ALLOW_CONFIG_OVERRIDE is off, so the server runs its defaults (haiku, facts, v1.1).
+    # CHAT_ALLOW_CONFIG_OVERRIDE is off, so the server runs its defaults (haiku, facts, v2).
     variants = tmp_path / "variants.json"
     variants.write_text(json.dumps([variant]), encoding="utf-8")
     output = tmp_path / "run.jsonl"
