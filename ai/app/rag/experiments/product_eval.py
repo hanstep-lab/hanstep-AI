@@ -42,6 +42,7 @@ from app.rag.experiments.product_corpus import (
     Question,
     match_key,
 )
+from app.rag.experiments.product_stats import overlap_groups
 
 # 청크를 임베딩할 때 본문 앞에 붙이는 문맥. "none"은 청크 원문 그대로다.
 ChunkPrefix = Literal["none", "title_section"]
@@ -379,6 +380,7 @@ def evaluate(
 ) -> dict[str, Any]:
     """유효한 문항을 검색·채점한다. 지연은 워밍업 질의 1회 뒤부터 잰다."""
     check_by_id = {c.question_id: c for c in checks}
+    overlap = overlap_groups(questions)
     retriever.search(WARMUP_QUERY, k)
     rows: list[dict[str, Any]] = []
     latencies: list[float] = []
@@ -397,6 +399,9 @@ def evaluate(
                 "id": question.id,
                 "question": question.question,
                 "names_product": question.names_product,
+                "language": question.language,
+                "pair_id": question.pair_id,
+                "overlap": overlap[question.id],
                 "gold_doc_id": check.doc_id,
                 "gold_document": names[check.doc_id],
                 "gold_page": question.page,
@@ -417,14 +422,29 @@ def evaluate(
             }
         )
     return {
-        "metrics": {
-            "all": aggregate(rows, k),
-            "namesProduct=true": aggregate([r for r in rows if r["names_product"]], k),
-            "namesProduct=false": aggregate([r for r in rows if not r["names_product"]], k),
-        },
+        "metrics": group_metrics(rows, k),
         "latency_ms": latency_summary(latencies),
         "rows": rows,
     }
+
+
+def group_metrics(rows: Sequence[Mapping[str, Any]], k: int) -> dict[str, Any]:
+    """전체, 상품명 유무별, 그리고 문항에 언어가 있으면 언어별·한국어 단어 겹침별 지표."""
+    groups: dict[str, Any] = {
+        "all": aggregate(rows, k),
+        "namesProduct=true": aggregate([r for r in rows if r["names_product"]], k),
+        "namesProduct=false": aggregate([r for r in rows if not r["names_product"]], k),
+    }
+    languages = sorted({r["language"] for r in rows if r.get("language")})
+    for language in languages:
+        groups[f"language={language}"] = aggregate(
+            [r for r in rows if r["language"] == language], k
+        )
+    if "ko" in languages:
+        for group in ("낮음", "높음"):
+            subset = [r for r in rows if r["overlap"]["group"] == group]
+            groups[f"overlap(ko)={group}"] = aggregate(subset, k)
+    return groups
 
 
 def run_variants(
@@ -663,6 +683,11 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     lines += ["", "## invalid 문항(집계 제외)", ""]
     if questions["invalid"]:
         lines += [f"- {item['id']}: {item['reason']}" for item in questions["invalid"]]
+    else:
+        lines.append("- 없음")
+    lines += ["", "## 제외 문항(측정 전 결정, --exclude-ids)", ""]
+    if report.get("excluded"):
+        lines += [f"- {item['id']}: {item['reason']}" for item in report["excluded"]]
     else:
         lines.append("- 없음")
     selection = report.get("selection")

@@ -141,13 +141,66 @@ class Question:
     question: str
     gold_document: str
     gold_quote: str
-    page: int
+    # v2 형식에는 쪽 번호가 없다(보고서에는 '-').
+    page: int | None
     names_product: bool
+    # v2 형식에서만 있다. pairId는 한국어 문항이 짝 영어 문항 id를 가리킨다.
+    language: str | None = None
+    pair_id: str | None = None
+
+
+V2_FIELDS: dict[str, type] = {
+    "id": str,
+    "language": str,
+    "hasProductName": bool,
+    "question": str,
+    "goldDocument": str,
+    "goldQuote": str,
+    "answerSummary": str,
+}
+V2_OPTIONAL_FIELDS: dict[str, type] = {"pairId": str}
+V2_LANGUAGES = frozenset({"ko", "en"})
+
+
+def _load_v2(path: Path, data: list[Any]) -> tuple[str, list[Question]]:
+    """v2 형식(최상위 배열): hasProductName → namesProduct, page 없음, language·pairId 유지."""
+    questions: list[Question] = []
+    for index, raw in enumerate(data):
+        if not isinstance(raw, dict):
+            raise CorpusError(f"{path}: question #{index} must be an object")
+        keys = set(raw)
+        if not set(V2_FIELDS) <= keys <= set(V2_FIELDS) | set(V2_OPTIONAL_FIELDS):
+            raise CorpusError(f"{path}: question #{index} must have fields {sorted(V2_FIELDS)}")
+        for name, expected in {**V2_FIELDS, **V2_OPTIONAL_FIELDS}.items():
+            if name in raw and not isinstance(raw[name], expected):
+                raise CorpusError(f"{path}: question #{index} field {name!r} must be {expected}")
+        if raw["language"] not in V2_LANGUAGES:
+            raise CorpusError(f"{path}: question #{index} language must be one of {V2_LANGUAGES}")
+        questions.append(
+            Question(
+                id=raw["id"],
+                question=raw["question"],
+                gold_document=raw["goldDocument"],
+                gold_quote=raw["goldQuote"],
+                page=None,
+                names_product=raw["hasProductName"],
+                language=raw["language"],
+                pair_id=raw.get("pairId"),
+            )
+        )
+    return path.stem, questions
 
 
 def load_questions(path: Path) -> tuple[str, list[Question]]:
-    """평가 파일 ``{version, questions[]}``을 읽어 형식을 검증한다. 형식이 틀리면 CorpusError."""
+    """평가 파일을 읽어 형식을 검증한다. 형식이 틀리면 CorpusError.
+
+    v1은 ``{version, questions[]}``, v2는 최상위 배열(버전은 파일 이름)이다.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        v2_version, v2_questions = _load_v2(path, data)
+        _check_unique(path, v2_questions)
+        return v2_version, v2_questions
     if not isinstance(data, dict) or not isinstance(data.get("questions"), list):
         raise CorpusError(f"{path}: expected an object with a 'questions' list")
     version = data.get("version")
@@ -173,10 +226,19 @@ def load_questions(path: Path) -> tuple[str, list[Question]]:
                 names_product=raw["namesProduct"],
             )
         )
+    _check_unique(path, questions)
+    return version, questions
+
+
+def _check_unique(path: Path, questions: Sequence[Question]) -> None:
     ids = [q.id for q in questions]
     if len(ids) != len(set(ids)):
         raise CorpusError(f"{path}: duplicate question ids")
-    return version, questions
+
+
+def gold_document_key(gold_document: str) -> str:
+    """goldDocument 매핑 키. v2는 파일 이름('….pdf')으로 적어서 끝의 '.pdf'를 뗀다(v1은 그대로)."""
+    return match_key(gold_document.removesuffix(".pdf"))
 
 
 @dataclass(frozen=True)
@@ -198,7 +260,7 @@ def check_gold(
     by_name = {match_key(d.name): d for d in documents}
     checks: list[GoldCheck] = []
     for question in questions:
-        document = by_name.get(match_key(question.gold_document))
+        document = by_name.get(gold_document_key(question.gold_document))
         if document is None:
             checks.append(GoldCheck(question.id, None, False, "goldDocument not in corpus"))
             continue

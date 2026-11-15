@@ -32,6 +32,7 @@ from app.rag.experiments.product_corpus import (
     CorpusError,
     GoldCheck,
     ProductDocument,
+    Question,
     check_gold,
     load_corpus,
     load_questions,
@@ -101,7 +102,13 @@ def parse_variants(value: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--questions", type=Path, required=True, help="평가 문항 JSON 경로")
+    parser.add_argument(
+        "--questions",
+        type=Path,
+        nargs="+",
+        required=True,
+        help="평가 문항 JSON 경로(여러 개면 합쳐서 평가, id는 파일 사이에서도 겹치면 안 됨)",
+    )
     parser.add_argument("--corpus", type=Path, required=True, help="상품설명서·약관 PDF 폴더")
     parser.add_argument(
         "--variants", type=parse_variants, default="all", help="'all' 또는 '1,2' 같은 목록"
@@ -114,13 +121,36 @@ def main() -> int:
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--mapping-only", action="store_true")
+    parser.add_argument(
+        "--exclude-ids",
+        default="",
+        help="평가에서 뺄 문항 id(쉼표로 구분). 측정 전에 정하고 보고서에 이유와 함께 남긴다",
+    )
+    parser.add_argument("--exclude-reason", default="", help="--exclude-ids의 이유(보고서에 기록)")
     args = parser.parse_args()
+    excluded_ids = [item.strip() for item in args.exclude_ids.split(",") if item.strip()]
+    if excluded_ids and not args.exclude_reason:
+        print("FAILED: --exclude-ids needs --exclude-reason")
+        return EXIT_FAILED
     keys: list[str] = args.variants if isinstance(args.variants, list) else list(VARIANTS)
 
+    paths: list[Path] = args.questions
     try:
-        version, questions = load_questions(args.questions)
+        versions: list[str] = []
+        questions: list[Question] = []
+        for path in paths:
+            version, loaded = load_questions(path)
+            versions.append(version)
+            questions.extend(loaded)
+        if len({q.id for q in questions}) != len(questions):
+            raise CorpusError("duplicate question ids across question files")
+        unknown = sorted(set(excluded_ids) - {q.id for q in questions})
+        if unknown:
+            raise CorpusError(f"--exclude-ids not in question files: {unknown}")
+        questions = [q for q in questions if q.id not in set(excluded_ids)]
         documents = load_corpus(args.corpus)
-        categories = labels_for(args.questions, args.labels)
+        # ① 실패 라벨은 그 라벨을 만든 평가 파일 하나만 넘겼을 때만 붙인다.
+        categories = labels_for(paths[0], args.labels) if len(paths) == 1 else {}
     except CorpusError as exc:
         print(f"FAILED: {exc}")
         return EXIT_FAILED
@@ -152,10 +182,11 @@ def main() -> int:
     )
     report: dict[str, Any] = {
         "evaluated_at": evaluated_at.isoformat(timespec="seconds"),
-        "questions_file": args.questions.as_posix(),
-        "questions_version": version,
+        "questions_file": " + ".join(path.as_posix() for path in paths),
+        "questions_version": " + ".join(versions),
         "model": model,
         "labels_applied": bool(categories),
+        "excluded": [{"id": qid, "reason": args.exclude_reason} for qid in excluded_ids],
         **body,
     }
     report["question_table"] = question_table(report, categories)
