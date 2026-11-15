@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 
 from app.rag.experiments.product_corpus import (
@@ -21,10 +22,16 @@ from app.rag.experiments.product_eval import (
     VARIANTS,
     CorpusChunk,
     DenseRetriever,
+    EmbeddingCache,
     aggregate,
+    category_summary,
+    embedding_input,
+    question_table,
     render_markdown,
-    run_experiment,
+    run_variants,
     score_question,
+    select_variant,
+    with_prefix,
 )
 from app.rag.extractors.base import Block
 from tests.conftest import FakeEmbedder
@@ -152,14 +159,59 @@ def test_aggregate_handles_empty_group() -> None:
     assert aggregate([], 5) == {"n": 0}
 
 
+def _vectors(texts: list[str]) -> Any:
+    return np.asarray(FakeEmbedder().embed_documents(texts))
+
+
 def test_dense_retriever_ranks_identical_text_first() -> None:
-    chunks = [_chunk("a", 0, "가입 금액"), _chunk("b", 0, "중도해지 이율"), _chunk("c", 0, "만기")]
-    ranked = DenseRetriever(FakeEmbedder(), chunks).search("중도해지 이율", 2)
+    retriever = DenseRetriever(FakeEmbedder(), _vectors(["가입 금액", "중도해지 이율", "만기"]))
+    ranked = retriever.search("중도해지 이율", 2)
     assert len(ranked) == 2
     assert ranked[0][0] == 1 and ranked[0][1] == pytest.approx(1.0)
 
 
-def test_run_experiment_skips_invalid_and_splits_names_product() -> None:
+@pytest.mark.parametrize(
+    ("section", "expected"),
+    [
+        ("2. 거래조건", "[상품명] 정기적금 / [섹션] 2. 거래조건\n본문"),
+        (None, "[상품명] 정기적금\n본문"),
+    ],
+)
+def test_title_section_prefix_uses_given_section_or_name_only(
+    section: str | None, expected: str
+) -> None:
+    assert embedding_input("본문", section, "정기적금", "title_section") == expected
+    assert embedding_input("본문", section, "정기적금", "none") == "본문"
+
+
+def test_with_prefix_keeps_chunk_text_and_split() -> None:
+    docs = [_document("d1", "정기적금", ["본문"])]
+    chunks = [CorpusChunk("d1#0", "d1", 0, 1, "제1조", "본문", "본문")]
+    [prefixed] = with_prefix(chunks, docs, "title_section")
+    assert prefixed.text == "본문" and prefixed.chunk_id == "d1#0"
+    assert prefixed.embed_text == "[상품명] 정기적금 / [섹션] 제1조\n본문"
+
+
+def test_embedding_cache_hits_by_revision_body_and_prefix(tmp_path: Path) -> None:
+    chunks = [_chunk("a", 0, "가"), _chunk("a", 1, "나")]
+    calls: list[list[str]] = []
+
+    def compute(texts: list[str]) -> list[list[float]]:
+        calls.append(texts)
+        return FakeEmbedder().embed_documents(texts)
+
+    cache = EmbeddingCache(tmp_path, "BAAI/bge-m3", "rev1")
+    first, info1 = cache.get_or_compute(chunks, "none", compute)
+    second, info2 = cache.get_or_compute(chunks, "none", compute)
+    assert (info1["cache"], info2["cache"]) == ("miss", "hit") and len(calls) == 1
+    assert (first == second).all()
+    # prefix나 revision이 다르면 다른 키다.
+    cache.get_or_compute(chunks, "title_section", compute)
+    EmbeddingCache(tmp_path, "BAAI/bge-m3", "rev2").get_or_compute(chunks, "none", compute)
+    assert len(calls) == 3
+
+
+def _docs_and_questions() -> tuple[list[ProductDocument], list[Question]]:
     docs = [
         _document("d1", "정기적금", ["정기적금 가입대상 실명의 개인"]),
         _document("d2", "청년 처음적금", ["만 19세 이상 34세 이하 청년"]),
@@ -169,17 +221,27 @@ def test_run_experiment_skips_invalid_and_splits_names_product() -> None:
         _question("q2", "만 19세 이상 34세 이하 청년", "청년 처음적금", "34세 이하"),
         _question("q3", "질문", "정기적금", "없는 근거"),
     ]
+    return docs, questions
+
+
+def test_run_variants_shares_chunks_and_skips_invalid(tmp_path: Path) -> None:
+    docs, questions = _docs_and_questions()
     checks = check_gold(questions, docs)
-    report = run_experiment(VARIANTS["1"], docs, questions, checks, FakeEmbedder())
+    cache = EmbeddingCache(tmp_path, "BAAI/bge-m3", "rev")
+    report = run_variants(list(VARIANTS.values()), docs, questions, checks, FakeEmbedder(), cache)
     assert report["questions"]["evaluated"] == 2
     assert report["questions"]["invalid"] == [
         {"id": "q3", "doc_id": "d1", "reason": "goldQuote not in document text"}
     ]
     assert report["corpus"]["documents"] == 2 and report["corpus"]["chunks"] == 2
-    assert report["metrics"]["all"]["recall@1"] == 1.0
-    assert report["metrics"]["namesProduct=true"]["n"] == 1
-    assert report["metrics"]["namesProduct=false"]["evidence@5"] == 1.0
-    assert report["latency_ms"]["p50"] is not None
+    assert set(report["variants"]) == set(VARIANTS)
+    for result in report["variants"].values():
+        assert result["chunk_text_sha256"] == report["chunk_text_sha256"]
+        assert result["metrics"]["namesProduct=true"]["n"] == 1
+        assert result["latency_ms"]["p50"] is not None
+    baseline = report["variants"]["1"]
+    assert baseline["metrics"]["all"]["recall@1"] == 1.0
+    assert baseline["index"]["dense"]["cache"] == "miss"
 
     full = {
         **report,
@@ -188,14 +250,75 @@ def test_run_experiment_skips_invalid_and_splits_names_product() -> None:
         "questions_version": "v1",
         "model": {
             "model_name": "BAAI/bge-m3",
-            "revision": "default-branch",
+            "revision": "rev",
             "resolved_revision": "abc1234",
             "device": "cpu",
             "sentence_transformers": "x",
             "torch": "y",
+            "load_seconds": 1.0,
         },
     }
+    full["question_table"] = question_table(full, {"q1": "B"})
+    full["selection"] = select_variant(full)
+    full["selection_note"] = "note"
+    full["category_summary"] = category_summary(full, {"q1": "B"}, ("B",))
     markdown = render_markdown(full)
     assert "## 측정 조건" in markdown and "abc1234" in markdown
-    assert "| namesProduct=false | 1 |" in markdown
+    assert "| 1 | namesProduct=false | 1 |" in markdown
     assert "- q3: goldQuote not in document text" in markdown
+    assert "## 선택 규칙 적용" in markdown and "## 분류별 요약" in markdown
+
+
+def _result(recall: float, evidence: float, mrr: float, p50: float) -> dict[str, Any]:
+    return {
+        "metrics": {"all": {"recall@5": recall, "evidence@5": evidence, "mrr@5": mrr}},
+        "latency_ms": {"p50": p50},
+        "rows": [],
+    }
+
+
+def test_select_variant_keeps_ties_within_one_question_and_picks_simplest() -> None:
+    report = {
+        "top_k": 5,
+        "questions": {"evaluated": 30},
+        "variants": {
+            # ②는 Recall이 1문항 높지만 허용 범위라 동점으로 남는다.
+            "1": _result(27 / 30, 24 / 30, 0.70, 150.0),
+            "2": _result(28 / 30, 24 / 30, 0.73, 160.0),
+        },
+    }
+    selection = select_variant(report)
+    assert [step["kept"] for step in selection["steps"]] == [["1", "2"]] * 4
+    assert selection["selected"] == "1"
+
+
+def test_select_variant_drops_candidates_outside_tolerance() -> None:
+    report = {
+        "top_k": 5,
+        "questions": {"evaluated": 30},
+        "variants": {
+            "1": _result(27 / 30, 24 / 30, 0.70, 150.0),
+            "2": _result(29 / 30, 24 / 30, 0.80, 400.0),
+        },
+    }
+    selection = select_variant(report)
+    assert selection["steps"][0]["kept"] == ["2"] and selection["selected"] == "2"
+
+
+def _row(qid: str, rank: int | None, evidence: float) -> dict[str, Any]:
+    return {"id": qid, "names_product": False, "doc_rank": rank, "evidence@k": evidence}
+
+
+def test_category_summary_counts_fixed_and_new_failures() -> None:
+    report = {
+        "variants": {
+            "1": {"rows": [_row("a", 2, 1.0), _row("b", 1, 0.0), _row("c", 1, 1.0)]},
+            "2": {"rows": [_row("a", 1, 1.0), _row("b", 1, 0.0), _row("c", 3, 1.0)]},
+        }
+    }
+    summary = category_summary(report, {"a": "B", "b": "C"}, ("B", "C"))
+    assert summary[0] == {"category": "B", "n": 1, "fixed": {"2": 1}, "new_failures": {"2": 0}}
+    assert summary[1]["fixed"] == {"2": 0}
+    assert summary[2]["n"] == 1 and summary[2]["new_failures"] == {"2": 1}
+    table = question_table(report, {"a": "B"})
+    assert table[0]["rank"] == {"1": 2, "2": 1} and table[2]["category"] == "-"
