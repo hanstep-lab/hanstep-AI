@@ -217,3 +217,45 @@ def test_repo_catalog_and_question_set_are_consistent() -> None:
     for question in questions:
         assert set(question["gold"]) <= set(products)
         assert all(products[pid]["recommendable"] for pid in question["gold"])
+
+
+def _gold_files(tmp_path: Path) -> tuple[Path, Path]:
+    catalog = {
+        "products": [
+            _savings(nameKo=_v("적금 S")),
+            _savings(productId="doc-d", nameKo=_v("예금 D"), kind=_v("DEPOSIT")),
+        ]
+    }
+    qset = {**_qset(), "goldConfirmed": True}
+    qset["questions"] = [{**q, "gold": ["stale"]} for q in qset["questions"]]
+    catalog_path, questions_path = tmp_path / "catalog.json", tmp_path / "questions.json"
+    catalog_path.write_text(json.dumps(catalog, ensure_ascii=False), encoding="utf-8")
+    questions_path.write_text(json.dumps(qset, ensure_ascii=False), encoding="utf-8")
+    return catalog_path, questions_path
+
+
+def test_gold_write_fills_candidates_unconfirmed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    catalog_path, questions_path = _gold_files(tmp_path)
+    output = tmp_path / "out.json"
+    argv = ["gold", "--catalog", str(catalog_path), "--questions", str(questions_path)]
+    assert EV.main([*argv, "--write", str(output)]) == 0
+    written = json.loads(output.read_text(encoding="utf-8"))
+    assert written["goldConfirmed"] is False
+    # R은 적금 요청 → 적금만, R2는 조건 없음 → 둘 다.
+    assert {q["id"]: q["gold"] for q in written["questions"]} == {
+        "P-R": ["doc-s"],
+        "P-R2": ["doc-s", "doc-d"],
+    }
+    original = json.loads(questions_path.read_text(encoding="utf-8"))
+    assert original["goldConfirmed"] is True  # 입력 파일은 그대로
+    assert {k: v for k, v in written.items() if k != "questions" and k != "goldConfirmed"} == {
+        k: v for k, v in original.items() if k != "questions" and k != "goldConfirmed"
+    }
+    out = capsys.readouterr().out
+    assert f"wrote {output} (2 questions, goldConfirmed=false)" in out
+    assert '"gold"' not in out and "stale" not in out  # 파일 내용은 출력하지 않는다
+    # 있는 파일은 덮어쓰지 않는다.
+    assert EV.main([*argv, "--write", str(output)]) == 1
+    assert json.loads(output.read_text(encoding="utf-8")) == written

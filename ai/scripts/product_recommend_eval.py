@@ -27,6 +27,8 @@ gold는 사람이 확인해 질문 세트에 고정한다. 평가는 질문 세�
 gold 0개 문항에서 아무것도 추천하지 않은 비율.
 
     uv run python scripts/product_recommend_eval.py gold          # gold 후보 표(모델 없음)
+    uv run python scripts/product_recommend_eval.py gold --questions <질문 세트> --write <새 파일>
+        # gold를 후보로 채운 사본(goldConfirmed=false). 파일 내용은 출력하지 않는다.
     uv run python scripts/product_recommend_eval.py baseline \\
         --corpus ../../rag-data/products --revision 5617a9f61b028005a4858fdac845db406aefb181
 
@@ -349,6 +351,22 @@ def print_gold_table(catalog: Mapping[str, Any], qset: Mapping[str, Any]) -> Non
         print("| " + " | ".join(cells) + " |")
 
 
+def with_gold_candidates(catalog: Mapping[str, Any], qset: Mapping[str, Any]) -> dict[str, Any]:
+    """문항마다 gold를 조건표 gold 후보로 채운 질문 세트 사본. 사람이 확인하기 전이라 미확정."""
+    candidates = {row["id"]: row["candidates"] for row in gold_candidates(catalog, qset)}
+    questions = [{**q, "gold": candidates[q["id"]]} for q in qset["questions"]]
+    return {**qset, "goldConfirmed": False, "questions": questions}
+
+
+def write_gold_candidates(catalog: Mapping[str, Any], qset: Mapping[str, Any], output: Path) -> int:
+    """gold 후보를 채운 질문 세트를 새 파일로 쓰고 문항 수를 돌려준다(있는 파일은 덮어쓰지 않음)."""
+    filled = with_gold_candidates(catalog, qset)
+    text = json.dumps(filled, ensure_ascii=False, indent=2) + "\n"
+    with output.open("x", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+    return len(filled["questions"])
+
+
 def run_baseline(args: argparse.Namespace) -> int:
     from app.rag.embeddings import BgeM3Embedder
     from app.rag.experiments.product_corpus import load_corpus
@@ -420,6 +438,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     for p in (gold, base):
         p.add_argument("--catalog", type=Path, default=CATALOG_PATH)
         p.add_argument("--questions", type=Path, default=QUESTIONS_PATH)
+    gold.add_argument(
+        "--write",
+        type=Path,
+        help="gold를 후보로 채운 질문 세트를 새 파일로 쓴다(goldConfirmed=false, 덮어쓰지 않음)",
+    )
     base.add_argument("--corpus", type=Path, required=True, help="상품설명서·약관 PDF 폴더")
     base.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     base.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
@@ -429,7 +452,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     base.add_argument("--batch-size", type=int, default=8)
     args = parser.parse_args(argv)
     if args.command == "gold":
-        print_gold_table(load_json(args.catalog), load_json(args.questions))
+        catalog, qset = load_json(args.catalog), load_json(args.questions)
+        print_gold_table(catalog, qset)
+        if args.write is not None:
+            if args.write.exists():
+                print(f"FAILED: {args.write} already exists (not overwritten)")
+                return 1
+            count = write_gold_candidates(catalog, qset, args.write)
+            # 파일 내용은 출력하지 않는다(경로와 문항 수만).
+            print(f"\nwrote {args.write} ({count} questions, goldConfirmed=false)")
         return 0
     return run_baseline(args)
 
