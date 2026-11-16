@@ -12,6 +12,19 @@ Not part of pytest or CI. Calls a running server; it never calls Anthropic itsel
     # Re-score a saved run without any API call
     uv run python scripts/evaluate_chat.py --rescore artifacts/chat/run.jsonl \
         --output artifacts/chat/run_rescored.jsonl
+    # Remittance clarification set (specs/chat/remit_questions_v1.json, prompt v3)
+    uv run python scripts/evaluate_chat.py --question-set remit --llm-mode anthropic \
+        --variants specs/chat/variants_remit_v1.json --output artifacts/chat/remit_v1.jsonl
+
+Remittance set (--question-set remit): an ambiguous question whose first answer did not proceed
+gets a second turn with its followUpReply (history: the question and the first answer). Each row
+gets a remitCheck from tool arguments, done.blocks and answer rules only: correct, missed
+clarification (proceeded while ambiguous), unnecessary question (asked while clear), wrong
+guess (recipient, currency or amount), out-of-scope handling, turns to completion. Anything the
+rules cannot settle is marked needsReview and listed for a person in the .md.
+--remit-questions <path> runs another file with the same schema (checked before any call; the
+path may be outside the repo, e.g. a hold-out set). Its expected values after the second turn are
+unknown, so those are left to a person; --rescore never re-reads such a file.
 
 Writes one JSONL line per call as it goes (the first line holds the conditions) and a summary
 markdown next to it (same name, .md). Variants run round-robin inside each question and
@@ -25,7 +38,10 @@ in the .md only: stdout gets the summary without answers (they can hold a user's
 Their numbers are counted apart from the unsupported-number count, since a right answer may
 calculate one. Expected conclusions are worked out on the demo fixture; a run whose tool data
 differs from it is marked. --rescore re-runs the checks but keeps the expectedConclusion and
-referenceValues saved in each row (the basis that run was graded on).
+referenceValues saved in each row (the basis that run was graded on); only the expected tools are
+re-read from the current question set (noted as expectedToolsFrom).
+Numbers from the remittance tools (recipients, rate, quote card) count as supported when the row
+called one of them.
 With judgmentFacts on, the number check also allows the judgment facts the server added
 (app/chat/judgment.py on the same summary and question).
 With --target ai the run stops if the server's model, judgmentFacts or prompt version differ
@@ -39,6 +55,7 @@ import argparse
 import io
 import json
 import math
+import re
 import statistics
 import sys
 import time
@@ -52,10 +69,17 @@ from typing import Any
 import _bootstrap  # noqa: F401
 import httpx
 
+from app.api.routes.chat import REMITTANCE_PROMPT_VERSIONS
 from app.chat.fake_llm import FAKE_MODEL_ID
 from app.chat.judgment import judgment_facts
 from app.chat.number_check import check_answer, rounded_values, scan_numbers
 from app.chat.prompts import PROMPT_VERSIONS, system_prompt
+from app.chat.remittance_tools import FIXTURE as REMITTANCE_FIXTURE
+from app.chat.remittance_tools import (
+    GET_REMITTANCE_RECIPIENTS,
+    QUOTE_REMITTANCE,
+    REMITTANCE_TOOL_NAMES,
+)
 from app.chat.tools import FIXTURE, summarize
 from app.core.config import Settings, get_settings
 from app.integrations.spring_client import SpringInternalClient
@@ -63,6 +87,10 @@ from app.rag.cli import EXIT_BLOCKED, EXIT_FAILED, EXIT_OK
 
 AI_ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
+REMIT_QUESTIONS = AI_ROOT / "specs" / "chat" / "remit_questions_v1.json"
+QUESTION_SETS = {"eval": QUESTIONS, "remit": REMIT_QUESTIONS}
+# 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
+PROMPT_BASE = {"v3": "v2"}
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
 PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
 EXIT_INTERRUPTED = 130
@@ -167,10 +195,350 @@ def row_prompt_version(
 
 
 def expected_tools(question: dict[str, Any], prompt_version: str | None) -> list[str]:
-    """문항의 기대 도구. byPromptVersion에 이 버전이 있으면 그 값(예: O01은 v2에서 점수 도구)."""
-    override = (question.get("byPromptVersion") or {}).get(prompt_version or "")
+    """문항의 기대 도구. byPromptVersion에 이 버전이 있으면 그 값(예: O01은 v2에서 점수 도구).
+
+    없으면 그 버전의 바탕 버전(PROMPT_BASE, v3 → v2)의 값을 쓴다.
+    """
+    by_version = question.get("byPromptVersion") or {}
+    version = prompt_version or ""
+    override = by_version.get(version)
+    while override is None and version in PROMPT_BASE:
+        version = PROMPT_BASE[version]
+        override = by_version.get(version)
     tools: list[str] = (override or question)["expectedTools"]
     return list(tools)
+
+
+# --- 송금 재질의 세트 -------------------------------------------------------------------
+
+# expectedAction → 1턴 기대 도구(toolMatch용. 판정은 remit_check가 따로 한다).
+REMIT_EXPECTED_TOOLS = {
+    "PROCEED_TO_CONFIRM": [GET_REMITTANCE_RECIPIENTS, QUOTE_REMITTANCE],
+    "ASK_RECIPIENT": [GET_REMITTANCE_RECIPIENTS],
+    "ASK_CURRENCY": [GET_REMITTANCE_RECIPIENTS],
+    "ASK_AMOUNT": [GET_REMITTANCE_RECIPIENTS],
+    "ASK_MORE_THAN_ONE": [GET_REMITTANCE_RECIPIENTS],
+    "DECLINE_OR_GUIDE": [],
+}
+# 2턴째(followUpReply) 뒤 기대 받는 분·통화·금액. 질문 세트에는 없어서 followUpReply를 읽고 여기에
+# 적었다(질문 세트는 고치지 않는다). 질문 세트에 적힌 값과 다르지 않은지는 테스트가 확인한다.
+FOLLOW_UP_EXPECTED: dict[str, tuple[str, str, int]] = {
+    "S10": ("MOTHER", "KRW", 500_000),  # to mama
+    "S11": ("MOTHER", "KRW", 200_000),  # my mom
+    "S12": ("SELF", "KRW", 300_000),  # my bpi
+    "S13": ("MOTHER", "KRW", 250_000),  # mom
+    "S14": ("MOTHER", "PHP", 20_000),  # pesos
+    "S15": ("SELF", "PHP", 15_000),  # peso
+    "S16": ("MOTHER", "KRW", 10_000),  # 10000 won only
+    "S17": ("SELF", "KRW", 30_000),  # won
+    "S18": ("MOTHER", "KRW", 500_000),  # 500k won
+    "S19": ("SELF", "PHP", 5_000),  # 5000
+    "S20": ("MOTHER", "KRW", 400_000),  # 400k
+    "S21": ("MOTHER", "PHP", 20_000),  # to mama, 20000 pesos
+    "S22": ("MOTHER", "KRW", 500_000),  # 500k won to mama
+    "S23": ("MOTHER", "KRW", 500_000),  # mom 500k won
+    "S24": ("MOTHER", "PHP", 15_000),  # my mom bdo, 15000 pesos
+}
+REMIT_SLOTS = ("expectedRecipient", "expectedCurrency", "expectedAmount")
+SLOT_TOPIC = {
+    "expectedRecipient": "recipient",
+    "expectedCurrency": "currency",
+    "expectedAmount": "amount",
+}
+ASK_TOPICS = {
+    "ASK_RECIPIENT": {"recipient"},
+    "ASK_CURRENCY": {"currency"},
+    "ASK_AMOUNT": {"amount"},
+}
+# 되묻기 답변이 무엇을 묻는지: 받는 분 둘 중 고르기, 두 통화 중 고르기, 금액 묻기.
+_ASK_RECIPIENT = re.compile(
+    r"\b(who|whom|which (recipient|account|one|person)|recipient)\b", re.IGNORECASE
+)
+_KRW_WORD = re.compile(r"(?<![a-z])(krw|won|₩)\b", re.IGNORECASE)
+_RECEIVE_WORD = re.compile(r"(?<![a-z])(php|pesos?|₱)\b", re.IGNORECASE)
+_ASK_CURRENCY = re.compile(r"\bcurrency\b", re.IGNORECASE)
+_ASK_AMOUNT = re.compile(r"\bhow much\b|\b(what|which) amount\b", re.IGNORECASE)
+
+
+REMIT_FIELDS = {
+    "id",
+    "text",
+    "category",
+    "expectedAction",
+    *REMIT_SLOTS,
+    "followUpReply",
+    "note",
+}
+REMIT_ACTIONS = {
+    "clear": {"PROCEED_TO_CONFIRM"},
+    "ambiguous": {"ASK_RECIPIENT", "ASK_CURRENCY", "ASK_AMOUNT", "ASK_MORE_THAN_ONE"},
+    "out_of_scope": {"DECLINE_OR_GUIDE"},
+}
+ASKED_SLOT = {
+    "ASK_RECIPIENT": "expectedRecipient",
+    "ASK_CURRENCY": "expectedCurrency",
+    "ASK_AMOUNT": "expectedAmount",
+}
+
+
+def remit_spec_errors(spec: Any) -> list[str]:
+    """remit_questions_v1.json과 같은 스키마인지(문항 수·id 형식은 보지 않는다). 오류 문장 목록."""
+    if not isinstance(spec, dict) or set(spec) != {"version", "questions"}:
+        return ["top level must be {version, questions}"]
+    questions = spec["questions"]
+    if not isinstance(questions, list) or not questions:
+        return ["questions must be a non-empty list"]
+    errors: list[str] = []
+    ids = [q.get("id") for q in questions if isinstance(q, dict)]
+    if len(ids) != len(questions) or len(set(ids)) != len(ids):
+        errors.append("every question needs a unique id")
+    for i, q in enumerate(questions):
+        name = q.get("id", f"#{i + 1}") if isinstance(q, dict) else f"#{i + 1}"
+        if not isinstance(q, dict) or set(q) != REMIT_FIELDS:
+            errors.append(f"{name}: fields must be {sorted(REMIT_FIELDS)}")
+            continue
+        action, category = q["expectedAction"], q["category"]
+        amount = q["expectedAmount"]
+        checks = [
+            (isinstance(q["text"], str) and bool(q["text"].strip()), "empty text"),
+            (action in REMIT_ACTIONS.get(category, set()), "category/expectedAction mismatch"),
+            (q["expectedRecipient"] in ("MOTHER", "SELF", None), "bad expectedRecipient"),
+            (q["expectedCurrency"] in ("KRW", "PHP", None), "bad expectedCurrency"),
+            (
+                amount is None or (type(amount) is int and amount > 0),
+                "expectedAmount must be a positive integer or null",
+            ),
+            (
+                bool(q["followUpReply"]) == (category == "ambiguous"),
+                "followUpReply only (and always) for ambiguous questions",
+            ),
+            (
+                action not in ASKED_SLOT or q[ASKED_SLOT.get(action, "")] is None,
+                "the asked item must be null",
+            ),
+            (
+                category != "clear" or all(q[slot] is not None for slot in REMIT_SLOTS),
+                "clear questions need recipient, currency and amount",
+            ),
+            (
+                action != "ASK_MORE_THAN_ONE" or sum(q[s] is None for s in REMIT_SLOTS) >= 2,
+                "ASK_MORE_THAN_ONE needs at least two null items",
+            ),
+        ]
+        errors += [f"{name}: {message}" for ok, message in checks if not ok]
+    return errors
+
+
+def is_remit_question(question: dict[str, Any]) -> bool:
+    return "expectedAction" in question
+
+
+def remit_question(question: dict[str, Any]) -> dict[str, Any]:
+    """송금 문항에 측정 루프가 쓰는 필드(history, expectedTools)를 붙인 복사본."""
+    return {
+        **question,
+        "history": [],
+        "expectedTools": REMIT_EXPECTED_TOOLS[question["expectedAction"]],
+    }
+
+
+def remit_context(settings: Settings, user_id: int, llm_mode: str) -> dict[str, Any]:
+    """송금 도구가 보는 받는 분·환율(근거 있는 숫자 확인과 recipientId → 관계 확인용)."""
+    if llm_mode == "anthropic" and settings.spring_configured():
+        client = SpringInternalClient(
+            base_url=settings.spring_internal_api_url,
+            api_key=settings.spring_internal_api_key.get_secret_value(),
+            header=settings.internal_token_header,
+        )
+        try:
+            recipients = client.remittance_recipients(user_id, timeout=10)["recipients"]
+            currencies = sorted({r["currency"] for r in recipients})
+            rates = [client.fx_rate(c, timeout=10) for c in currencies]
+        finally:
+            client.close()
+        return {"recipients": recipients, "fxRates": rates}
+    return fixture_remit_context()
+
+
+def fixture_remit_context() -> dict[str, Any]:
+    data = json.loads(REMITTANCE_FIXTURE.read_text(encoding="utf-8"))
+    return {"recipients": data["recipients"], "fxRates": data["fxRates"]}
+
+
+def row_remit_context(row: dict[str, Any]) -> dict[str, Any]:
+    """이 행의 송금 도구 데이터. remitContext가 없는 행(이전 run)은 금융 도구 데이터로 추정한다.
+
+    서버는 금융·송금 도구 모두 같은 조건(anthropic 모드 + Spring 설정)일 때만 Spring을 쓰므로,
+    금융 데이터가 fixture와 같으면 송금 데이터도 fixture다. 다르면 알 수 없어서 비워 둔다.
+    """
+    saved: dict[str, Any] | None = row.get("remitContext")
+    if saved:
+        return saved
+    if row.get("toolResult") == fixture_context():
+        return fixture_remit_context()
+    return {}
+
+
+def turn_facts(
+    tools: list[dict[str, Any]],
+    blocks: list[dict[str, Any]] | None,
+    answer: str,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    """한 턴이 한 일: 견적·카드로 진행했는지, 무엇을 물었는지, 견적 인자(관계·통화·금액)."""
+    quotes = [t for t in tools if t.get("toolName") == QUOTE_REMITTANCE]
+    cards = [b for b in blocks or [] if b.get("type") == "REMITTANCE_CONFIRM"]
+    relationship = {r["recipientId"]: r["relationship"] for r in context.get("recipients", [])}
+    quoted = None
+    succeeded = [q for q in quotes if q.get("status") == "SUCCEEDED"] or quotes
+    if succeeded:
+        args = succeeded[-1].get("arguments") or {}
+        quoted = {
+            "recipient": relationship.get(args.get("recipientId"), "UNKNOWN"),
+            "currency": args.get("currency"),
+            "amount": args.get("amount"),
+        }
+    proceeded = bool(quotes or cards)
+    topics: list[str] = []
+    if not proceeded and "?" in answer:
+        recipients = context.get("recipients", [])
+        named = sum(
+            1
+            for r in recipients
+            if any(word.lower() in answer.lower() for word in (r["nameEn"], r["bankName"]) if word)
+        )
+        if _ASK_RECIPIENT.search(answer) or named >= 2:
+            topics.append("recipient")
+        if _ASK_CURRENCY.search(answer) or (
+            _KRW_WORD.search(answer) and _RECEIVE_WORD.search(answer)
+        ):
+            topics.append("currency")
+        if _ASK_AMOUNT.search(answer):
+            topics.append("amount")
+    return {
+        "proceeded": proceeded,
+        "card": bool(cards),
+        "quote": quoted,
+        "asked": not proceeded and "?" in answer,
+        "askedAbout": topics,
+    }
+
+
+def _guess_errors(quoted: dict[str, Any] | None, expected: dict[str, Any]) -> list[str]:
+    """견적 인자가 기대값과 다른 항목(기대값이 없는 항목은 보지 않는다)."""
+    if quoted is None:
+        return []
+    return [
+        key
+        for key in ("recipient", "currency", "amount")
+        if expected.get(key) is not None and quoted.get(key) != expected[key]
+    ]
+
+
+def remit_check(row: dict[str, Any]) -> dict[str, Any]:
+    """송금 문항 판정. 규칙으로 정할 수 없는 것은 needsReview로 남긴다.
+
+    outcome: correct | missed_clarification | unnecessary_question | wrong_guess |
+    out_of_scope_proceeded | declined | not_completed | asked_other | error | unclear
+    """
+    action = row["expectedAction"]
+    context = row.get("remitContext") or {}
+    first = turn_facts(row.get("tools", []), row.get("blocks"), row.get("answer") or "", context)
+    follow = row.get("followUp")
+    second = (
+        turn_facts(
+            follow.get("tools", []), follow.get("blocks"), follow.get("answer") or "", context
+        )
+        if follow
+        else None
+    )
+    stated = {
+        "recipient": row.get("expectedRecipient"),
+        "currency": row.get("expectedCurrency"),
+        "amount": row.get("expectedAmount"),
+    }
+    result: dict[str, Any] = {
+        "outcome": "unclear",
+        "turns": None,
+        "guessErrors": [],
+        "askedAbout": first["askedAbout"],
+        "askedMany": len(first["askedAbout"]) > 1,
+        "needsReview": False,
+        "reason": "",
+        "first": first,
+        "second": second,
+    }
+
+    def done(outcome: str, *, turns: int | None = None, review: str = "") -> dict[str, Any]:
+        result.update(outcome=outcome, turns=turns, reason=review)
+        result["needsReview"] = bool(review) or result["askedMany"]
+        if result["askedMany"] and not review:
+            result["reason"] = "한 번에 둘 이상을 물음"
+        return result
+
+    if row.get("status") != "done":
+        return done("error", review="1턴 오류")
+    if action == "DECLINE_OR_GUIDE":
+        if first["proceeded"]:
+            if any(v is not None for v in stated.values()):
+                # 예: S27 "묻지 말고 보내" — 카드를 낼 수는 있지만 즉시 송금 불가를 말했는지 본다.
+                result["guessErrors"] = _guess_errors(first["quote"], stated)
+                return done("out_of_scope_proceeded", review="카드를 냈다: 안내 문구 확인")
+            return done("out_of_scope_proceeded")
+        return done("declined", review="범위 밖 안내 문구 확인")
+    if action == "PROCEED_TO_CONFIRM":
+        if first["proceeded"]:
+            result["guessErrors"] = _guess_errors(first["quote"], stated)
+            if result["guessErrors"]:
+                return done("wrong_guess", turns=1)
+            return done("correct", turns=1)
+        if first["asked"]:
+            return done("unnecessary_question", review="" if first["askedAbout"] else "질문 확인")
+        return done("unclear", review="진행도 질문도 아님")
+    # 애매한 문항
+    if first["proceeded"]:
+        result["guessErrors"] = _guess_errors(first["quote"], stated)
+        return done("missed_clarification", turns=1)
+    expected_topics = ASK_TOPICS.get(action) or {
+        SLOT_TOPIC[slot] for slot in REMIT_SLOTS if row.get(slot) is None
+    }
+    asked = set(first["askedAbout"])
+    review = ""
+    if not first["asked"]:
+        review = "1턴에 질문이 없음"
+    elif not asked:
+        review = "무엇을 물었는지 규칙으로 못 정함"
+    elif not asked & expected_topics:
+        result["outcome"] = "asked_other"
+        review = "다른 항목을 물음"
+    elif not asked <= expected_topics:
+        review = "기대 항목과 다른 항목을 같이 물음"
+    if second is None:
+        if review == "다른 항목을 물음":
+            return done("asked_other", review=review)
+        return done("unclear", review=review or "2턴이 없음")
+    if second["proceeded"]:
+        # 고정 세트는 FOLLOW_UP_EXPECTED, 외부 질문 파일은 2턴 뒤 값을 모른다(행에 null로 남김).
+        # followUpExpected가 없는 이전 행은 고정 세트로 잰 것이다.
+        final = (
+            row["followUpExpected"]
+            if "followUpExpected" in row
+            else FOLLOW_UP_EXPECTED.get(row["questionId"])
+        )
+        expected = (
+            dict(zip(("recipient", "currency", "amount"), final, strict=True)) if final else stated
+        )
+        result["guessErrors"] = _guess_errors(second["quote"], expected)
+        if not final and not review:
+            unknown = [k for k in ("recipient", "currency", "amount") if stated[k] is None]
+            if unknown:
+                review = f"2턴 값({', '.join(unknown)})은 사람 확인"
+        if review == "다른 항목을 물음":
+            return done("asked_other", turns=2, review=review)
+        if result["guessErrors"]:
+            return done("wrong_guess", turns=2, review=review)
+        return done("correct", turns=2, review=review)
+    return done("not_completed", review=review or "2턴에도 진행하지 않음")
 
 
 def load_variants(path: Path | None, settings: Settings) -> list[dict[str, Any]]:
@@ -349,6 +717,42 @@ def call_ai(
     return stream_call(client, url, body, headers, "agent")
 
 
+def run_follow_up(
+    client: httpx.Client,
+    base_url: str,
+    token: str,
+    question: dict[str, Any],
+    first_answer: str,
+    variant: dict[str, Any],
+    user_id: int,
+) -> dict[str, Any]:
+    """애매한 송금 문항의 2턴째: 1턴 질문·답변을 history로 보내고 followUpReply를 묻는다."""
+    second = {
+        "text": question["followUpReply"],
+        "history": [
+            {"role": "USER", "content": question["text"]},
+            {"role": "ASSISTANT", "content": first_answer},
+        ],
+    }
+    result = call_ai(client, base_url, token, second, variant, user_id)
+    done = result.get("done") or {}
+    metrics = result.get("metrics")
+    model = answering_model(done, metrics) or (metrics or {}).get("config", {}).get("model")
+    usage = run_usage(done, metrics)
+    return {
+        "message": question["followUpReply"],
+        "status": result.get("status"),
+        "errorCode": result.get("errorCode"),
+        "answer": "".join(result["deltas"]),
+        "tools": result["tools"],
+        "blocks": done.get("blocks"),
+        "usage": usage,
+        "model": model,
+        "costUsd": round(cost_usd(usage, model), 6),
+        "timings": result["timings"],
+    }
+
+
 def call_spring(
     client: httpx.Client, base_url: str, jwt: str, question: dict[str, Any]
 ) -> dict[str, Any]:
@@ -406,6 +810,33 @@ def prompt_fixed_numbers(row: dict[str, Any]) -> list[str]:
     return [number for number in PROMPT_FIXED_NUMBERS if number in prompt]
 
 
+def refresh_expected_tools(
+    conditions: dict[str, Any], rows: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """--rescore: 기대 도구만 지금 질문 세트에서 다시 읽는다(측정 뒤 고친 byPromptVersion 반영).
+
+    기대 결론·참조값은 행에 저장된 값(그 run의 채점 기준)을 그대로 쓴다. 질문 세트 파일을 모르거나
+    문항이 없어진 행은 저장된 기대 도구를 둔다. 돌려주는 값은 읽은 질문 세트(파일·버전).
+    """
+    question_set = conditions.get("questionSet") or {}
+    name = question_set.get("file")
+    if question_set.get("external"):
+        return None  # --remit-questions로 잰 run: 레포 밖 파일은 다시 읽지 않는다
+    path = next((p for p in QUESTION_SETS.values() if p.name == name), None)
+    if path is None:
+        return None
+    spec = load_questions(path)
+    by_id = {q["id"]: q for q in spec["questions"]}
+    for row in rows:
+        question = by_id.get(row["questionId"])
+        if question is None:
+            continue
+        if is_remit_question(question):
+            question = remit_question(question)
+        row["expectedTools"] = expected_tools(question, row.get("promptVersion"))
+    return {"file": name, "version": spec.get("version")}
+
+
 def score(row: dict[str, Any]) -> None:
     """Number check, reference check and expected-tool match from what the row already holds."""
     answer = row.get("answer") or ""
@@ -415,12 +846,30 @@ def score(row: dict[str, Any]) -> None:
         facts = judgment_facts(row["toolResult"], row["contextTexts"][0])
         if facts is not None:
             tool_results.append(facts)
+    follow = row.get("followUp") or {}
+    if row.get("expectedAction"):
+        # 송금 문항: 두 턴의 답변을 함께 본다.
+        answer = "\n\n".join(a for a in (answer, follow.get("answer") or "") if a)
+    called_remittance = any(
+        t.get("toolName") in REMITTANCE_TOOL_NAMES
+        for t in [*row.get("tools", []), *follow.get("tools", [])]
+    )
+    if row.get("expectedAction") or called_remittance:
+        # 송금 도구 결과도 근거다. 받는 분·환율(get_remittance_recipients·get_fx_rate)은
+        # remitContext, 견적(quote_remittance)은 그 결과로 만든 확인 카드(blocks)와 숫자가 같다.
+        tool_results += [
+            row_remit_context(row),
+            *(row.get("blocks") or []),
+            *(follow.get("blocks") or []),
+        ]
     check = check_answer(answer, tool_results, [*row["contextTexts"], *prompt_fixed_numbers(row)])
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
     called = sorted({t.get("toolName") for t in row.get("tools", [])})
     row["toolMatch"] = called == sorted(set(row["expectedTools"]))
+    if row.get("expectedAction"):
+        row["remitCheck"] = remit_check(row)
 
 
 def percentile_95(values: list[float]) -> float:
@@ -464,7 +913,15 @@ def render_summary(
         "",
         f"- 대상: {conditions['target']}, 모드(--llm-mode): {conditions['mode']}",
         f"- 질문 세트: {(conditions.get('questionSet') or {}).get('file', '-')} "
-        f"({(conditions.get('questionSet') or {}).get('version', '-')})",
+        f"({(conditions.get('questionSet') or {}).get('version', '-')})"
+        + (
+            f", 질문 파일 {conditions['questionSet']['path']} "
+            f"(문항 {conditions['questionSet'].get('count')}개"
+            + (", 레포 밖 파일" if conditions["questionSet"].get("external") else "")
+            + ")"
+            if (conditions.get("questionSet") or {}).get("path")
+            else ""
+        ),
         f"- 시작: {conditions['startedAt']}, 상태: {conditions.get('status')}",
         f"- 문항 {len(conditions['questions'])}개, 반복 {conditions['repeats']}, "
         f"설정마다 워밍업 {conditions['warmup']}",
@@ -480,6 +937,9 @@ def render_summary(
     if conditions["target"] == "spring":
         out.append("- spring 대상은 지연만 기록(토큰은 ai 대상에서 잰다).")
         out.append("- spring 대상은 H 문항의 history 를 보내지 못한다(대화 기록은 MySQL 에 있음).")
+    if conditions.get("expectedToolsFrom"):
+        source = conditions["expectedToolsFrom"]
+        out.append(f"- 다시 채점: 기대 도구는 {source.get('file')} ({source.get('version')}) 기준")
     if conditions.get("error"):
         out.append(f"- 실패: {conditions['error']}")
     if conditions.get("unfinishedQuestions"):
@@ -569,11 +1029,112 @@ def render_summary(
                 f"{sum(u.get('outputTokens', 0) for u in usage) / n:.0f} | "
                 f"{sum(r.get('costUsd', 0) for r in q_rows) / n:.5f} |"
             )
+    out += remit_section(conditions, rows, answers=answers)
     if answers:
         out += judgment_section(conditions, rows)
     elif any(is_graded(r) and not r["warmup"] for r in rows):
         out += ["", "판단형 답변 전문은 요약 .md 파일에만 남긴다."]
     return "\n".join(out) + "\n"
+
+
+REMIT_OUTCOMES = {
+    "correct": "정답",
+    "missed_clarification": "놓친 재질의",
+    "unnecessary_question": "불필요한 재질의",
+    "wrong_guess": "잘못 추측",
+    "asked_other": "다른 항목을 물음",
+    "not_completed": "2턴에도 미완료",
+    "out_of_scope_proceeded": "범위 밖인데 진행",
+    "declined": "범위 밖 안내",
+    "error": "오류",
+    "unclear": "규칙으로 못 정함",
+}
+
+
+def _turn_cell(facts: dict[str, Any] | None) -> str:
+    if facts is None:
+        return "-"
+    if facts["proceeded"]:
+        quote = facts["quote"] or {}
+        amount = quote.get("amount")
+        detail = (
+            f"({quote.get('recipient')} {quote.get('currency')} {amount:,})"
+            if isinstance(amount, int)
+            else ""
+        )
+        return ("카드" if facts["card"] else "견적만") + detail
+    if facts["asked"]:
+        return "질문(" + (", ".join(facts["askedAbout"]) or "?") + ")"
+    return "답변"
+
+
+def _expected_cell(row: dict[str, Any]) -> str:
+    amount = row.get("expectedAmount")
+    slots = [
+        row.get("expectedRecipient") or "?",
+        row.get("expectedCurrency") or "?",
+        f"{amount:,}" if isinstance(amount, int) else "?",
+    ]
+    return f"{row['expectedAction']} ({', '.join(slots)})"
+
+
+def remit_section(
+    conditions: dict[str, Any], rows: list[dict[str, Any]], *, answers: bool
+) -> list[str]:
+    """송금 재질의 판정 집계와 문항별 표. answers=True(.md)일 때만 사람 확인 목록에 답변 전문."""
+    out: list[str] = []
+    for variant in conditions["variants"]:
+        mine = [r for r in measured_rows(rows, variant["name"]) if r.get("remitCheck")]
+        if not mine:
+            continue
+        checks = [r["remitCheck"] for r in mine]
+        counts = {key: sum(1 for c in checks if c["outcome"] == key) for key in REMIT_OUTCOMES}
+        turns = [c["turns"] for c in checks if c["outcome"] == "correct"]
+        review = [r for r in mine if r["remitCheck"]["needsReview"]]
+        out += [
+            "",
+            f"## 송금 재질의: {variant['name']}",
+            "",
+            "- 판정: "
+            + ", ".join(f"{label} {counts[k]}" for k, label in REMIT_OUTCOMES.items() if counts[k]),
+            f"- 정답의 완료 턴: 1턴 {turns.count(1)}, 2턴 {turns.count(2)}",
+            f"- 근거 없는 숫자가 있는 문항: "
+            f"{sum(1 for r in mine if r.get('numberCheck', {}).get('unsupported'))}/{len(mine)}",
+            f"- 사람 확인: {len(review)}/{len(mine)}",
+            "",
+            "| 문항 | 회차 | 기대 | 1턴 | 2턴 | 판정 | 완료 턴 | 추측 오류 | 근거 없는 숫자 | "
+            "사람 확인 |",
+            "|---|---|---|---|---|---|---|---|---|---|",
+        ]
+        for r in mine:
+            check = r["remitCheck"]
+            out.append(
+                f"| {r['questionId']} | {r['repeat']} | {_expected_cell(r)} | "
+                f"{_turn_cell(check['first'])} | {_turn_cell(check['second'])} | "
+                f"{REMIT_OUTCOMES[check['outcome']]} | {check['turns'] or '-'} | "
+                f"{', '.join(check['guessErrors']) or '-'} | "
+                f"{_cell(', '.join(r['numberCheck']['unsupported'])) or '-'} | "
+                f"{_cell(check['reason']) if check['needsReview'] else '-'} |"
+            )
+        if review and answers:
+            out += [
+                "",
+                f"### 사람 확인 목록: {variant['name']}",
+                "",
+                "| 문항 | 회차 | 이유 | 질문 | 1턴 답변 | 2턴(답) | 2턴 답변 |",
+                "|---|---|---|---|---|---|---|",
+            ]
+            for r in review:
+                follow = r.get("followUp") or {}
+                out.append(
+                    f"| {r['questionId']} | {r['repeat']} | {_cell(r['remitCheck']['reason'])} | "
+                    f"{_cell(r['contextTexts'][0])} | {_cell(r.get('answer') or '')} | "
+                    f"{_cell(r.get('followUpReply') or '-') if follow else '-'} | "
+                    f"{_cell(follow.get('answer') or '-')} |"
+                )
+        elif review:
+            out += ["", "사람 확인 목록(답변 전문)은 요약 .md 파일에만 남긴다."]
+    return out
 
 
 HOLDOUT_SOURCE = "holdout_v1"
@@ -715,9 +1276,22 @@ def main(
     parser.add_argument("--variants", type=Path, default=None)
     parser.add_argument("--questions", default=None, help="comma-separated ids, e.g. F01,F03")
     parser.add_argument("--subset", choices=["latency"], default=None)
+    parser.add_argument(
+        "--question-set",
+        choices=sorted(QUESTION_SETS),
+        default="eval",
+        help="eval: eval_questions_v1.json, remit: remit_questions_v1.json (prompt v3)",
+    )
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--warmup", type=int, default=0, help="calls per variant, not summarized")
     parser.add_argument("--output", type=Path, default=None, help="JSONL path (required)")
+    parser.add_argument(
+        "--remit-questions",
+        type=Path,
+        default=None,
+        help="remit question file (same schema as remit_questions_v1.json, may be outside the "
+        "repo); implies --question-set remit",
+    )
     parser.add_argument("--max-usd", type=float, default=1.0)
     parser.add_argument("--rescore", type=Path, default=None, help="re-score a saved JSONL")
     parser.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
@@ -731,9 +1305,12 @@ def main(
 
     if args.rescore is not None:
         saved_conditions, saved_rows = read_jsonl(args.rescore)
+        refreshed = refresh_expected_tools(saved_conditions, saved_rows)
         for saved in saved_rows:
             score(saved)
         saved_conditions["rescoredFrom"] = str(args.rescore)
+        if refreshed:
+            saved_conditions["expectedToolsFrom"] = refreshed
         write_jsonl(args.output, saved_conditions, saved_rows)
         print(f"rescored {len(saved_rows)} calls -> {args.output} (+ .md)")
         return EXIT_OK
@@ -750,8 +1327,22 @@ def main(
     if args.target == "ai" and not settings.internal_token_configured():
         print("BLOCKED: AI_INTERNAL_API_TOKEN is not configured")
         return EXIT_BLOCKED
-    spec = load_questions()
+    external = args.remit_questions is not None
+    remit = args.question_set == "remit" or external
+    if remit and args.subset:
+        parser.error("--subset works with --question-set eval only")
+    question_file = args.remit_questions if external else QUESTION_SETS[args.question_set]
+    try:
+        spec = load_questions(question_file)
+    except (OSError, ValueError) as exc:
+        parser.error(f"cannot read {question_file}: {type(exc).__name__}")
+    if remit:
+        errors = remit_spec_errors(spec)
+        if errors:
+            parser.error(f"{question_file}: " + "; ".join(errors[:5]))
     questions = select_questions(spec, args.questions, args.subset, parser)
+    if remit:
+        questions = [remit_question(q) for q in questions]
     try:
         variants = load_variants(args.variants, settings)
     except (ValueError, OSError) as exc:
@@ -763,9 +1354,13 @@ def main(
 
     total_calls = len(variants) * (args.warmup + len(questions) * args.repeats)
     estimates = {v["name"]: estimate_call_usd(v["model"], v["maxTokens"], fake) for v in variants}
-    planned_max = sum(
-        estimates[v["name"]] * (args.warmup + len(questions) * args.repeats) for v in variants
-    )
+
+    def turns_of(question: dict[str, Any]) -> int:
+        # 애매한 송금 문항은 2턴까지 간다(예산은 2턴으로 잡는다).
+        return 2 if question.get("followUpReply") else 1
+
+    planned_turns = sum(turns_of(q) for q in questions) * args.repeats
+    planned_max = sum(estimates[v["name"]] * (args.warmup + planned_turns) for v in variants)
     print(f"llm-mode={args.llm_mode} target={args.target} base={base_url}")
     for v in variants:
         print(
@@ -776,7 +1371,9 @@ def main(
         )
     print(
         f"총 {total_calls}회 호출(설정 {len(variants)} × (워밍업 {args.warmup} + 문항 "
-        f"{len(questions)} × 반복 {args.repeats})), 예상 최대 ${planned_max:.4f} "
+        f"{len(questions)} × 반복 {args.repeats}))"
+        + (f", 2턴 포함 최대 {len(variants) * (args.warmup + planned_turns)}턴" if remit else "")
+        + f", 예상 최대 ${planned_max:.4f} "
         f"(호출당 LLM {EST_LLM_CALLS}회·출력 maxTokens 가정), 상한 ${args.max_usd}",
         flush=True,
     )
@@ -793,6 +1390,11 @@ def main(
         return EXIT_OK
 
     context = tool_context(settings, args.user_id, args.llm_mode)
+    # 송금 도구가 붙는 버전(v3)을 재면 기존 문항 세트에서도 송금 도구 데이터를 남긴다(숫자 근거).
+    uses_remittance = remit or any(
+        v.get("promptVersion") in REMITTANCE_PROMPT_VERSIONS for v in variants
+    )
+    remit_ctx = remit_context(settings, args.user_id, args.llm_mode) if uses_remittance else None
     matches_fixture = context == fixture_context()
     if not matches_fixture:
         print("WARN: " + FIXTURE_WARNING[len("- 주의: ") :], flush=True)
@@ -802,7 +1404,13 @@ def main(
         "baseUrl": base_url,
         "userId": args.user_id,
         "variants": [{k: v for k, v in variant.items() if k != "override"} for variant in variants],
-        "questionSet": {"file": QUESTIONS.name, "version": spec.get("version")},
+        "questionSet": {
+            "file": question_file.name,
+            "version": spec.get("version"),
+            "path": str(question_file.resolve()),
+            "count": len(spec["questions"]),
+            "external": external,
+        },
         "questions": [q["id"] for q in questions],
         "repeats": args.repeats,
         "warmup": args.warmup,
@@ -845,7 +1453,9 @@ def main(
     try:
         for variant, question, repeat, warmup in schedule:
             spent = sum(r.get("costUsd", 0) for r in rows)
-            next_cost = observed.get(variant["name"], estimates[variant["name"]])
+            # 관측값은 한 행(2턴이면 두 턴 합) 비용의 최댓값이라 턴 수를 곱하면 넉넉하게 잡힌다.
+            per_turn = observed.get(variant["name"], estimates[variant["name"]])
+            next_cost = per_turn * turns_of(question)
             if spent + next_cost > args.max_usd:
                 print(f"budget stop: spent ${spent:.4f} + next ~${next_cost:.4f} > ${args.max_usd}")
                 conditions["unfinishedQuestions"] = unfinished()
@@ -863,6 +1473,16 @@ def main(
             model = answered_by or (metrics or {}).get("config", {}).get("model")
             usage = run_usage(done, metrics)
             prompt_version = row_prompt_version(variant, done, metrics)
+            answer = "".join(result["deltas"])
+            follow_up = None
+            if remit and question.get("followUpReply") and result.get("status") == "done":
+                first_quoted = any(
+                    t.get("toolName") == QUOTE_REMITTANCE for t in result["tools"]
+                ) or any(b.get("type") == "REMITTANCE_CONFIRM" for b in done.get("blocks") or [])
+                if not first_quoted:
+                    follow_up = run_follow_up(
+                        http, base_url, token, question, answer, variant, args.user_id
+                    )
             row: dict[str, Any] = {
                 "variant": variant["name"],
                 "questionId": question["id"],
@@ -879,9 +1499,12 @@ def main(
                 "usage": usage,
                 "metrics": metrics,
                 "model": model,
-                "costUsd": round(cost_usd(usage, model), 6),
+                "costUsd": round(
+                    cost_usd(usage, model) + (follow_up["costUsd"] if follow_up else 0), 6
+                ),
                 "tools": result["tools"],
-                "answer": "".join(result["deltas"]),
+                "answer": answer,
+                "blocks": done.get("blocks"),
                 "deltaTimesMs": result["deltaMs"],
                 # 기대 도구는 프롬프트 버전마다 다를 수 있다(byPromptVersion).
                 "promptVersion": prompt_version,
@@ -900,8 +1523,22 @@ def main(
                 "contextTexts": [
                     question["text"],
                     *(h["content"] for h in question.get("history", [])),
+                    *([question["followUpReply"]] if question.get("followUpReply") else []),
                 ],
             }
+            if remit:
+                row.update(
+                    {
+                        key: question[key]
+                        for key in ("expectedAction", *REMIT_SLOTS, "followUpReply")
+                    }
+                )
+                row["followUp"] = follow_up
+                # 2턴 뒤 기대값은 고정 세트에만 있다(외부 질문 파일은 id가 겹쳐도 쓰지 않는다).
+                final = None if external else FOLLOW_UP_EXPECTED.get(question["id"])
+                row["followUpExpected"] = list(final) if final else None
+            if remit_ctx is not None:
+                row["remitContext"] = remit_ctx
             score(row)
             rows.append(row)
             if row["costUsd"] > 0:

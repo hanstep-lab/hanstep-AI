@@ -1,0 +1,33 @@
+{
+  "_comment": "테스트·fake 모드용 송금 값(specs/chat/remittance_contract_v1.md 응답 형식). 실제 사용자 데이터가 아니다.",
+  "recipients": [
+    {
+      "recipientId": 11,
+      "nameEn": "LORNA REYES",
+      "relationship": "MOTHER",
+      "countryCode": "PH",
+      "currency": "PHP",
+      "bankName": "BDO",
+      "accountLast4": "5566"
+    },
+    {
+      "recipientId": 12,
+      "nameEn": "MARK ANTHONY REYES",
+      "relationship": "SELF",
+      "countryCode": "PH",
+      "currency": "PHP",
+      "bankName": "BPI",
+      "accountLast4": "7788"
+    }
+  ],
+  "fxRates": [
+    {
+      "currency": "PHP",
+      "unit": 1,
+      "rate": 22.32,
+      "sourceLabel": "ECB 기준환율 기반 참고값",
+      "asOf": "2026-11-06",
+      "isMock": true
+    }
+  ]
+}

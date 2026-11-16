@@ -1,4 +1,4 @@
-"""Chat system prompt versions: v1 is unchanged, v1.1 differs in two lines, v2 adds visa rules."""
+"""Chat prompt versions: v1 unchanged, v1.1 two lines, v2 adds visa rules, v3 remittance rules."""
 
 from __future__ import annotations
 
@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from app.chat.prompts import PROMPT_VERSION, PROMPT_VERSIONS, _with_visa_rules, system_prompt
+from app.chat.prompts import (
+    PROMPT_VERSION,
+    PROMPT_VERSIONS,
+    _with_remittance_rules,
+    _with_visa_rules,
+    system_prompt,
+)
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import build_messages
 from app.core.config import Settings
@@ -45,7 +51,12 @@ def _settings(**overrides: object) -> Settings:
 def test_v1_unchanged_when_judgment_is_off() -> None:
     # The off setting (judgmentFacts false, v1) still sends the v1 prompt byte for byte.
     assert PROMPT_VERSION == "chat-v1"
-    assert PROMPT_VERSIONS == {"v1": "chat-v1", "v1.1": "chat-v1.1", "v2": "chat-v2"}
+    assert PROMPT_VERSIONS == {
+        "v1": "chat-v1",
+        "v1.1": "chat-v1.1",
+        "v2": "chat-v2",
+        "v3": "chat-v3",
+    }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
     assert system_prompt("ko") == system_prompt("ko", "v1")
@@ -87,6 +98,41 @@ def test_v2_is_v1_1_plus_visa_rules() -> None:
 def test_v2_fails_fast_when_v1_1_line_moves() -> None:
     with pytest.raises(ValueError, match="visa-unavailable line"):
         _with_visa_rules("Rules:\n- something else", "- visa")
+
+
+V2_REMITTANCE_MENU = (
+    "- Never send money. For remittances, guide the user to the overseas remittance menu."
+)
+V3_REMITTANCE_RULES = "- Never send money. For remittances, follow the remittance rules below."
+
+
+def test_v3_is_v2_plus_remittance_rules() -> None:
+    # v3는 v2 + remittance_rules.md. 바뀌는 v2 줄은 "송금 메뉴로 안내" 하나다.
+    v2 = system_prompt("en", "v2").splitlines()
+    v3 = system_prompt("en", "v3").splitlines()
+    rules = (PROMPTS / "remittance_rules.md").read_text(encoding="utf-8").splitlines()
+    assert V2_REMITTANCE_MENU in v2
+    expected = [V3_REMITTANCE_RULES if line == V2_REMITTANCE_MENU else line for line in v2]
+    assert v3 == [*expected, "", *rules]
+    # v1.1 숫자·판단 규칙과 v2 비자 규칙은 그대로 남는다.
+    assert V11_NUMBERS in v3 and V11_JUDGMENT in v3
+    assert any("calculate_e74_score" in line for line in v3)
+    text = " ".join(rules)
+    for phrase in (
+        "get_remittance_recipients",
+        "quote_remittance",
+        "ask about only one of them",
+        "confirmation card",
+        "You cannot skip the confirmation",
+        "did not ask to send money",
+        "Do not use bold",
+    ):
+        assert phrase in text, phrase
+
+
+def test_v3_fails_fast_when_v2_line_moves() -> None:
+    with pytest.raises(ValueError, match="remittance-menu line"):
+        _with_remittance_rules("Rules:\n- something else", "- remit")
 
 
 def test_v1_1_differs_only_in_two_lines() -> None:

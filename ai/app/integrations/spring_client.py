@@ -162,12 +162,18 @@ class SpringInternalClient:
             raise SpringApiError(response.status_code, code, message)
         raise SpringApiError(0, "RETRY_EXHAUSTED", path)  # pragma: no cover
 
-    def _get(self, path: str, request_id: str | None, timeout: float) -> Any:
+    def _get(
+        self,
+        path: str,
+        request_id: str | None,
+        timeout: float,
+        params: dict[str, str | int] | None = None,
+    ) -> Any:
         """One GET, no retry: callers (chat tools) have their own short time budget."""
         headers = dict(self._headers)
         if request_id:
             headers["X-Request-Id"] = request_id
-        response = self._client.get(path, headers=headers, timeout=timeout)
+        response = self._client.get(path, headers=headers, timeout=timeout, params=params)
         if response.is_success:
             return response.json()
         code = "HTTP_ERROR"
@@ -182,6 +188,50 @@ class SpringInternalClient:
         self, user_id: int, *, timeout: float, request_id: str | None = None
     ) -> dict[str, Any]:
         body = self._get(f"/internal/v1/ai-context/users/{user_id}/finance", request_id, timeout)
+        if not isinstance(body, dict):
+            raise SpringApiError(200, "INVALID_BODY", "")
+        return body
+
+    # 채팅 송금 도구(specs/chat/remittance_contract_v1.md). 재시도하지 않는다.
+    # httpx.TimeoutException(시간 초과), SpringApiError(2xx가 아님)를 그대로 올린다.
+    def remittance_recipients(
+        self, user_id: int, *, timeout: float, request_id: str | None = None
+    ) -> dict[str, Any]:
+        path = f"/internal/v1/ai-context/users/{user_id}/remittance-recipients"
+        return self._get_object(path, request_id, timeout)
+
+    def fx_rate(
+        self, currency: str, *, timeout: float, request_id: str | None = None
+    ) -> dict[str, Any]:
+        path = "/internal/v1/ai-context/fx-rates"
+        return self._get_object(path, request_id, timeout, {"currency": currency})
+
+    def remittance_quote(
+        self,
+        user_id: int,
+        *,
+        recipient_id: int,
+        amount: int,
+        currency: str,
+        timeout: float,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        path = f"/internal/v1/ai-context/users/{user_id}/remittance-quote"
+        params: dict[str, str | int] = {
+            "recipientId": recipient_id,
+            "amount": amount,
+            "currency": currency,
+        }
+        return self._get_object(path, request_id, timeout, params)
+
+    def _get_object(
+        self,
+        path: str,
+        request_id: str | None,
+        timeout: float,
+        params: dict[str, str | int] | None = None,
+    ) -> dict[str, Any]:
+        body = self._get(path, request_id, timeout, params)
         if not isinstance(body, dict):
             raise SpringApiError(200, "INVALID_BODY", "")
         return body

@@ -16,6 +16,12 @@ from langchain_core.language_models import BaseChatModel
 
 from app.api.errors import ApiError, request_id
 from app.chat.fake_llm import FAKE_MODEL_ID, FakeChatModel
+from app.chat.remittance_tools import (
+    FixtureRemittanceSource,
+    RemittanceSource,
+    RemittanceTools,
+    SpringRemittanceSource,
+)
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import ChatRunOptions, run_chat
 from app.chat.tools import (
@@ -41,7 +47,9 @@ router = APIRouter(prefix="/agent/chat", tags=["chat"])
 
 # 비자 도구(정책 검색·E-7-4 점수)를 설명하는 프롬프트 버전. 이 버전에서만 비자 도구를 붙인다.
 # v1·v1.1은 금융 도구만 붙어서 그 버전으로 잰 측정 조건이 그대로 남는다.
-VISA_PROMPT_VERSIONS = frozenset({"v2"})
+VISA_PROMPT_VERSIONS = frozenset({"v2", "v3"})
+# 송금 조회 도구(받는 분·환율·견적)를 설명하는 프롬프트 버전. v1~v2의 도구 구성은 그대로다.
+REMITTANCE_PROMPT_VERSIONS = frozenset({"v3"})
 
 
 @dataclass(frozen=True)
@@ -108,6 +116,14 @@ def finance_source(request: Request) -> FinanceContextSource:
     return FixtureFinanceContext()
 
 
+def remittance_source(request: Request) -> RemittanceSource:
+    """송금 받는 분·환율·견적. fake 모드이거나 Spring 설정이 없으면 데모 fixture."""
+    settings: Settings = request.app.state.rag.settings
+    if settings.chat_llm_mode == "anthropic" and settings.spring_configured():
+        return SpringRemittanceSource(_chat_spring(request), settings.chat_tool_timeout_seconds)
+    return FixtureRemittanceSource()
+
+
 def e74_source(request: Request) -> E74AssessmentSource | None:
     """E-7-4 점수는 Spring이 MySQL 프로필로 계산·저장한다. 설정이 없으면 None(도구가 FAILED)."""
     settings: Settings = request.app.state.rag.settings
@@ -140,6 +156,7 @@ async def chat_stream(
     source: Annotated[FinanceContextSource, Depends(finance_source)],
     e74: Annotated[E74AssessmentSource | None, Depends(e74_source)],
     search: Annotated[PolicySearchSource | None, Depends(policy_search)],
+    remittance: Annotated[RemittanceSource, Depends(remittance_source)],
     x_chat_metrics: Annotated[str | None, Header()] = None,
 ) -> AsyncIterator[ServerSentEvent]:
     settings: Settings = request.app.state.rag.settings
@@ -161,6 +178,16 @@ async def chat_stream(
             VisaTools(
                 e74_source=e74,
                 search_source=search,
+                user_id=body.user_id,
+                request_id=rid,
+                timeout=settings.chat_tool_timeout_seconds,
+            )
+        )
+    # 송금 조회 도구도 그 도구를 설명하는 프롬프트 버전(v3)에서만 붙인다. 송금은 실행하지 않는다.
+    if setup.config.prompt_version in REMITTANCE_PROMPT_VERSIONS:
+        tools.append(
+            RemittanceTools(
+                remittance,
                 user_id=body.user_id,
                 request_id=rid,
                 timeout=settings.chat_tool_timeout_seconds,
