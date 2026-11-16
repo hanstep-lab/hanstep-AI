@@ -1,0 +1,314 @@
+{
+  "model_version": "alt-credit-v9",
+  "source": {
+    "file": "models/alt_credit/v9_source.py",
+    "sha256": "ea963b9d7f760c4d050afeb1d3d8affaaf2a2a81b44bc248b8a7bba43b6ea731"
+  },
+  "features": [
+    "tel_late_6m",
+    "remit_ratio",
+    "stay_duration_months",
+    "remit_regularity",
+    "util_late_6m"
+  ],
+  "coef": [
+    0.44310785110872075,
+    2.367619725501124,
+    -0.007218874952794529,
+    -0.5231701617009722,
+    0.11356813273477162
+  ],
+  "intercept": -1.7287866486614576,
+  "score_scale": {
+    "offset": 552.0987991320906,
+    "factor": 58.24805229309855
+  },
+  "remit_regularity_neutral": 4.825236752692836,
+  "assumptions": {
+    "LOAN_DELINQ_LATEST": {
+      "value": 0.0091,
+      "basis": "[출처] 금감원 2026.8말 국내은행 '신용대출 등 주담대 제외 가계대출' 연체율 0.91%"
+    },
+    "FOREIGN_MULTIPLIER": {
+      "value": 4.2,
+      "basis": "[출처·추정] 전북은행 외국인대출 연체율 3%↑(뉴데일리 2024.11) ÷ 같은 시점 2024.6말 신용대출 등 가계대출 연체율 0.71%(금감원)"
+    },
+    "REMIT_NONE_SHARE": {
+      "value": 0.3,
+      "basis": "[가정] 해외송금을 하지 않는 소득자 비율 → 이민자체류실태조사 송금 통계로 교체 예정"
+    },
+    "REMIT_MEAN": {
+      "value": 0.3,
+      "basis": "[가정] 송금자의 소득 대비 평균 송금 비율"
+    },
+    "REMIT_CONC": {
+      "value": 6.0,
+      "basis": "[가정] 송금 비율 분포의 집중도(베타분포, 클수록 평균 근처에 몰림)"
+    },
+    "REMIT_MAX": {
+      "value": 0.8,
+      "basis": "[가정] 송금 비율 상한"
+    },
+    "REMIT_REG_MEAN": {
+      "value": 0.8,
+      "basis": "[가정] 송금자가 한 달에 송금할 평균 확률 (최근 6개월 송금 개월 수 = 이항분포)"
+    },
+    "REMIT_REG_CONC": {
+      "value": 4.0,
+      "basis": "[가정] 송금 규칙성의 개인차 (베타분포 집중도)"
+    },
+    "UTIL_LONG_SHARE": {
+      "value": 0.043,
+      "basis": "[출처] 외국인 건보 지역가입자 6개월 이상 체납 34,349세대 ÷ 79만9281명 (2025, 건보공단→국회)"
+    },
+    "UTIL_INTERMIT_SHARE": {
+      "value": 0.1,
+      "basis": "[가정] 건보·공과금 간헐 연체자 비율"
+    },
+    "TEL_LONG_SHARE": {
+      "value": 0.043,
+      "basis": "[가정] 통신비 6개월 연속 연체 비율 — 외국인 통계 없음, 건보와 동일 가정"
+    },
+    "TEL_INTERMIT_SHARE": {
+      "value": 0.1,
+      "basis": "[가정] 통신비 간헐 연체자 비율"
+    },
+    "INTERMIT_MONTHLY_P": {
+      "value": 0.3,
+      "basis": "[가정] 간헐 연체자가 한 달에 연체할 확률"
+    },
+    "W_REPAY": {
+      "value": 28.4,
+      "basis": "[출처] NICE 상환이력 활용비중 → 통신비 연체"
+    },
+    "W_DEBT": {
+      "value": 24.5,
+      "basis": "[출처] NICE 부채수준 활용비중 → 소득 대비 해외송금 비율"
+    },
+    "W_PATTERN": {
+      "value": 27.5,
+      "basis": "[출처] NICE 신용형태 활용비중 → 해외송금 규칙성"
+    },
+    "W_TENURE": {
+      "value": 12.3,
+      "basis": "[출처] NICE 신용거래기간 활용비중 → 누적 체류기간"
+    },
+    "W_NONFIN": {
+      "value": 7.3,
+      "basis": "[출처] NICE 비금융/마이데이터 활용비중 → 건보·공과금 연체"
+    },
+    "TARGET_AR": {
+      "value": 0.57,
+      "basis": "[출처] JB금융 Investor Day 2026 p.13: CB사 외국인 등급 AR 55.2~58.6% 중간값"
+    },
+    "SCORE_SCALE_SOURCE": {
+      "value": "NICE 신용평점별 장기연체가능성",
+      "basis": "[출처] NICE평가정보 신용등급체계공시(cb_score_3): 누적 구간별 '향후 1년 내 3개월 이상 연체 등록' 비율과 구간별 인원(2025.12)으로 점수대별 불량률을 역산 → 점수 = offset + factor × ln(정상/불량) 을 최소제곱으로 적합. 500점 이하는 누적값 반올림·시점 차이로 역산값이 100%를 넘어 제외"
+    },
+    "SCORE_TOP_MID": {
+      "value": 950,
+      "basis": "[가정] 900~1000점 구간의 대표점수(중간값)"
+    },
+    "BASE_RATE": {
+      "value": 0.0383,
+      "basis": "[출처] 신한은행 SOL 글로벌론 금리안내: 기준금리 금융채(6개월) 3.83% (2026.11.11). 변동금리·6개월 주기"
+    },
+    "BASE_RATE_DATE": {
+      "value": "2026-11-11",
+      "basis": "[기준일] 기준금리·공시 가산금리 적용일 (같은 날짜 공시끼리 사용)"
+    },
+    "DISCLOSED_SPREAD": {
+      "value": 0.0912,
+      "basis": "[출처] 신한은행 SOL 글로벌론 금리안내: 가산금리 9.12% (2026.11.11, 2천만원·36개월·원금분할·건별 가정)"
+    },
+    "DISCLOSED_RATE_MIN": {
+      "value": 0.1014,
+      "basis": "[출처] SOL 글로벌론 공시 최저금리 10.14% (우대 2.8% 최대 적용, 웰컴우대 포함)"
+    },
+    "DISCLOSED_RATE_MAX": {
+      "value": 0.1295,
+      "basis": "[출처] SOL 글로벌론 공시 최고금리 12.95% (우대 미적용)"
+    },
+    "LGD": {
+      "value": 0.45,
+      "basis": "[출처] 바젤 기초IRB 선순위 무담보 LGD 45% (내국인 기준). 한계: 외국인 건보료 결손처분의 95.9%가 장기출국(건보공단 2023~25) → 외국인 실제 LGD는 더 높을 수 있음"
+    },
+    "HURDLE_RATE": {
+      "value": 0.1,
+      "basis": "[가정] 자기자본비용(목표 ROE) → 신한금융 밸류업 공시 목표 ROE로 교체 예정"
+    },
+    "OTHER_SPREAD": {
+      "value": 0.073547,
+      "basis": "[역산·고정] 기타 가산(업무원가·유동성프리미엄·목표이익률) = V8에서 'SOL 승인자 평균 가산금리 = 공시 9.12%'로 역산한 7.35%. V9은 SOL보다 위험한 씬파일러를 받으므로 다시 역산하지 않고 고정 → 평균 가산금리가 위험만큼 9.12%보다 높게 나옴"
+    },
+    "PREF_SALARY": {
+      "value": 0.01,
+      "basis": "[출처] SOL 글로벌론 거래실적 우대: 급여이체 연 1.0% → V9: 신한 급여이체자만 적용 (가입 요건이 아니라 우대 조건)"
+    },
+    "PREF_TXN_MAX": {
+      "value": 0.015,
+      "basis": "[출처] SOL 글로벌론 거래실적 우대금리 최고 연 1.5% (급여이체+청약)"
+    },
+    "SHINHAN_PAYROLL_SHARE": {
+      "value": 0.5,
+      "basis": "[가정] 대출 대상 중 신한은행 급여이체자 비율 (타행·마이데이터 급여 확인자도 가입 가능)"
+    },
+    "PREF_SUBSCRIPTION": {
+      "value": 0.005,
+      "basis": "[출처] SOL 글로벌론 거래실적 우대: 청약 저축 유지 시 연 0.5%"
+    },
+    "PREF_REFINANCE": {
+      "value": 0.003,
+      "basis": "[출처] SOL 글로벌론 다른 금융기관 대출 대환 시 연 0.3% (대면 채널)"
+    },
+    "PREF_WELCOME": {
+      "value": 0.01,
+      "basis": "[출처] SOL 글로벌론 웰컴우대 연 1.0% ('26.12.31까지 한시)"
+    },
+    "USE_WELCOME": {
+      "value": false,
+      "basis": "[설정] 웰컴우대는 한시 이벤트라 기본 모델에서 제외 (True로 바꾸면 적용)"
+    },
+    "PREF_MAX": {
+      "value": 0.028,
+      "basis": "[출처] SOL 글로벌론 상품우대금리 최대 2.8%"
+    },
+    "SUBSCRIPTION_SHARE": {
+      "value": 0.1,
+      "basis": "[가정] 청약저축 보유 비율"
+    },
+    "REFINANCE_SHARE": {
+      "value": 0.05,
+      "basis": "[가정] 타 금융기관 대출 대환 신청 비율"
+    },
+    "MAX_LEGAL_RATE": {
+      "value": 0.2,
+      "basis": "[출처] 법정 최고금리 연 20%"
+    },
+    "TURNOVER_RATE": {
+      "value": 0.191,
+      "basis": "[가정] 최소한도용 보수적 소득 감액률. 이민자체류실태조사 1년 이내 이직률 19.1%를 참고한 값이며 실제 소득 감소율은 아님"
+    },
+    "PAYMENT_RATIO": {
+      "value": 0.4,
+      "basis": "[출처] SOL 글로벌론 한도: 월소득×40%×대출개월수, 차주별 DSR 40% → 모델은 첫 달 상환액 기준 '간이 DSR'(일반 DSR은 연간 원리금/연소득)"
+    },
+    "PRODUCT_MAX": {
+      "value": 30000000,
+      "basis": "[상품] 신한걸음 대안신용론(가칭) 최대 한도 3천만원 (SOL 글로벌론 5천만원보다 낮춤: 씬파일러 정보 부족·위험 반영)"
+    },
+    "INCOME_CAP_RATIO": {
+      "value": 0.8,
+      "basis": "[출처] SOL 글로벌론 한도: 연소득×80% (6·27 대책 '연소득 이내'보다 엄격)"
+    },
+    "EXISTING_DEBT_DEFAULT": {
+      "value": 0,
+      "basis": "[가정] 데모에서는 기존 대출 0원. 실제 운영 시 신용정보원 조회로 잔액·월상환액 차감"
+    },
+    "LIMIT_UNIT": {
+      "value": 100000,
+      "basis": "[설정] 한도 10만원 단위 절사"
+    },
+    "MAX_TERM": {
+      "value": 36,
+      "basis": "[출처] SOL 글로벌론 최장 36개월 (동일)"
+    },
+    "MIN_REMAINING": {
+      "value": 6,
+      "basis": "[상품] 체류 만료 6개월 초과 요건 (SOL 글로벌론과 동일)"
+    },
+    "TERM_BEFORE_EXPIRY": {
+      "value": 1,
+      "basis": "[상품] 대출 만기일은 체류기간 만료일 전월까지 → 대출기간 = min(36, 남은 체류 개월 − 1)"
+    },
+    "MIN_SALARY_MONTHS": {
+      "value": 3,
+      "basis": "[상품] 최근 3개월 이상 연속 급여 입금 (신한 급여이체 또는 마이데이터 타행 급여)"
+    },
+    "STUDENT_INCOME_RANGE": {
+      "value": [
+        50,
+        150
+      ],
+      "basis": "[가정] 유학생 소득은 시간제 아르바이트 수준 월 50~150만원 균등분포"
+    },
+    "STUDENT_PERMIT_SHARE": {
+      "value": 0.85,
+      "basis": "[가정] 소득이 있는 유학생 중 시간제취업 허가 보유 비율 (나머지는 근로 불가로 대상 아님)"
+    },
+    "OTHER_PERMIT_SHARE": {
+      "value": 0.9,
+      "basis": "[가정] '기타' 체류자격 소득자 중 취업 가능 자격 보유 비율"
+    },
+    "SHORT_SALARY_SHARE": {
+      "value": 0.1,
+      "basis": "[가정] 급여 입금 연속 개월 수가 3개월 미만(1~2개월)인 소득자 비율"
+    },
+    "STUDENT_SHORT_SALARY_SHARE": {
+      "value": 0.2,
+      "basis": "[가정] 유학생의 급여 입금 3개월 미만 비율 (시간제라 불규칙)"
+    },
+    "STRESS_RATE_ADD": {
+      "value": 0.015,
+      "basis": "[가정] 최소한도용 금리 상승 가산 (변동금리 6개월 재산정 위험, 스트레스 DSR 개념 차용)"
+    },
+    "RENEWAL_CYCLE": {
+      "value": 36,
+      "basis": "[가정] 갱신형 비자(E-7·F-4·F-6) 허가 주기"
+    },
+    "BENCH_AVG_LOAN": {
+      "value": 11630000,
+      "basis": "[출처] JB 외국인대출 1조473억 ÷ 9만명 (Investor Day 2026 p.6)"
+    },
+    "BENCH_RATE_MIN": {
+      "value": 0.1017,
+      "basis": "[출처] JB 브라보코리아 금리 하단"
+    },
+    "BENCH_RATE_MAX": {
+      "value": 0.179,
+      "basis": "[출처] JB 브라보코리아 금리 상단"
+    }
+  },
+  "training": {
+    "population_size": 60000,
+    "population_seed": 7,
+    "earners": 39658,
+    "remitters": 27666,
+    "n_train": 27760,
+    "n_test": 11898,
+    "fit_seed": 11,
+    "target_bad_rate": 0.038220000000000004,
+    "target_ar": 0.57,
+    "coef_scale": 2.0455726981163025,
+    "true_pd_intercept": -3.7917606368298293,
+    "auc": 0.7850964313316672,
+    "ar": 0.5701928626633344,
+    "ks": 0.44428812895612785,
+    "test_bad_rate": 0.037737434863002184,
+    "test_mean_pred_pd": 0.03714990934746239,
+    "logistic_regression": {
+      "C": 1.0,
+      "class_weight": null,
+      "dual": false,
+      "fit_intercept": true,
+      "intercept_scaling": 1,
+      "l1_ratio": 0.0,
+      "max_iter": 2000,
+      "n_jobs": null,
+      "penalty": "deprecated",
+      "random_state": null,
+      "solver": "lbfgs",
+      "tol": 0.0001,
+      "verbose": 0,
+      "warm_start": false
+    },
+    "versions": {
+      "python": "3.11.18",
+      "numpy": "2.4.6",
+      "pandas": "3.1.1",
+      "scipy": "1.17.1",
+      "scikit-learn": "1.9.1"
+    },
+    "generated_at": "2026-11-16T03:02:33+00:00"
+  }
+}
