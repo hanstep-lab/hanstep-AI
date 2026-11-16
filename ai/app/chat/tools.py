@@ -86,6 +86,8 @@ class ToolOutcome:
     sources: list[dict[str, Any]] = field(default_factory=list)
     # 화면 카드(agent.done의 blocks → chat_messages.blocks_json). 숫자는 도구 결과에서만 채운다.
     blocks: list[dict[str, Any]] = field(default_factory=list)
+    # 측정 전용 값(agent.metrics의 tools). 계약 이벤트(agent.tool_call)에는 싣지 않는다.
+    measurement: dict[str, Any] | None = None
 
 
 class ChatTool(Protocol):

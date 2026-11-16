@@ -7,6 +7,7 @@ import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
@@ -18,6 +19,7 @@ from app.core.config import Settings, configure_logging, get_settings
 from app.integrations.policy_gateway import PolicyDocumentGateway, UnconfiguredPolicyGateway
 from app.integrations.spring_client import SpringInternalClient
 from app.integrations.spring_policy_gateway import SpringPolicyGateway
+from app.products.search import ProductSearch
 from app.rag.embeddings import BgeM3Embedder
 from app.visa.roadmap.service import StepWriter
 from app.visa.roadmap.text import LlmStepWriter
@@ -40,6 +42,8 @@ class AppState:
     model_status: str = "not_loaded"
     # 로드맵 단계 문장 LLM. None이면 템플릿 문장만 쓴다.
     roadmap_writer: StepWriter | None = None
+    # 상품 추천 도구의 순서 B(상품설명서 검색). None이면 조건표 순서(A).
+    product_search: ProductSearch | None = None
 
 
 def _load_model(state: AppState) -> None:
@@ -53,6 +57,25 @@ def _load_model(state: AppState) -> None:
         logger.exception("embedding model failed to load")
         return
     state.model_status = "loaded"
+    _build_product_search(state)
+
+
+def _build_product_search(state: AppState) -> None:
+    """PRODUCT_CORPUS_DIR가 있으면 상품설명서 검색을 만든다. 실패하면 도구가 조건표 순서를 쓴다."""
+    settings = state.settings
+    if not settings.product_corpus_dir:
+        return
+    try:
+        state.product_search = ProductSearch.build(
+            Path(settings.product_corpus_dir),
+            state.embedder,
+            settings.rag_artifacts_dir / "embedding-cache",
+            settings.embedding_model,
+            settings.embedding_model_revision,
+        )
+    except Exception as exc:
+        state.errors["productSearch"] = type(exc).__name__
+        logger.exception("product search failed to build")
 
 
 def _roadmap_writer(settings: Settings) -> StepWriter | None:

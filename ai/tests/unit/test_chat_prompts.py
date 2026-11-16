@@ -1,4 +1,4 @@
-"""Chat prompt versions: v1 unchanged, v1.1 two lines, v2 adds visa rules, v3 remittance rules."""
+"""Chat prompt versions: v1 unchanged, v1.1 two lines, v2 visa, v3 remittance, v4 product rules."""
 
 from __future__ import annotations
 
@@ -8,10 +8,16 @@ from typing import get_args
 
 import pytest
 
-from app.api.routes.chat import REMITTANCE_PROMPT_VERSIONS, VISA_PROMPT_VERSIONS
+from app.api.routes.chat import (
+    PRODUCT_PROMPT_VERSIONS,
+    REMITTANCE_PROMPT_VERSIONS,
+    VISA_PROMPT_VERSIONS,
+)
+from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.prompts import (
     PROMPT_VERSION,
     PROMPT_VERSIONS,
+    _with_product_rules,
     _with_remittance_rules,
     _with_visa_rules,
     system_prompt,
@@ -63,6 +69,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v3": "chat-v3",
         "v3.1": "chat-v3.1",
         "v3.2": "chat-v3.2",
+        "v4": "chat-v4",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -205,6 +212,7 @@ PROMPT_SHA256 = {
     "v3": "81694ab609924880683ca239749d2068d355c35e0f13e42f0dcdbf9664f79a65",
     "v3.1": "80c7f20adb3219077541d060898ccc87572b79fbc47772775d5c4d901da86ec9",
     "v3.2": "e62f7dbb84c4eebfc244dfa294c722f6a8f615088c89e061f8d53a30ed36a8c7",
+    "v4": "fc0e4ef7e61eef927cd1485d3a6e6a1e0c38c770ea0d8cdc068a5c10f632ee32",
 }
 
 
@@ -227,3 +235,38 @@ def test_prompt_rules_and_attached_tools_agree() -> None:
         remittance = any(name in prompt for name in REMITTANCE_TOOL_NAMES)
         assert visa == (version in VISA_PROMPT_VERSIONS), version
         assert remittance == (version in REMITTANCE_PROMPT_VERSIONS), version
+        product = RECOMMEND_SAVINGS_PRODUCTS in prompt
+        assert product == (version in PRODUCT_PROMPT_VERSIONS), version
+
+
+V4_PRODUCTS = (
+    "- Recommend only savings and time deposit products, following the product rules below. "
+    "Other product recommendations (cards, loans, checking accounts) are not available in chat "
+    "yet. Say so briefly."
+)
+
+
+def test_v4_is_v3_plus_product_rules() -> None:
+    # v4는 v3 + product_rules.md. 바뀌는 v3 줄은 "상품 추천은 아직 안 됨" 하나다.
+    v3 = system_prompt("en", "v3").splitlines()
+    v4 = system_prompt("en", "v4").splitlines()
+    rules = (PROMPTS / "product_rules.md").read_text(encoding="utf-8").splitlines()
+    assert V2_PRODUCTS in v3
+    expected = [V4_PRODUCTS if line == V2_PRODUCTS else line for line in v3]
+    assert v4 == [*expected, "", *rules]
+    text = " ".join(rules)
+    for phrase in (
+        "recommend_savings_products",
+        "queryKo",
+        "REQUEST_EXCEEDS_SURPLUS",
+        "STAY_TOO_SHORT",
+        "NO_MATCHING_PRODUCT",
+        "Never state interest rates",
+        '"explicit"',
+    ):
+        assert phrase in text, phrase
+
+
+def test_v4_fails_fast_when_v3_line_moves() -> None:
+    with pytest.raises(ValueError, match="products line"):
+        _with_product_rules("Rules:\n- something else", "- products")

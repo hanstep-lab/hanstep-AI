@@ -13,6 +13,10 @@ Behaviour:
   currency and the amount from the user messages (later ones win), then either asks about the
   first unclear one (recipient, amount, currency) or calls quote_remittance and answers with the
   quote amounts. Keyword rules only (see _remittance_slots); good enough for scenario tests.
+- products (only when recommend_savings_products is bound, prompt v4): a question about savings,
+  deposits or products (not cards or loans) calls recommend_savings_products with keyword-read
+  conditions (see _product_args), then lists the returned product names or explains
+  abstainReason.
 
 Test-only triggers in the user message (documented here, two at most):
 - ``[fake-llm-error]``: raise an Anthropic connection error (-> LLM_UPSTREAM_ERROR).
@@ -36,6 +40,7 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_core.runnables import Runnable
 from pydantic import Field
 
+from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.remittance_tools import GET_REMITTANCE_RECIPIENTS, QUOTE_REMITTANCE
 from app.chat.tools import NO_ANALYSIS, TOOL_NAME, UNAVAILABLE
 
@@ -101,6 +106,51 @@ def _remittance_slots(texts: list[str]) -> dict[str, Any]:
         if mother or own:
             slots["recipient"] = None if mother and own else ("MOTHER" if mother else "SELF")
     return slots
+
+
+_PRODUCT_REQUEST = re.compile(r"\b(saving|savings|deposit|product|products)\b", re.IGNORECASE)
+_NOT_PRODUCT = re.compile(r"\b(card|loan|checking)\b", re.IGNORECASE)
+
+
+def _product_args(text: str) -> dict[str, Any]:
+    """Conditions for recommend_savings_products from one message (keyword rules only)."""
+    args: dict[str, Any] = {}
+    if re.search(r"\b(deposit|lump)", text, re.IGNORECASE):
+        args["productType"] = "DEPOSIT"
+    elif re.search(r"\bsaving", text, re.IGNORECASE):
+        args["productType"] = "SAVINGS"
+    term = re.search(r"(\d+)\s*months?\s*or\s*less|within\s*(\d+)\s*months?", text, re.IGNORECASE)
+    if term:
+        args["maxTermMonths"] = int(term.group(1) or term.group(2))
+    amount = re.search(r"(\d[\d,]*)\s*(k|thousand)?\s*(?:won|krw)", text, re.IGNORECASE)
+    if amount:
+        value = int(amount.group(1).replace(",", ""))
+        args["monthlyAmountKrw"] = value * 1000 if amount.group(2) else value
+    if re.search(r"whenever|any amount|flexible|freely", text, re.IGNORECASE):
+        args["accrual"] = "FLEXIBLE"
+    elif re.search(r"same (fixed )?amount|set monthly", text, re.IGNORECASE):
+        args["accrual"] = "FIXED"
+    if re.search(r"foreign", text, re.IGNORECASE):
+        args["requireForeignerExplicit"] = True
+    return args
+
+
+def _product_answer(result: str) -> str:
+    try:
+        data = json.loads(result)
+    except ValueError:
+        return "I could not load the product list right now. Please try again."
+    names = [p["name"] for p in data.get("products") or []]
+    if names:
+        return (
+            f"These products fit your conditions: {', '.join(names)}. Please confirm visa and "
+            "age conditions in the Shinhan app or at a branch."
+        )
+    reason = data.get("abstainReason")
+    return {
+        "REQUEST_EXCEEDS_SURPLUS": "That monthly amount is more than your monthly spare money.",
+        "STAY_TOO_SHORT": "The products that fit last longer than your remaining stay.",
+    }.get(reason or "", "No product fits these conditions.")
 
 
 def _tool_call_chunk(name: str, args: dict[str, Any], call_id: str) -> AIMessageChunk:
@@ -189,7 +239,9 @@ class FakeChatModel(BaseChatModel):
                 if self.emit_thinking
                 else []
             )
-            remittance = self._remittance_step(messages, tool_results)
+            remittance = self._remittance_step(messages, tool_results) or self._product_step(
+                question, tool_results
+            )
             if remittance is not None:
                 kind, value = remittance
                 if kind == "tool":
@@ -294,6 +346,19 @@ class FakeChatModel(BaseChatModel):
             "currency": slots["currency"],
         }
         return ("tool", (QUOTE_REMITTANCE, args))
+
+    def _product_step(
+        self, question: str, tool_results: list[ToolMessage]
+    ) -> tuple[str, Any] | None:
+        """("tool", ...) or ("text", ...) for a product question when the product tool is bound."""
+        if not self.tools_bound or RECOMMEND_SAVINGS_PRODUCTS not in self.bound_tool_names:
+            return None
+        if not _PRODUCT_REQUEST.search(question) or _NOT_PRODUCT.search(question):
+            return None
+        results = {m.name: str(m.content) for m in tool_results}
+        if RECOMMEND_SAVINGS_PRODUCTS in results:
+            return ("text", _product_answer(results[RECOMMEND_SAVINGS_PRODUCTS]))
+        return ("tool", (RECOMMEND_SAVINGS_PRODUCTS, _product_args(question)))
 
     @staticmethod
     def _final_chunk(stop_reason: str) -> ChatGenerationChunk:
