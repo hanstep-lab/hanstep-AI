@@ -24,6 +24,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY app ./app
 COPY scripts ./scripts
 COPY specs ./specs
+# 대안신용 서빙 모델(계수·가정 JSON). 원본 v9_source.py는 학습용이라 넣지 않는다.
+COPY models/alt_credit/alt_credit_v9.json ./models/alt_credit/alt_credit_v9.json
 
 RUN useradd --create-home --uid 10001 hanstep \
     && mkdir -p /models/huggingface \
