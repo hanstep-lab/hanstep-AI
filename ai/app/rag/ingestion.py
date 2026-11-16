@@ -1,5 +1,7 @@
-"""수동 문서 적재: preflight -> 추출 -> 청킹 -> (R2, MySQL 확인, 임베딩, upsert).
+"""문서 적재: preflight -> 추출 -> 청킹 -> (R2, MySQL 확인, 임베딩, upsert).
 
+스크립트(파일 경로, :func:`process_entry`)와 Worker(R2 원본, :func:`extract_bytes`)가
+청킹 통계(:func:`record_chunks`)와 저장(:func:`store_chunks`)을 같이 쓴다.
 새 청크는 항상 ``pending``/비활성 상태로 기록한다. 활성화는 MySQL 승인 뒤
 :mod:`app.rag.publication`에서만 일어난다.
 """
@@ -11,9 +13,11 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from pathlib import Path
+from time import monotonic
 from typing import Literal
 from zoneinfo import ZoneInfo
 
+from app.integrations.law_api import LawApiError, law_extraction_report, parse_law
 from app.integrations.policy_gateway import PolicyDocumentGateway
 from app.integrations.r2 import ObjectStore, object_key
 from app.integrations.spring_client import PolicyIngestedReport
@@ -23,8 +27,8 @@ from app.rag.errors import ContractBlockedError, RagError, ValidationFailedError
 from app.rag.extractors import ExtractionReport, extract, extract_derived
 from app.rag.manifest import SourceEntry, preflight
 from app.rag.repository import ChunkRepository, plan_version_write
-from app.rag.schemas import ChunkRecord, utc_now
-from app.rag.sources import inspect_file, resolve_inside
+from app.rag.schemas import ChunkRecord, SourceType, utc_now
+from app.rag.sources import inspect_file, resolve_inside, sniff_kind
 
 logger = logging.getLogger(__name__)
 SEOUL = ZoneInfo("Asia/Seoul")
@@ -55,6 +59,8 @@ class SourceResult:
     sample_chunks: list[dict[str, object]] = field(default_factory=list)
     # INT-13 전달 결과: "", "reported" 또는 "error: ..."
     spring_report: str = ""
+    # 저장 단계 시간(ms): embed_ms, store_ms(store_chunks가 채운다)
+    timings: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -137,6 +143,44 @@ def build_records(
     return records
 
 
+def extract_bytes(data: bytes, source_type: SourceType | None) -> ExtractionReport:
+    """원본 바이트를 형식에 맞는 추출기로 읽는다. 법령 API 응답(XML)은 법령 파서로 읽는다.
+
+    Worker가 R2에서 받은 원본을 읽을 때 쓴다(스크립트 적재는 파일 경로로 :func:`process_entry`).
+    """
+    kind = sniff_kind(data[:8])
+    if kind == "unknown" and source_type == "law":
+        try:
+            return law_extraction_report(parse_law(data))
+        except (LawApiError, ValidationFailedError) as exc:
+            return ExtractionReport("failed", "law-api-xml", reason=str(exc))
+    return extract(kind, data)
+
+
+def record_chunks(
+    result: SourceResult,
+    drafts: Sequence[ChunkDraft],
+    report: ExtractionReport,
+    deps: IngestionDeps,
+) -> None:
+    """청킹 결과 통계를 결과에 남긴다. 미리보기는 실행 보고서에만 들어간다(로그에 쓰지 않는다)."""
+    result.chunks = len(drafts)
+    result.max_chunk_tokens = max((d.token_count for d in drafts), default=0)
+    result.chunks_with_page = sum(1 for d in drafts if d.page_number is not None)
+    result.chunk_fingerprint = fingerprint(deps.chunker, report.extractor, deps.tokenizer_id)
+    result.sample_chunks = [
+        {
+            "chunk_index": d.chunk_index,
+            "page_number": d.page_number,
+            "section_title": d.section_title,
+            "tokens": d.token_count,
+            "repeated_table_header": d.repeated_table_header,
+            "preview": d.text[:120],
+        }
+        for d in drafts[:2]
+    ]
+
+
 def process_entry(
     entry: SourceEntry, root: Path, deps: IngestionDeps, *, apply: bool
 ) -> SourceResult:
@@ -158,21 +202,7 @@ def process_entry(
     except RagError as exc:
         result.status, result.reasons = "failed", [f"chunking failed: {exc}", *blockers]
         return result
-    result.chunks = len(drafts)
-    result.max_chunk_tokens = max((d.token_count for d in drafts), default=0)
-    result.chunks_with_page = sum(1 for d in drafts if d.page_number is not None)
-    result.chunk_fingerprint = fingerprint(deps.chunker, report.extractor, deps.tokenizer_id)
-    result.sample_chunks = [
-        {
-            "chunk_index": d.chunk_index,
-            "page_number": d.page_number,
-            "section_title": d.section_title,
-            "tokens": d.token_count,
-            "repeated_table_header": d.repeated_table_header,
-            "preview": d.text[:120],
-        }
-        for d in drafts[:2]
-    ]
+    record_chunks(result, drafts, report, deps)
     if not drafts:
         result.status, result.reasons = "failed", ["no chunks produced", *blockers]
         return result
@@ -218,6 +248,26 @@ def _apply(
         raise ValidationFailedError("R2 round-trip hash mismatch")
     if record.object_key != key:
         deps.gateway.record_r2_object(entry.policy_document_id, entry.document_version, key)
+    return store_chunks(entry, drafts, deps, result)
+
+
+def store_chunks(
+    entry: SourceEntry,
+    drafts: Sequence[ChunkDraft],
+    deps: IngestionDeps,
+    result: SourceResult,
+) -> SourceResult:
+    """청크를 임베딩해 pending/비활성으로 저장하고 다시 읽어 검증한다(스크립트·Worker 공용).
+
+    같은 버전·해시가 이미 다 있으면 임베딩 없이 ``skipped``, 일부만 있으면 빠진 청크만 넣는다.
+    MySQL 버전·해시 확인과 원본 보관은 호출하는 쪽이 먼저 한다. 단계별 시간(ms)은
+    ``result.timings``의 ``embed_ms``·``store_ms``에 남긴다.
+    """
+    assert entry.policy_document_id is not None and entry.document_version is not None
+    if deps.repository is None or deps.embedder is None:
+        raise ContractBlockedError("MongoDB and embedding model are required to store chunks")
+    store_started = monotonic()
+    result.timings["embed_ms"] = 0
 
     # 3. 임베딩 호출을 쓰기 전에 noop/resume/insert를 결정한다.
     repo = deps.repository
@@ -231,10 +281,13 @@ def _apply(
         result.status = "skipped"
         result.already_present = len(existing)
         result.reasons = ["same version and hash already stored; approval state preserved"]
+        result.timings["store_ms"] = _elapsed_ms(store_started)
         return result
 
     todo = [d for d in drafts if d.chunk_index in set(plan.missing_indexes)]
+    embed_started = monotonic()
     vectors = deps.embedder.embed_documents([d.text for d in todo])
+    result.timings["embed_ms"] = _elapsed_ms(embed_started)
     result.embedded = len(vectors)
     records = build_records(
         entry,
@@ -260,7 +313,12 @@ def _apply(
         if chunk.source_sha256 != entry.sha256:
             raise ValidationFailedError("stored source_sha256 mismatch")
     result.status = "loaded"
+    result.timings["store_ms"] = _elapsed_ms(store_started) - result.timings["embed_ms"]
     return result
+
+
+def _elapsed_ms(started: float) -> int:
+    return int((monotonic() - started) * 1000)
 
 
 def ingested_report(
