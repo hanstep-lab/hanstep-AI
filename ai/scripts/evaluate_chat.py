@@ -68,6 +68,7 @@ from pathlib import Path
 from typing import Any
 
 import _bootstrap  # noqa: F401
+import _product_check
 import httpx
 
 from app.api.routes.chat import REMITTANCE_PROMPT_VERSIONS
@@ -934,6 +935,9 @@ def refresh_expected_tools(
         if is_remit_question(question):
             question = remit_question(question)
         row["expectedTools"] = expected_tools(question, row.get("promptVersion"))
+        if "expectedOutcome" not in row and question.get("expectedOutcome") is not None:
+            # 상품 채점(#65) 전에 저장된 행: 기대 결과를 질문 세트에서 채운다(저장된 값은 그대로).
+            row["expectedOutcome"] = question["expectedOutcome"]
     return {"file": name, "version": spec.get("version")}
 
 
@@ -968,6 +972,13 @@ def score(row: dict[str, Any]) -> None:
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
     called = sorted({t.get("toolName") for t in row.get("tools", [])})
     row["toolMatch"] = called == sorted(set(row["expectedTools"]))
+    if row.get("expectedOutcome") is not None:
+        # 상품 문항(product_questions_v1.json): 거절·상품명·금리 언급(scripts/_product_check.py).
+        row["productCheck"] = _product_check.product_check(
+            row.get("answer") or "",
+            [t.get("toolName") for t in row.get("tools", [])],
+            out_of_scope=row["expectedOutcome"].get("type") == "out_of_scope",
+        )
     if row.get("expectedAction") or called_remittance:
         # 두 턴의 답변을 함께 본다(송금 문항이 아니면 1턴뿐).
         full = "\n\n".join(a for a in (row.get("answer") or "", follow.get("answer") or "") if a)
@@ -1133,6 +1144,7 @@ def render_summary(
                 }[check["verdict"]]
                 out.append(f"  - {r['questionId']} #{r['repeat']}: {detail}")
         out += source_split_table(mine)
+        out += _product_check.summary_lines(mine)
         out += [
             "",
             "| 문항 | 호출 | 입력 토큰 | 출력 토큰 | 비용(USD) |",
@@ -1647,6 +1659,8 @@ def main(
                 "promptVersion": prompt_version,
                 "expectedTools": expected_tools(question, prompt_version),
                 "referenceValues": question.get("referenceValues"),
+                # 상품 문항(#65)만 있다. productCheck를 붙이는 기준.
+                "expectedOutcome": question.get("expectedOutcome"),
                 # Listed for a person to grade: judgment questions and humanGraded ones only
                 # (other calculation questions keep their conclusion in the spec, not here).
                 "expectedConclusion": (
