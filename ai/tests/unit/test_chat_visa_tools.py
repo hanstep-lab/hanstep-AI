@@ -128,7 +128,15 @@ def test_toolset_offers_finance_and_visa_tools_and_rejects_unknown_names() -> No
 # --- calculate_e74_score --------------------------------------------------------------------
 
 
-def test_calculate_returns_summary_ref_source_and_score_card() -> None:
+@pytest.fixture
+def today(monkeypatch: pytest.MonkeyPatch) -> date:
+    """도구가 쓰는 오늘(KST)을 2026-11-12로 고정한다."""
+    fixed = date(2026, 11, 12)
+    monkeypatch.setattr("app.chat.visa_tools.kst_today", lambda: fixed)
+    return fixed
+
+
+def test_calculate_returns_summary_ref_source_and_score_card(today: date) -> None:
     source = FakeE74Source()
     arguments = {"asOfDate": "2026-11-12", "legalDeclaration": LEGAL}
 
@@ -137,7 +145,8 @@ def test_calculate_returns_summary_ref_source_and_score_card() -> None:
     assert outcome.status == "SUCCEEDED"
     # 사용자 id·요청 id는 요청에 고정된 값이다. 감점 답은 도구 실행에는 그대로 간다.
     user_id, request, request_id = source.calls[0]
-    assert (user_id, request_id, request.as_of_date) == (185, "req_v", date(2026, 11, 12))
+    assert (user_id, request_id, request.as_of_date) == (185, "req_v", today)
+    assert request.scenario is None  # 오늘 기준이라 일반 계산
     assert request.legal_declaration is not None
     assert request.legal_declaration.fines_under_1m_count == 2
     # 채팅 기록에는 감점 답 값 대신 답한 문항 이름만 남는다.
@@ -158,6 +167,63 @@ def test_calculate_defaults_to_kst_today() -> None:
     source = FakeE74Source()
     asyncio.run(_tools(source).run(CALCULATE_E74_SCORE, {}))
     assert source.calls[0][1].as_of_date == kst_today()
+
+
+def _scenario(as_of: str, **extra: Any) -> dict[str, Any]:
+    return {"asOfDate": as_of, "addEvidences": [], "incomeRecords": [], **extra}
+
+
+INCOME_2027 = [{"incomeYear": 2027, "annualAmount": 40_000_000}]
+
+
+@pytest.mark.parametrize(
+    ("arguments", "scenario"),
+    [
+        # 기준일이 없거나 오늘이면 일반 계산이다.
+        ({}, None),
+        ({"asOfDate": "2026-11-12"}, None),
+        # 오늘이 아닌 기준일은 가정 계산(scenario.asOfDate)으로 옮긴다. 지난 날짜도 같다.
+        ({"asOfDate": "2028-03-01"}, _scenario("2028-03-01")),
+        ({"asOfDate": "2025-01-01"}, _scenario("2025-01-01")),
+        # 다른 가정이 있으면 기준일만 더한다. 같은 날짜가 두 번 오면 그대로다.
+        (
+            {"asOfDate": "2028-03-01", "scenario": {"incomeRecords": INCOME_2027}},
+            _scenario("2028-03-01", incomeRecords=INCOME_2027),
+        ),
+        (
+            {"asOfDate": "2028-03-01", "scenario": {"asOfDate": "2028-03-01"}},
+            _scenario("2028-03-01"),
+        ),
+        # 최상위가 오늘이고 시나리오에 기준일이 있으면 그대로 보낸다(이미 가정 계산).
+        (
+            {"asOfDate": "2026-11-12", "scenario": {"asOfDate": "2028-03-01"}},
+            _scenario("2028-03-01"),
+        ),
+    ],
+)
+def test_calculate_sends_today_and_moves_other_dates_to_scenario(
+    today: date, arguments: dict[str, Any], scenario: dict[str, Any] | None
+) -> None:
+    # 일반 계산으로 저장된 미래·과거 기준일 결과가 앱의 최신 평가를 덮지 않게 한다.
+    source = FakeE74Source()
+    outcome = asyncio.run(_tools(source).run(CALCULATE_E74_SCORE, arguments))
+
+    assert outcome.status == "SUCCEEDED"
+    body = source.calls[0][1].model_dump(mode="json", by_alias=True)
+    assert body == {"asOfDate": "2026-11-12", "scenario": scenario, "legalDeclaration": None}
+    # 채팅 기록에는 LLM이 준 인자가 그대로 남는다.
+    assert outcome.arguments == arguments
+
+
+def test_calculate_rejects_two_different_dates_without_calling_spring(today: date) -> None:
+    source = FakeE74Source()
+    arguments = {"asOfDate": "2028-03-01", "scenario": {"asOfDate": "2029-01-01"}}
+
+    outcome = asyncio.run(_tools(source).run(CALCULATE_E74_SCORE, arguments))
+
+    assert (outcome.status, outcome.error_code) == ("REJECTED", "INVALID_ARGUMENTS")
+    assert "scenario.asOfDate" in outcome.content
+    assert source.calls == []
 
 
 @pytest.mark.parametrize(

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
+from app.api.routes.chat import REMITTANCE_PROMPT_VERSIONS, VISA_PROMPT_VERSIONS
 from app.chat.prompts import (
     PROMPT_VERSION,
     PROMPT_VERSIONS,
@@ -13,9 +16,11 @@ from app.chat.prompts import (
     _with_visa_rules,
     system_prompt,
 )
+from app.chat.remittance_tools import REMITTANCE_TOOL_NAMES
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import build_messages
-from app.core.config import Settings
+from app.chat.visa_tools import VISA_TOOL_NAMES
+from app.core.config import ChatPromptVersion, Settings
 
 pytestmark = pytest.mark.unit
 
@@ -188,3 +193,37 @@ def test_setting_picks_the_system_message() -> None:
     system = build_messages(request, config.prompt_version)[0].content
     assert system == system_prompt("vi", "v1.1")
     assert build_messages(request)[0].content == system_prompt("vi")
+
+
+# 버전별 완성된 프롬프트(en)의 SHA-256. 채팅 기록(chat_messages.prompt_version)과 측정 결과가
+# 가리키는 글을 고정한다. system_v1_1.md·visa_rules.md·remittance_rules.md는 여러 버전이 같이 쓰므로
+# 고치면 기본값(v3)을 포함한 여러 버전이 같은 이름으로 함께 바뀐다.
+PROMPT_SHA256 = {
+    "v1": "50f9632829d5f74b8764db7b7aea75527b5b05813e0b0eb5be3dc5e31be6ef48",
+    "v1.1": "97b95203c491a97bd64cf0ea32f543f68a304085b3c18abf30b72e5b4d02c0c2",
+    "v2": "6376736a071df227659abe25b3eade6ff9c0511052e6e67f9ced4809d7bf6c34",
+    "v3": "81694ab609924880683ca239749d2068d355c35e0f13e42f0dcdbf9664f79a65",
+    "v3.1": "80c7f20adb3219077541d060898ccc87572b79fbc47772775d5c4d901da86ec9",
+    "v3.2": "e62f7dbb84c4eebfc244dfa294c722f6a8f615088c89e061f8d53a30ed36a8c7",
+}
+
+
+def test_prompt_text_is_fixed_per_version() -> None:
+    # 실패하면 값을 고치기 전에, 바뀐 버전을 그대로 고칠지 새 버전을 만들지 먼저 정한다.
+    actual = {
+        version: hashlib.sha256(system_prompt("en", version).encode("utf-8")).hexdigest()
+        for version in PROMPT_VERSIONS
+    }
+    assert actual == PROMPT_SHA256
+
+
+def test_prompt_rules_and_attached_tools_agree() -> None:
+    # 설정 값·프롬프트·도구 연결(app/api/routes/chat.py)은 따로 적혀 있어 손으로 맞춰야 한다.
+    # 프롬프트가 도구 이름을 말하는 버전에만 그 도구가 붙어야 한다.
+    assert set(get_args(ChatPromptVersion)) == set(PROMPT_VERSIONS)
+    for version in PROMPT_VERSIONS:
+        prompt = system_prompt("en", version)
+        visa = any(name in prompt for name in VISA_TOOL_NAMES)
+        remittance = any(name in prompt for name in REMITTANCE_TOOL_NAMES)
+        assert visa == (version in VISA_PROMPT_VERSIONS), version
+        assert remittance == (version in REMITTANCE_PROMPT_VERSIONS), version
