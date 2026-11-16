@@ -15,6 +15,7 @@ PROMPT_VERSIONS = {
     "v3": "chat-v3",
     "v3.1": "chat-v3.1",
     "v3.2": "chat-v3.2",
+    "v3.3": "chat-v3.3",
 }
 PROMPT_VERSION = PROMPT_VERSIONS["v1"]  # the default
 
@@ -39,6 +40,16 @@ RATE_TEXT_RULE = (
 NO_RATE_RULE = (
     "- Do not state the exchange rate in remittance replies. The confirmation card shows it. "
     "Say only who receives how much."
+)
+# v3.3: v3에서 비자 점수 줄의 숫자 부분을 뺀다. v1.1 숫자 규칙("Use only numbers that appear in
+# the tool result ...")과 겹치므로 점수도 그 규칙 하나로 다룬다(이슈 #57). 상태·개선 단계는 그대로.
+VISA_SCORE_LINE = (
+    "- For E-7-4 scores and eligibility, use the score, status and improvement steps exactly "
+    "as calculate_e74_score returns them. Never change or estimate a score yourself."
+)
+VISA_STATUS_LINE = (
+    "- For E-7-4 eligibility, use the status and improvement steps exactly as "
+    "calculate_e74_score returns them."
 )
 
 
@@ -65,6 +76,12 @@ def _with_remittance_rules(base: str, remittance_rules: str) -> str:
     return "\n".join(lines).rstrip("\n") + "\n\n" + remittance_rules
 
 
+def _without_visa_number_rule(base: str) -> str:
+    """base(v3)의 비자 점수 줄을 상태·개선 단계 줄로 바꾼다. 줄이 없으면 시작할 때 실패한다."""
+    lines = _replace_line(base, VISA_SCORE_LINE, VISA_STATUS_LINE, "visa-score")
+    return "\n".join(lines) + ("\n" if base.endswith("\n") else "")
+
+
 def _with_rule(base: str, rule: str) -> str:
     """base(v3) 끝에 규칙 한 줄을 더한다. v3의 마지막 절은 송금 규칙이다."""
     return base.rstrip("\n") + "\n" + rule + "\n"
@@ -84,6 +101,8 @@ _SYSTEM = {
     # v3 그대로 + 환율 규칙 한 줄(송금 규칙 끝). 송금 도구 구성은 v3와 같다.
     "v3.1": _with_rule(_V3, RATE_TEXT_RULE),  # rateText를 그대로 옮겨 쓰기
     "v3.2": _with_rule(_V3, NO_RATE_RULE),  # 답변에 환율을 쓰지 않기
+    # v3에서 비자 점수 줄의 숫자 부분만 뺀 것. 도구 구성은 v3와 같다.
+    "v3.3": _without_visa_number_rule(_V3),
 }
 
 
