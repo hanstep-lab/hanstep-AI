@@ -1,0 +1,20 @@
+[
+  {
+    "name": "haiku-facts-prompt",
+    "model": "claude-haiku-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000,
+    "judgmentFacts": true,
+    "promptVersion": "v1.1"
+  },
+  {
+    "name": "haiku-facts-prompt-v2",
+    "model": "claude-haiku-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000,
+    "judgmentFacts": true,
+    "promptVersion": "v2"
+  }
+]

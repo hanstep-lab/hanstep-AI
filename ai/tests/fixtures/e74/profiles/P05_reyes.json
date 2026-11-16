@@ -1,0 +1,70 @@
+{
+  "id": "P05",
+  "title": "필리핀 E-9 제조업 근로자, 고용기업 추천서 미제출(합성 데이터, 가상 인물)",
+  "profile": {
+    "visaProfile": {
+      "visaTypeCode": "E-9",
+      "birthDate": "1996-07-21",
+      "evidenceStatus": "VERIFIED",
+      "currentStayStartedOn": "2022-03-07",
+      "priorStayMonths": 0
+    },
+    "employmentHistories": [
+      {
+        "employmentHistoryId": 1,
+        "employerName": "DEMO-PH-METAL",
+        "industryCode": "MANUFACTURING",
+        "workplaceRegionCode": "48250",
+        "isDepopulationArea": false,
+        "startedOn": "2022-03-14",
+        "contractEndOn": "2029-03-13",
+        "contractAnnualSalary": 31500000,
+        "verificationStatus": "VERIFIED"
+      }
+    ],
+    "incomeRecords": [
+      {
+        "incomeYear": 2024,
+        "annualAmount": 30400000,
+        "source": "DOCUMENT",
+        "verificationStatus": "VERIFIED"
+      },
+      {
+        "incomeYear": 2025,
+        "annualAmount": 32100000,
+        "source": "DOCUMENT",
+        "verificationStatus": "VERIFIED"
+      }
+    ],
+    "visaEvidences": [
+      {
+        "visaEvidenceId": 1,
+        "evidenceType": "TOPIK",
+        "levelValue": "3",
+        "issuedOn": "2026-04-12",
+        "expiresOn": "2028-04-12",
+        "status": "VERIFIED"
+      },
+      {
+        "visaEvidenceId": 2,
+        "evidenceType": "RECOMMENDATION_EMPLOYER",
+        "status": "DECLARED"
+      },
+      {
+        "visaEvidenceId": 3,
+        "evidenceType": "DRIVER_LICENSE",
+        "levelValue": "2종 보통",
+        "issuedOn": "2024-05-20",
+        "status": "VERIFIED"
+      }
+    ],
+    "legalDeclaration": {
+      "finesUnder1mCount": 0,
+      "hasFine1mOrMore": false,
+      "taxStayRestrictionCount": 0,
+      "immigrationViolationCount": 0,
+      "hasOverstay3mOrMore": false,
+      "hasCurrentTaxArrears": false
+    }
+  }
+}

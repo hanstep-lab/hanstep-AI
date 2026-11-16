@@ -84,6 +84,17 @@ class ToolOutcome:
     result_ref: dict[str, Any] | None = None
     error_code: str | None = None
     sources: list[dict[str, Any]] = field(default_factory=list)
+    # 화면 카드(agent.done의 blocks → chat_messages.blocks_json). 숫자는 도구 결과에서만 채운다.
+    blocks: list[dict[str, Any]] = field(default_factory=list)
+
+
+class ChatTool(Protocol):
+    """그래프가 쓰는 도구: LLM에 줄 스키마 목록과 이름으로 실행하는 run."""
+
+    @property
+    def schemas(self) -> list[dict[str, Any]]: ...
+
+    async def run(self, name: str, arguments: dict[str, Any]) -> ToolOutcome: ...
 
 
 def _amount(money: Any) -> int | None:
@@ -161,6 +172,10 @@ class FinanceTool:
         self._message = message
         self._judgment_facts = judgment_facts
 
+    @property
+    def schemas(self) -> list[dict[str, Any]]:
+        return [TOOL_SCHEMA]
+
     async def run(self, name: str, arguments: dict[str, Any]) -> ToolOutcome:
         started = time.perf_counter()
 
@@ -197,3 +212,27 @@ class FinanceTool:
                 summary["judgmentFacts"] = facts
         source = {**ref, "chunkRef": None, "pageLabel": None}
         return outcome("SUCCEEDED", summary, result_ref=ref, sources=[source])
+
+
+class ChatToolset:
+    """여러 도구를 하나로 묶는다. 이름으로 맡은 도구를 찾아 실행하고, 모르는 이름은 거절한다."""
+
+    def __init__(self, *tools: ChatTool) -> None:
+        self._by_name: dict[str, ChatTool] = {}
+        self._schemas: list[dict[str, Any]] = []
+        for tool in tools:
+            for schema in tool.schemas:
+                if schema["name"] in self._by_name:
+                    raise ValueError(f"duplicate tool name: {schema['name']}")
+                self._by_name[schema["name"]] = tool
+                self._schemas.append(schema)
+
+    @property
+    def schemas(self) -> list[dict[str, Any]]:
+        return list(self._schemas)
+
+    async def run(self, name: str, arguments: dict[str, Any]) -> ToolOutcome:
+        tool = self._by_name.get(name)
+        if tool is None:
+            return ToolOutcome(name, {}, "REJECTED", "unknown tool", 0, error_code="UNKNOWN_TOOL")
+        return await tool.run(name, arguments)

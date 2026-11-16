@@ -160,6 +160,45 @@ def test_history_carries_into_next_turn() -> None:
     ]
 
 
+def _broken_calculate(as_of: date) -> dict[str, Any]:
+    raise RuntimeError("unexpected")
+
+
+@pytest.mark.parametrize(
+    ("after_tool_use", "ctx_overrides", "error"),
+    [
+        ([ApiError(529, "overloaded")], {}, ApiError),  # 도구 결과를 보낸 호출이 실패
+        ([], {"calculate": _broken_calculate}, RuntimeError),  # 도구 실행 중 예외
+    ],
+    ids=["api_error", "tool_raises"],
+)
+def test_failed_turn_after_tool_use_is_removed_from_history(
+    after_tool_use: list[Exception], ctx_overrides: dict[str, Any], error: type[Exception]
+) -> None:
+    # tool_result만 빼면 짝 없는 tool_use가 남아 이후 요청이 모두 400이 된다.
+    client = FakeClient(
+        [
+            Response([Block("text", text="a")], "end_turn"),
+            Response(
+                [Block("tool_use", id="t1", name="calculate_e74_score", input={})], "tool_use"
+            ),
+            *after_tool_use,
+            Response([Block("text", text="c")], "end_turn"),
+        ]
+    )
+    history: list[dict[str, Any]] = []
+    run_turn(client, "m", history, "첫 질문", _ctx())
+    before = list(history)
+    with pytest.raises(error):
+        run_turn(client, "m", history, "제 점수는?", _ctx(**ctx_overrides))
+    assert history == before
+
+    run_turn(client, "m", history, "다시 질문", _ctx())
+    messages = client.messages.requests[-1]["messages"]
+    assert [m["role"] for m in messages] == ["user", "assistant", "user"]
+    assert messages[-1]["content"] == "다시 질문"
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [

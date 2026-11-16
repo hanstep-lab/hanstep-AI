@@ -30,7 +30,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from app.chat.graph import build_graph
 from app.chat.prompts import system_prompt
 from app.chat.schemas import ChatStreamRequest, LlmConfig
-from app.chat.tools import FinanceTool
+from app.chat.tools import ChatTool
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ async def run_chat(
     *,
     config: LlmConfig,
     model: BaseChatModel,
-    tool: FinanceTool,
+    tool: ChatTool,
     options: ChatRunOptions,
 ) -> AsyncIterator[ServerSentEvent]:
     started = time.perf_counter()
@@ -124,6 +124,8 @@ async def run_chat(
     tools: list[dict[str, Any]] = []
     calls: list[dict[str, Any]] = []
     sources: list[dict[str, Any]] = []
+    # 도구 결과의 화면 카드(점수 카드 등). agent.done의 blocks로 보낸다.
+    blocks: list[dict[str, Any]] = []
     first_delta_ms: int | None = None
     # Per LLM call number: when its first text reached the stream, and how many characters.
     call_first_delta_ms: dict[int, int] = {}
@@ -187,6 +189,9 @@ async def run_chat(
                     for source in item["sources"]:
                         if source not in sources:
                             sources.append(source)
+                    for block in item.get("blocks") or []:
+                        if block not in blocks:
+                            blocks.append(block)
                     yield _event("agent.tool_call", {k: item[k] for k in _TOOL_EVENT_FIELDS})
                 elif item["type"] == "llm_call":
                     calls.append(item)
@@ -219,7 +224,7 @@ async def run_chat(
                     "agent.done",
                     {
                         "content": content,
-                        "blocks": None,
+                        "blocks": blocks or None,
                         "modelId": options.model_id or config.model,
                         "promptVersion": config.prompt_version_id,
                         "latencyMs": total_ms,

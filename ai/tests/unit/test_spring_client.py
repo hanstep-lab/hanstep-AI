@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -12,6 +13,7 @@ from app.integrations.spring_client import (
     PolicyIngestedReport,
     SpringApiError,
     SpringInternalClient,
+    StartResult,
 )
 from app.rag.errors import ContractBlockedError
 from app.rag.ingestion import SourceResult, ingested_report
@@ -72,16 +74,71 @@ def test_policy_ingested_posts_camel_case_body_with_token_and_request_id() -> No
     }
 
 
-def test_job_started_treats_409_as_already_started() -> None:
+def test_job_started_204_means_this_worker_started() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/internal/v1/ai/jobs/7/started"
         assert json.loads(request.content) == {
             "workerId": "policy-worker-1",
             "startedAt": NOW.isoformat(),
         }
-        return httpx.Response(409, json={"code": "INVALID_STATE", "message": "already started"})
+        return httpx.Response(204)
 
-    _client(handler).job_started(7, worker_id="policy-worker-1", started_at=NOW)
+    result = _client(handler).job_started(7, worker_id="policy-worker-1", started_at=NOW)
+    assert result is StartResult.STARTED
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("JOB_ALREADY_PROCESSING", StartResult.ALREADY_PROCESSING),
+        ("JOB_ALREADY_FINISHED", StartResult.ALREADY_FINISHED),
+    ],
+)
+def test_job_started_409_code_decides_result(
+    code: str, expected: StartResult, caplog: pytest.LogCaptureFixture
+) -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(409, json={"code": code, "message": "x", "details": {}})
+
+    with caplog.at_level(logging.INFO, logger="app.integrations.spring_client"):
+        result = _client(handler).job_started(7, worker_id="policy-worker-1", started_at=NOW)
+    assert result is expected
+    assert calls["n"] == 1  # 409는 재시도하지 않는다
+    records = [r for r in caplog.records if r.name == "app.integrations.spring_client"]
+    assert [(r.levelno, r.getMessage()) for r in records] == [
+        (logging.INFO, f"job 7 not started: {code}")
+    ]
+
+
+@pytest.mark.parametrize("code", ["INVALID_STATE", "DUPLICATE_REQUEST"])
+def test_job_started_raises_409_with_other_code(code: str) -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(409, json={"code": code, "message": "x"})
+
+    with pytest.raises(SpringApiError) as excinfo:
+        _client(handler).job_started(7, worker_id="policy-worker-1", started_at=NOW)
+    assert (excinfo.value.status, excinfo.value.code) == (409, code)
+    assert calls["n"] == 1
+
+
+def test_job_started_raises_other_errors() -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(500, json={"code": "INTERNAL_ERROR", "message": "boom"})
+
+    sleeps: list[float] = []
+    with pytest.raises(SpringApiError) as excinfo:
+        _client(handler, sleeps).job_started(7, worker_id="policy-worker-1", started_at=NOW)
+    assert (excinfo.value.status, excinfo.value.code) == (500, "INTERNAL_ERROR")
+    assert calls["n"] == 3 and len(sleeps) == 2  # 5xx는 기존 재시도 정책을 그대로 따른다
 
 
 @pytest.mark.parametrize(

@@ -9,6 +9,7 @@ dates, ordinals and unit-less numbers ("October 31") only, never an amount or a 
 "31%" or "KRW 31" is unsupported. An amount or unit-less number is also supported when it
 equals an allowed value (dates excluded) rounded half-up to 1,000 or 10,000 won ("약 68만 원"
 for 675,317). Dates and ordinals are reported apart as ambiguous when not plainly supported.
+Visa codes such as E-7-4 (upper-case letter-number-number) are names: their numbers are skipped.
 """
 
 from __future__ import annotations
@@ -24,6 +25,8 @@ _DATE = re.compile(
     r"|(?P<ky>\d{4})\s*년(?:\s*(?P<km>\d{1,2})\s*월)?(?:\s*(?P<kd>\d{1,2})\s*일)?"
     r"|(?P<km2>\d{1,2})\s*월(?:\s*(?P<kd2>\d{1,2})\s*일)?"
 )
+# Visa codes (an upper-case letter and two numbers: E-7-4, F-2-7) are names, not numbers.
+_VISA_CODE = re.compile(r"(?<![A-Za-z0-9-])[A-Z]-\d{1,2}-\d{1,2}(?![\d-])")
 _ORDINAL = re.compile(r"\b\d+(?:st|nd|rd|th)\b|^\s*\d+[.)]\s", re.MULTILINE)
 _KOREAN = re.compile(
     r"(?P<approx>약\s*)?"
@@ -91,7 +94,11 @@ def scan_numbers(text: str) -> list[tuple[str, Decimal | None, str, list[Decimal
         for i in range(start, end):
             taken[i] = True
 
+    for m in _VISA_CODE.finditer(text):
+        take(m.start(), m.end())  # skipped: not reported, not allowed
     for m in _DATE.finditer(text):
+        if not free(m.start(), m.end()):
+            continue
         parts = [m.group(g) for g in ("y", "m", "d", "ky", "km", "kd", "km2", "kd2")]
         values = [Decimal(p) for p in parts if p]
         items.append((m.start(), m.group().strip(), None, "date", values))

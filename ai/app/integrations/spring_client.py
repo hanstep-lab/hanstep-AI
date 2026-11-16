@@ -8,10 +8,12 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, Literal
 
 import httpx
@@ -38,13 +40,60 @@ RETRYABLE_FAILURES: frozenset[str] = frozenset(
 )
 
 
+class StartResult(StrEnum):
+    """INT-08 결과. Worker는 이 값과 메시지 redelivered로 처리할지 정한다."""
+
+    STARTED = "STARTED"  # 204: 이번 요청으로 PROCESSING이 됨
+    ALREADY_PROCESSING = "ALREADY_PROCESSING"  # 409 JOB_ALREADY_PROCESSING: 이미 처리 중
+    ALREADY_FINISHED = "ALREADY_FINISHED"  # 409 JOB_ALREADY_FINISHED: 이미 COMPLETED·FAILED
+
+
+# INT-08 409의 body.code별 결과. 여기에 없는 code의 409는 SpringApiError로 올린다.
+_START_CONFLICTS: dict[str, StartResult] = {
+    "JOB_ALREADY_PROCESSING": StartResult.ALREADY_PROCESSING,
+    "JOB_ALREADY_FINISHED": StartResult.ALREADY_FINISHED,
+}
+
+# 오류 본문 details.fields에서 받는 필드 경로(예: scenario.addEvidences.0.evidenceType)와
+# 사유(pydantic 오류 종류 int_parsing, Spring의 must be an object 등). Spring·AI는 값을 넣지
+# 않지만, 섞여 와도 넘기지 않게 이 모양만 남긴다(사유에는 숫자도 받지 않는다).
+_ERROR_FIELD_PATH = re.compile(r"[A-Za-z0-9_.]{1,100}")
+_ERROR_FIELD_REASON = re.compile(r"[A-Za-z_ ]{1,64}")
+MAX_ERROR_FIELDS = 10
+
+
 class SpringApiError(Exception):
     """Spring 내부 API 호출 실패. HTTP 상태와 Spring 오류 코드를 담는다."""
 
-    def __init__(self, status: int, code: str, message: str) -> None:
+    def __init__(
+        self,
+        status: int,
+        code: str,
+        message: str,
+        reason: str | None = None,
+        fields: tuple[tuple[str, str], ...] = (),
+    ) -> None:
         super().__init__(f"Spring {status} {code}: {message}")
         self.status = status
         self.code = code
+        # 오류 본문의 details.reason(예: NO_VISA_PROFILE). 주지 않는 API도 있다.
+        self.reason = reason
+        # 오류 본문의 details.fields: (필드 경로, 사유). 입력 검증 오류일 때만 있다.
+        self.fields = fields
+
+
+def _error_fields(raw: object) -> tuple[tuple[str, str], ...]:
+    """details.fields를 (필드 경로, 사유)로 읽는다. 경로·코드 모양이 아닌 값은 버린다."""
+    if not isinstance(raw, list):
+        return ()
+    fields: list[tuple[str, str]] = []
+    for item in raw[:MAX_ERROR_FIELDS]:
+        if not isinstance(item, dict):
+            continue
+        field, reason = str(item.get("field", "")), str(item.get("reason", ""))
+        if _ERROR_FIELD_PATH.fullmatch(field):
+            fields.append((field, reason if _ERROR_FIELD_REASON.fullmatch(reason) else "invalid"))
+    return tuple(fields)
 
 
 @dataclass(frozen=True)
@@ -129,12 +178,18 @@ class SpringInternalClient:
             raise SpringApiError(response.status_code, code, message)
         raise SpringApiError(0, "RETRY_EXHAUSTED", path)  # pragma: no cover
 
-    def _get(self, path: str, request_id: str | None, timeout: float) -> Any:
+    def _get(
+        self,
+        path: str,
+        request_id: str | None,
+        timeout: float,
+        params: dict[str, str | int] | None = None,
+    ) -> Any:
         """One GET, no retry: callers (chat tools) have their own short time budget."""
         headers = dict(self._headers)
         if request_id:
             headers["X-Request-Id"] = request_id
-        response = self._client.get(path, headers=headers, timeout=timeout)
+        response = self._client.get(path, headers=headers, timeout=timeout, params=params)
         if response.is_success:
             return response.json()
         code = "HTTP_ERROR"
@@ -153,19 +208,109 @@ class SpringInternalClient:
             raise SpringApiError(200, "INVALID_BODY", "")
         return body
 
+    # 채팅 송금 도구(specs/chat/remittance_contract_v1.md). 재시도하지 않는다.
+    # httpx.TimeoutException(시간 초과), SpringApiError(2xx가 아님)를 그대로 올린다.
+    def remittance_recipients(
+        self, user_id: int, *, timeout: float, request_id: str | None = None
+    ) -> dict[str, Any]:
+        path = f"/internal/v1/ai-context/users/{user_id}/remittance-recipients"
+        return self._get_object(path, request_id, timeout)
+
+    def fx_rate(
+        self, currency: str, *, timeout: float, request_id: str | None = None
+    ) -> dict[str, Any]:
+        path = "/internal/v1/ai-context/fx-rates"
+        return self._get_object(path, request_id, timeout, {"currency": currency})
+
+    def remittance_quote(
+        self,
+        user_id: int,
+        *,
+        recipient_id: int,
+        amount: int,
+        currency: str,
+        timeout: float,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        path = f"/internal/v1/ai-context/users/{user_id}/remittance-quote"
+        params: dict[str, str | int] = {
+            "recipientId": recipient_id,
+            "amount": amount,
+            "currency": currency,
+        }
+        return self._get_object(path, request_id, timeout, params)
+
+    def _get_object(
+        self,
+        path: str,
+        request_id: str | None,
+        timeout: float,
+        params: dict[str, str | int] | None = None,
+    ) -> dict[str, Any]:
+        body = self._get(path, request_id, timeout, params)
+        if not isinstance(body, dict):
+            raise SpringApiError(200, "INVALID_BODY", "")
+        return body
+
+    # 채팅 도구 calculate_e74_score: MySQL 프로필로 E-7-4 계산·저장(hanstep-backend #51).
+    # 도구 시간 예산이 짧아 재시도하지 않는다. httpx.TimeoutException(시간 초과),
+    # SpringApiError(2xx가 아님, details.reason 포함)를 그대로 올린다.
+    def e74_assessment(
+        self,
+        user_id: int,
+        body: dict[str, Any],
+        *,
+        timeout: float,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        headers = dict(self._headers)
+        if request_id:
+            headers["X-Request-Id"] = request_id
+        response = self._client.post(
+            f"/internal/v1/ai-context/users/{user_id}/e74-assessments",
+            json=body,
+            headers=headers,
+            timeout=timeout,
+        )
+        if not response.is_success:
+            code, message, reason = "HTTP_ERROR", "", None
+            fields: tuple[tuple[str, str], ...] = ()
+            try:
+                payload = response.json()
+                code = str(payload.get("code", code))
+                message = str(payload.get("message", ""))
+                details = payload.get("details")
+                if isinstance(details, dict):
+                    if details.get("reason"):
+                        reason = str(details["reason"])
+                    fields = _error_fields(details.get("fields"))
+            except (ValueError, AttributeError):
+                pass
+            raise SpringApiError(response.status_code, code, message, reason, fields)
+        data = response.json()
+        if not isinstance(data, dict):
+            raise SpringApiError(response.status_code, "INVALID_BODY", "")
+        return data
+
     # INT-08
     def job_started(
         self, job_id: int, *, worker_id: str, started_at: datetime, request_id: str | None = None
-    ) -> None:
+    ) -> StartResult:
+        """204면 STARTED, 409면 body.code에 따라 ALREADY_PROCESSING·ALREADY_FINISHED.
+
+        409라도 code가 둘 다 아니면 SpringApiError를 그대로 올린다.
+        """
         body = {"workerId": worker_id, "startedAt": started_at.isoformat()}
         try:
             self._post(f"/internal/v1/ai/jobs/{job_id}/started", body, request_id)
         except SpringApiError as exc:
             # 이미 시작했거나 끝난 작업의 메시지가 다시 전달된 것은 여기서 오류가 아니다.
-            if exc.status == 409:
-                logger.info("job %s already started or finished", job_id)
-                return
-            raise
+            result = _START_CONFLICTS.get(exc.code) if exc.status == 409 else None
+            if result is None:
+                raise
+            logger.info("job %s not started: %s", job_id, exc.code)
+            return result
+        return StartResult.STARTED
 
     # INT-10
     def job_failed(

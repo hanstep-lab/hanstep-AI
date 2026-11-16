@@ -1,0 +1,245 @@
+{
+    "version":  "v1",
+    "questions":  [
+                      {
+                          "id":  "s01",
+                          "question":  "저는 한국에서 일하는 외국인 근로자예요. 적금을 중간에 해지해도 해외로 송금하면 이자를 더 주는 상품이 있나요?",
+                          "goldDocument":  "SOL글로벌 적금",
+                          "goldQuote":  "해외 송금시 특별중도해지 이율을 제공하는 외국인 전용 적금",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s02",
+                          "question":  "외국인 적금에서 신한은행을 거래외국환은행으로 지정하면 우대금리를 얼마나 더 받나요?",
+                          "goldDocument":  "SOL글로벌 적금",
+                          "goldQuote":  "신한은행을 거래외국환은행으로 지정하고 만기일까지 유지시 연 0.30%",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s03",
+                          "question":  "적금 만기 때 제가 고향에 가 있을 수도 있는데, 만기된 돈을 본국 계좌로 자동으로 보내주는 서비스가 있나요?",
+                          "goldDocument":  "SOL글로벌 적금",
+                          "goldQuote":  "사전에 지정한 본국 해외계좌로 만기자금을 송금해주는",
+                          "page":  5,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s04",
+                          "question":  "슈퍼SOL 웰컴 정기예금은 최소 얼마부터 최대 얼마까지 넣을 수 있어요?",
+                          "goldDocument":  "슈퍼SOL 웰컴 정기예금",
+                          "goldQuote":  "50만원 이상 2,000만원 이하",
+                          "page":  1,
+                          "namesProduct":  true
+                      },
+                      {
+                          "id":  "s05",
+                          "question":  "6개월에 연 3.3% 주는 정기예금 아직 팔아요? 언제까지 가입할 수 있나요?",
+                          "goldDocument":  "슈퍼SOL 웰컴 정기예금",
+                          "goldQuote":  "한도 소진 시 사전 안내 없이 조기 종료될 수 있습니다.",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s06",
+                          "question":  "월급 통장을 신한으로 새로 옮기면 정기예금 우대금리를 받을 수 있다던데, 급여를 몇 달 받아야 하나요?",
+                          "goldDocument":  "슈퍼SOL 웰컴 정기예금",
+                          "goldQuote":  "본인명의 신한은행 입출금통장으로 3개월 이상",
+                          "page":  2,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s07",
+                          "question":  "정기예금 만기가 다가오는데 돈 쓸 일이 조금 늦어져서 만기일을 몇 달 미룰 수 있는 상품이 있나요?",
+                          "goldDocument":  "쏠편한 정기예금",
+                          "goldQuote":  "최장 3개월 이내에서 만기일을 연장할 수 있는",
+                          "page":  3,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s08",
+                          "question":  "쏠편한 정기예금을 비과세종합저축으로 들었는데, 자동 재예치할 때 이자까지 같이 재예치되나요?",
+                          "goldDocument":  "쏠편한 정기예금",
+                          "goldQuote":  "비과세종합저축 신청계좌는 원금만 재예치 가능",
+                          "page":  4,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s09",
+                          "question":  "정기예금 만기일을 월 단위 말고 날짜 단위로 딱 맞춰서 정할 수 있는 상품 있어요?",
+                          "goldDocument":  "신한 S드림(DREAM)정기예금",
+                          "goldQuote":  "만기일을 일, 월 단위로 자유롭게 선택할 수 있으며",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s10",
+                          "question":  "S드림 정기예금을 앱으로 가입하면 최소 가입금액이 얼마예요?",
+                          "goldDocument":  "신한 S드림(DREAM)정기예금",
+                          "goldQuote":  "300만원 이상 (비대면채널을 이용하여 신규할 경우 50만원 이상)",
+                          "page":  4,
+                          "namesProduct":  true
+                      },
+                      {
+                          "id":  "s11",
+                          "question":  "최근 6개월 동안 신한은행 정기예금이 없었는데, 이런 경우 우대금리 주는 정기예금이 있나요?",
+                          "goldDocument":  "신한 My플러스 정기예금",
+                          "goldQuote":  "고객이 이 예금을 신규한 경우 연 0.1% 제공",
+                          "page":  2,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s12",
+                          "question":  "My플러스 정기예금 우대금리 받으려고 제 신한 계좌끼리 50만원 옮기면 실적으로 인정돼요?",
+                          "goldDocument":  "신한 My플러스 정기예금",
+                          "goldQuote":  "신한은행 본인명의 계좌간 이체는 인정되지 않습니다.",
+                          "page":  2,
+                          "namesProduct":  true
+                      },
+                      {
+                          "id":  "s13",
+                          "question":  "매달 정해진 날에 같은 금액을 넣는 적금으로 5년짜리도 가입할 수 있나요?",
+                          "goldDocument":  "정기적금",
+                          "goldQuote":  "1개월 이상 60개월 이하(월단위)",
+                          "page":  3,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s14",
+                          "question":  "매일 조금씩 넣는 적금이 있다던데, 하루에 최대 얼마까지 넣을 수 있어요?",
+                          "goldDocument":  "한 달부터 적금",
+                          "goldQuote":  "1천원 이상 일 2만원 이내",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s15",
+                          "question":  "한 달부터 적금 매일 납입으로 했는데 토요일이나 공휴일에 넣으면 어떻게 인정돼요?",
+                          "goldDocument":  "한 달부터 적금",
+                          "goldQuote":  "직전 영업일 납입으로 인정됩니다.",
+                          "page":  1,
+                          "namesProduct":  true
+                      },
+                      {
+                          "id":  "s16",
+                          "question":  "저 올해 35살인데 청년 전용 적금 가입할 수 있어요? 나이 제한이 어떻게 되나요?",
+                          "goldDocument":  "청년 처음적금",
+                          "goldQuote":  "만 18세 이상 만 39세 이하",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s17",
+                          "question":  "청년 처음적금에서 신한카드 결제 우대를 받으려면 카드를 몇 달 동안 써야 해요?",
+                          "goldDocument":  "청년 처음적금",
+                          "goldQuote":  "신한카드(신용/체크) 결제 실적 6개월 이상인 경우",
+                          "page":  2,
+                          "namesProduct":  true
+                      },
+                      {
+                          "id":  "s18",
+                          "question":  "친구 생일에 적금을 선물로 보내줄 수 있는 상품이 있나요?",
+                          "goldDocument":  "쏠편한 선물하는 적금",
+                          "goldQuote":  "저축습관을 선물할 수 있는 적립식 상품",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s19",
+                          "question":  "적금 선물 링크를 받았는데 며칠 동안 가입 안 하면 어떻게 돼요?",
+                          "goldDocument":  "쏠편한 선물하는 적금",
+                          "goldQuote":  "3일간 신규 하지 않을 경우 다음날에 자동으로",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s20",
+                          "question":  "적금 만기를 2년 반처럼 날짜 단위로 정할 수 있는 적금 있어요?",
+                          "goldDocument":  "신한 알.쏠 적금",
+                          "goldQuote":  "12개월 이상 36개월 이내 (일단위 지정 가능)",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s21",
+                          "question":  "다른 은행 계좌에서 오픈뱅킹으로 적금에 돈을 넣으면 금리를 더 주는 상품이 있나요?",
+                          "goldDocument":  "신한 알.쏠 적금",
+                          "goldQuote":  "신한은행 오픈뱅킹 출금이체를 통하여 이 예금에 입금",
+                          "page":  2,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s22",
+                          "question":  "배달앱에서 일회용품 안 받겠다고 하고 주문하면 금리 올려주는 적금이 있다던데 맞나요?",
+                          "goldDocument":  "신한 땡겨요 적금",
+                          "goldQuote":  "일회용품 미요청하여 3회 이상 주문 시",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s23",
+                          "question":  "땡겨요 적금에서 매주 납입 미션 우대금리는 몇 주 이상 넣어야 받을 수 있어요?",
+                          "goldDocument":  "신한 땡겨요 적금",
+                          "goldQuote":  "15주 이상 적금 납입 시 연 0.5%",
+                          "page":  1,
+                          "namesProduct":  true
+                      },
+                      {
+                          "id":  "s24",
+                          "question":  "우대조건 같은 거 신경 쓰기 싫은데, 핸드폰으로 간단히 가입하는 적금 있어요?",
+                          "goldDocument":  "신한 스마트 적금",
+                          "goldQuote":  "복잡한 우대금리요건 없이 간단하게 스마트폰뱅킹에서 가입",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s25",
+                          "question":  "신한 신용카드를 처음 만들면 적금 우대금리를 2%나 준다던데 어떤 조건이에요?",
+                          "goldDocument":  "신한 안녕, 반가워 적금",
+                          "goldQuote":  "신한카드(신용) 최초신규 고객, 탈회 후 3 개월 경과 고객",
+                          "page":  2,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s26",
+                          "question":  "신한 안녕, 반가워 적금은 우대조건을 2개 채우면 우대금리가 얼마예요?",
+                          "goldDocument":  "신한 안녕, 반가워 적금",
+                          "goldQuote":  "1개 달성 시 연 2.0%, 2개 이상 달성 시 연 3.0%",
+                          "page":  2,
+                          "namesProduct":  true
+                      },
+                      {
+                          "id":  "s27",
+                          "question":  "정기예금 계약기간을 연장했는데 원래 만기일이 지난 뒤에 중간에 해지하면 이자는 어떻게 계산돼요?",
+                          "goldDocument":  "거치식예금약관",
+                          "goldQuote":  "연장하지 않은 것으로 보아 제3조에 의해 계산한",
+                          "page":  1,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s28",
+                          "question":  "적금 월 납입을 약속한 날짜보다 늦게 넣었어요. 이러면 만기일이 뒤로 밀릴 수도 있나요?",
+                          "goldDocument":  "적립식예금약관",
+                          "goldQuote":  "월평균 지연일수만큼 만기일을 늦출 수 있습니다.",
+                          "page":  2,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s29",
+                          "question":  "잔액이 0원인 예금 계좌도 오래 안 쓰면 휴면 처리되고 계약이 끝나나요?",
+                          "goldDocument":  "예금거래기본약관",
+                          "goldQuote":  "잔액이 0원으로 된 예금이 제1항 각호에 해당하게 된 경우도 같다.",
+                          "page":  3,
+                          "namesProduct":  false
+                      },
+                      {
+                          "id":  "s30",
+                          "question":  "정기적금을 가족이랑 공동명의로 만들 수 있어요?",
+                          "goldDocument":  "정기적금",
+                          "goldQuote":  "1) 공동명의 : 가능",
+                          "page":  5,
+                          "namesProduct":  true
+                      }
+                  ]
+}
