@@ -41,7 +41,8 @@ differs from it is marked. --rescore re-runs the checks but keeps the expectedCo
 referenceValues saved in each row (the basis that run was graded on); only the expected tools are
 re-read from the current question set (noted as expectedToolsFrom).
 Numbers from the remittance tools (recipients, rate, quote card) count as supported when the row
-called one of them.
+called one of them. Such rows also get a rateUnit verdict on how the answer states the tool's
+exchange rate (correct / wrong direction or unit / no_unit / unclear, unclear goes to a person).
 With judgmentFacts on, the number check also allows the judgment facts the server added
 (app/chat/judgment.py on the same summary and question).
 With --target ai the run stops if the server's model, judgmentFacts or prompt version differ
@@ -90,7 +91,7 @@ QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
 REMIT_QUESTIONS = AI_ROOT / "specs" / "chat" / "remit_questions_v1.json"
 QUESTION_SETS = {"eval": QUESTIONS, "remit": REMIT_QUESTIONS}
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
-PROMPT_BASE = {"v3": "v2"}
+PROMPT_BASE = {"v3": "v2", "v3.1": "v3", "v3.2": "v3"}
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
 PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
 EXIT_INTERRUPTED = 130
@@ -433,6 +434,104 @@ def _guess_errors(quoted: dict[str, Any] | None, expected: dict[str, Any]) -> li
         for key in ("recipient", "currency", "amount")
         if expected.get(key) is not None and quoted.get(key) != expected[key]
     ]
+
+
+# --- 환율 단위 판정 ---------------------------------------------------------------------
+# 도구 결과의 환율(appliedRate.rate: `unit` 외화 = `rate` KRW)이 답변에 나오면 단위·방향을 본다.
+# correct: "22.32 KRW per PHP", "22.32 won per peso", "1 PHP = 22.32 KRW", "1 PHP costs 22.32 KRW"
+# wrong: "22.32 PHP per ...", "... per 1,000 KRW", "per KRW", "1 KRW = 22.32" (방향이 거꾸로)
+# no_unit: 숫자만("the applied rate of 22.32."), unclear: 위 어디에도 안 맞음(사람 확인)
+# 한 답변(두 턴 합)에 correct와 wrong이 섞이면 wrong이다.
+_KRW_UNIT = r"(?:KRW|won|₩|원)"
+_FOREIGN_NAMES = {"PHP": r"pesos?|₱", "VND": r"dong|₫"}
+_RATE_PER = r"(?:per|/|for each|for every|for one|for a|for)"
+_RATE_IS = (
+    r"(?:=|is equal to|equals|is worth|is about|is around|costs about|costs|is|buys|gets you)"
+)
+
+
+def _foreign_unit(currencies: set[str]) -> str:
+    names = [code for code in sorted(currencies) if code != "KRW"]
+    names += [_FOREIGN_NAMES[c] for c in sorted(currencies) if c in _FOREIGN_NAMES]
+    return "(?:" + "|".join(names or ["PHP"]) + ")"
+
+
+def remit_rates(row: dict[str, Any]) -> dict[Decimal, str]:
+    """이 행에서 도구가 준 환율 값 → 통화(받는 분·환율 데이터와 확인 카드)."""
+    follow = row.get("followUp") or {}
+    rates: dict[Decimal, str] = {}
+    items = list(row_remit_context(row).get("fxRates") or [])
+    for block in [*(row.get("blocks") or []), *(follow.get("blocks") or [])]:
+        if block.get("type") == "REMITTANCE_CONFIRM" and block.get("appliedRate"):
+            items.append(block["appliedRate"])
+    for item in items:
+        if isinstance(item, dict) and item.get("rate") is not None:
+            rates[Decimal(str(item["rate"])).normalize()] = str(item.get("currency") or "PHP")
+    return rates
+
+
+def _sentence_around(text: str, start: int, end: int) -> tuple[str, str]:
+    """숫자 앞(문장 처음부터)과 뒤(문장 끝까지). 숫자 안의 점은 문장 끝으로 보지 않는다."""
+    before_cut = max((m.end() for m in re.finditer(r"[.!?](?:\s+|$)|\n", text[:start])), default=0)
+    after = text[end:]
+    stop = re.search(r"[.!?](?:\s|$)|\n", after)
+    return text[before_cut:start], after[: stop.start() if stop else len(after)]
+
+
+def rate_mention_verdict(before: str, after: str, foreign: str) -> str:
+    flags = re.IGNORECASE
+    lead = r"(?:\d[\d,]*\s*|one\s+|a\s+|each\s+|every\s+)?"
+    if re.match(rf"\s*{foreign}\s*{_RATE_PER}", after, flags) or re.match(
+        rf"\s*(?:{_KRW_UNIT}\s*)?per\s*(?:\d[\d,]*\s*)?{_KRW_UNIT}", after, flags
+    ):
+        return "wrong"
+    if re.search(rf"{lead}{_KRW_UNIT}\s*{_RATE_IS}\s*(?:about\s*|around\s*)?$", before, flags):
+        return "wrong"
+    if re.match(
+        rf"\s*{_KRW_UNIT}\s*{_RATE_PER}\s*(?:1\s*|one\s*|each\s*|every\s*|a\s*)?{foreign}",
+        after,
+        flags,
+    ):
+        return "correct"
+    foreign_first = re.search(
+        rf"{lead}{foreign}\s*{_RATE_IS}\s*(?:about\s*|around\s*)?({_KRW_UNIT}\s*)?$", before, flags
+    )
+    if foreign_first and (foreign_first.group(1) or re.match(rf"\s*{_KRW_UNIT}", after, flags)):
+        return "correct"
+    if not re.match(rf"\s*(?:{_KRW_UNIT}|{foreign})", after, flags) and not re.search(
+        rf"(?:{_KRW_UNIT}|{foreign})\s*$", before, flags
+    ):
+        return "no_unit"
+    return "unclear"
+
+
+def rate_unit_check(row: dict[str, Any], answer: str) -> dict[str, Any] | None:
+    """답변 안의 환율 언급 판정. 도구가 준 환율 값이 답변에 없으면 None."""
+    rates = remit_rates(row)
+    mentions: list[dict[str, str]] = []
+    foreign = _foreign_unit(set(rates.values()) | {"PHP"})
+    for value in rates:
+        number = re.escape(format(value, "f"))
+        for m in re.finditer(rf"(?<![\d,.]){number}(?![\d])", answer):
+            before, after = _sentence_around(answer, m.start(), m.end())
+            mentions.append(
+                {
+                    "sentence": (before + m.group() + after).strip(),
+                    "verdict": rate_mention_verdict(before, after, foreign),
+                }
+            )
+    if not mentions:
+        return None
+    verdicts = {m["verdict"] for m in mentions}
+    if "wrong" in verdicts:
+        verdict = "wrong"
+    elif "unclear" in verdicts:
+        verdict = "unclear"
+    elif "correct" in verdicts:
+        verdict = "correct"
+    else:
+        verdict = "no_unit"
+    return {"verdict": verdict, "mentions": mentions}
 
 
 def remit_check(row: dict[str, Any]) -> dict[str, Any]:
@@ -868,8 +967,17 @@ def score(row: dict[str, Any]) -> None:
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
     called = sorted({t.get("toolName") for t in row.get("tools", [])})
     row["toolMatch"] = called == sorted(set(row["expectedTools"]))
+    if row.get("expectedAction") or called_remittance:
+        # 두 턴의 답변을 함께 본다(송금 문항이 아니면 1턴뿐).
+        full = "\n\n".join(a for a in (row.get("answer") or "", follow.get("answer") or "") if a)
+        row["rateUnit"] = rate_unit_check(row, full)
+    else:
+        row.pop("rateUnit", None)
     if row.get("expectedAction"):
-        row["remitCheck"] = remit_check(row)
+        row["remitCheck"] = remit = remit_check(row)
+        if (row.get("rateUnit") or {}).get("verdict") == "unclear":
+            remit["needsReview"] = True
+            remit["reason"] = "; ".join(r for r in (remit["reason"], "환율 단위 확인") if r)
 
 
 def percentile_95(values: list[float]) -> float:
@@ -992,6 +1100,15 @@ def render_summary(
             f"{len(unsupported)}/{len(done) - len(graded_done)}"
             + (" — " + unsupported_detail(unsupported) if unsupported else ""),
         ]
+        if any(r.get("rateUnit") for r in mine) and not any(r.get("remitCheck") for r in mine):
+            # 기존 문항 세트에서 송금 도구를 쓴 답(v3 회귀). 송금 세트는 송금 재질의 절에 적는다.
+            out.append(rate_unit_line(mine))
+            unclear = [r for r in mine if (r.get("rateUnit") or {}).get("verdict") == "unclear"]
+            if unclear:
+                out.append(
+                    "- 환율 단위 사람 확인: "
+                    + ", ".join(f"{r['questionId']}#{r['repeat']}" for r in unclear)
+                )
         if graded_done:
             out.append(
                 f"- 사람 채점 문항에서 도구 결과에 없는 숫자(계산한 답일 수 있음, 판단형 표에서 "
@@ -1078,6 +1195,22 @@ def _expected_cell(row: dict[str, Any]) -> str:
     return f"{row['expectedAction']} ({', '.join(slots)})"
 
 
+def rate_unit_line(rows: list[dict[str, Any]]) -> str:
+    """환율 단위 집계: 환율을 말한 답변 수와 판정별 수(wrong은 문항#회차까지)."""
+    judged = [r for r in rows if r.get("rateUnit")]
+    counts = {
+        v: [r for r in judged if r["rateUnit"]["verdict"] == v]
+        for v in ("correct", "wrong", "no_unit", "unclear")
+    }
+    wrong = ", ".join(f"{r['questionId']}#{r['repeat']}" for r in counts["wrong"])
+    return (
+        f"- 환율 단위: 환율을 말한 답변 {len(judged)}/{len(rows)}, "
+        f"correct {len(counts['correct'])}, wrong {len(counts['wrong'])}"
+        + (f" ({wrong})" if wrong else "")
+        + f", no_unit {len(counts['no_unit'])}, unclear {len(counts['unclear'])}"
+    )
+
+
 def remit_section(
     conditions: dict[str, Any], rows: list[dict[str, Any]], *, answers: bool
 ) -> list[str]:
@@ -1100,11 +1233,12 @@ def remit_section(
             f"- 정답의 완료 턴: 1턴 {turns.count(1)}, 2턴 {turns.count(2)}",
             f"- 근거 없는 숫자가 있는 문항: "
             f"{sum(1 for r in mine if r.get('numberCheck', {}).get('unsupported'))}/{len(mine)}",
+            rate_unit_line(mine),
             f"- 사람 확인: {len(review)}/{len(mine)}",
             "",
             "| 문항 | 회차 | 기대 | 1턴 | 2턴 | 판정 | 완료 턴 | 추측 오류 | 근거 없는 숫자 | "
-            "사람 확인 |",
-            "|---|---|---|---|---|---|---|---|---|---|",
+            "환율 단위 | 사람 확인 |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for r in mine:
             check = r["remitCheck"]
@@ -1114,6 +1248,7 @@ def remit_section(
                 f"{REMIT_OUTCOMES[check['outcome']]} | {check['turns'] or '-'} | "
                 f"{', '.join(check['guessErrors']) or '-'} | "
                 f"{_cell(', '.join(r['numberCheck']['unsupported'])) or '-'} | "
+                f"{(r.get('rateUnit') or {}).get('verdict') or '-'} | "
                 f"{_cell(check['reason']) if check['needsReview'] else '-'} |"
             )
         if review and answers:

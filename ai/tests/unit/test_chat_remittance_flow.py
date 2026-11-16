@@ -74,8 +74,9 @@ def _card(turn: dict[str, Any]) -> dict[str, Any]:
     return card
 
 
-def test_clear_request_quotes_and_shows_the_card() -> None:
-    turn = _turn(_client(), "send 500k won to mama pls")
+@pytest.mark.parametrize("version", ["v3", "v3.1", "v3.2"])
+def test_clear_request_quotes_and_shows_the_card(version: str) -> None:
+    turn = _turn(_client(version), "send 500k won to mama pls")
     assert [(t["toolName"], t["status"]) for t in turn["tools"]] == [
         (GET_REMITTANCE_RECIPIENTS, "SUCCEEDED"),
         (QUOTE_REMITTANCE, "SUCCEEDED"),
@@ -94,11 +95,12 @@ def test_clear_request_quotes_and_shows_the_card() -> None:
     assert card["transferPath"] == "/transfer?recipientId=11&amount=500000"
     # 답변 숫자는 견적 결과와 같다.
     assert "22,401 PHP" in turn["answer"] and "500,000 KRW" in turn["answer"]
-    assert turn["promptVersion"] == "chat-v3"
+    assert turn["promptVersion"] == f"chat-{version}"
 
 
-def test_ambiguous_recipient_asks_then_quotes_after_the_reply() -> None:
-    client = _client()
+@pytest.mark.parametrize("version", ["v3", "v3.1", "v3.2"])
+def test_ambiguous_recipient_asks_then_quotes_after_the_reply(version: str) -> None:
+    client = _client(version)
     first = _turn(client, "send 500k won home")
     assert [t["toolName"] for t in first["tools"]] == [GET_REMITTANCE_RECIPIENTS]
     assert first["blocks"] is None

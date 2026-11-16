@@ -460,3 +460,123 @@ def test_external_question_file_is_validated_before_any_call(
 
 def test_fixed_set_passes_the_same_validation() -> None:
     assert EVAL.remit_spec_errors(EVAL.load_questions(EVAL.REMIT_QUESTIONS)) == []
+
+
+# --- 환율 단위 판정(rateUnit) -------------------------------------------------------------
+
+
+def _rate_row(answer: str) -> dict[str, Any]:
+    row = _row("S01", {"answer": answer, **_quote(11, 500_000, "KRW")})
+    row["answer"] = answer
+    return row
+
+
+@pytest.mark.parametrize(
+    ("answer", "verdict"),
+    [
+        # 사람이 correct로 본 문장(측정 답변에서 옮김)
+        ("Lorna will receive 10,000 PHP at the applied rate of 22.32 KRW per PHP.", "correct"),
+        ("You would send 446,400 KRW at a rate of 22.32 won per peso.", "correct"),
+        ("You would send 334,800 KRW at an applied rate of 22.32 KRW per 1 PHP.", "correct"),
+        ("The rate is 1 PHP = 22.32 KRW.", "correct"),
+        ("More precisely, 1 PHP costs 22.32 KRW.", "correct"),
+        ("One peso is 22.32 won.", "correct"),
+        # 사람이 wrong으로 본 문장
+        ("She would receive 13,440 PHP at a rate of 22.32 PHP per 1,000 KRW.", "wrong"),
+        ("The applied rate is 22.32 PHP per 1 KRW unit in the quote shown.", "wrong"),
+        ("At 22.32 pesos per won.", "wrong"),
+        ("The rate is 22.32 per KRW.", "wrong"),
+        ("1 KRW = 22.32 PHP.", "wrong"),
+        # 한 답변에 correct와 wrong이 섞임(S10 1회차)
+        ("It uses 22.32 PHP per 1,000 KRW... more precisely, 1 PHP costs 22.32 KRW.", "wrong"),
+        # 단위 없이 숫자만(S27 1회차)
+        ("She would receive 22,401 PHP at the applied rate of 22.32.", "no_unit"),
+        # 판단 불가
+        ("The applied rate is 22.32 KRW today.", "unclear"),
+    ],
+)
+def test_rate_unit_verdict(answer: str, verdict: str) -> None:
+    check = EVAL.rate_unit_check(_rate_row(answer), answer)
+    assert check is not None
+    assert check["verdict"] == verdict, check["mentions"]
+
+
+def test_no_rate_mention_has_no_verdict() -> None:
+    assert (
+        EVAL.rate_unit_check(_rate_row("Please check the card."), "Please check the card.") is None
+    )
+    # 다른 숫자 22.3이나 222.32는 환율 언급이 아니다.
+    text = "You send 22.3% and 222.32 KRW."
+    assert EVAL.rate_unit_check(_rate_row(text), text) is None
+
+
+def test_unclear_rate_unit_goes_to_a_person_and_into_the_summary() -> None:
+    answers = {
+        "S01": "Lorna will receive 22,401 PHP. The applied rate is 22.32 KRW today.",
+        "S04": "Lorna will receive 10,000 PHP at a rate of 22.32 PHP per 1,000 KRW.",
+    }
+    rows = []
+    for qid, answer in answers.items():
+        row = _row(qid, {**_quote(11, 500_000, "KRW"), "answer": answer})
+        row.update(
+            variant="v", repeat=1, warmup=False, toolResult=EVAL.fixture_context(),
+            contextTexts=[_questions()[qid]["text"]], expectedTools=[], judgmentFacts=False,
+            timings={}, serverTimings={}, usage=None, metrics=None, costUsd=0,
+        )  # fmt: skip
+        EVAL.score(row)
+        rows.append(row)
+    assert rows[0]["rateUnit"]["verdict"] == "unclear"
+    assert rows[0]["remitCheck"]["needsReview"] is True
+    assert rows[0]["remitCheck"]["reason"].endswith("환율 단위 확인")
+    assert rows[1]["rateUnit"]["verdict"] == "wrong"
+    conditions = {
+        "target": "ai", "mode": "fake", "questions": [], "repeats": 1, "warmup": 0,
+        "maxUsd": 1, "startedAt": "t", "status": "completed",
+        "variants": [{"name": "v", "model": "m"}],
+    }  # fmt: skip
+    summary = EVAL.render_summary(conditions, rows)
+    assert (
+        "- 환율 단위: 환율을 말한 답변 2/2, correct 0, wrong 1 (S04#1), no_unit 0, unclear 1"
+        in summary
+    )
+    assert "| 환율 단위 | 사람 확인 |" in summary
+
+
+# --- 환율 표기 비교 측정 설정(이슈 #45) --------------------------------------------------
+
+
+def test_rate_text_variants_differ_only_in_prompt_version() -> None:
+    specs = Path(EVAL.AI_ROOT) / "specs" / "chat"
+    base = EVAL.load_variants(specs / "variants_remit_v1.json", _settings())[0]
+    loaded = EVAL.load_variants(specs / "variants_rate_text_v1.json", _settings())
+    assert [(v["name"], v["promptVersion"]) for v in loaded] == [
+        ("rate-v3", "v3"),
+        ("rate-v3.1", "v3.1"),
+        ("rate-v3.2", "v3.2"),
+    ]
+    same = {k: v for k, v in base.items() if k not in ("name", "promptVersion")}
+    for variant in loaded:
+        assert {k: v for k, v in variant.items() if k not in ("name", "promptVersion")} == same
+
+
+def test_rate_text_variants_run_in_fake_mode(tmp_path: Path) -> None:
+    settings = _settings()
+    variants = Path(EVAL.AI_ROOT) / "specs" / "chat" / "variants_rate_text_v1.json"
+    output = tmp_path / "rate.jsonl"
+    code = EVAL.main(
+        ["--base-url", "http://testserver", "--question-set", "remit", "--questions", "S01,S14",
+         "--variants", str(variants), "--output", str(output)],
+        client=_client(settings),
+        settings=settings,
+        confirm=lambda _: "n",
+    )  # fmt: skip
+    assert code == 0
+    lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    rows = [r for r in lines if r["type"] == "call"]
+    assert sorted({r["variant"] for r in rows}) == ["rate-v3", "rate-v3.1", "rate-v3.2"]
+    assert all(r["remitCheck"]["outcome"] == "correct" for r in rows)
+    assert {r["metrics"]["config"]["promptVersion"] for r in rows} == {
+        "chat-v3",
+        "chat-v3.1",
+        "chat-v3.2",
+    }
