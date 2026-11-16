@@ -235,6 +235,7 @@ def test_tool_summary_lines() -> None:
     }
     text = "\n".join(PC.tool_summary_lines([row]))
     assert "인자 전체 일치: 0/1 (0%)" in text
+    assert "순서 방식(도구 호출 회차): -" in text  # 측정 값에 rankedBy가 없으면 -
     assert "위반 상품(기대 인자 기준): 1 — Q01#1" in text
     assert '| Q01#1 | {"productType": "SAVINGS"} | {"productType": "DEPOSIT"} |' in text
     assert PC.tool_summary_lines([{"questionId": "F01"}]) == []

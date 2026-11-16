@@ -132,6 +132,9 @@ def _product_args(text: str) -> dict[str, Any]:
         args["accrual"] = "FIXED"
     if re.search(r"foreign", text, re.IGNORECASE):
         args["requireForeignerExplicit"] = True
+    # 순서 B(상품설명서 검색)를 fake 모드에서도 타도록 고정 검색어를 넘긴다.
+    queries = {"SAVINGS": "적금 추천", "DEPOSIT": "목돈 정기예금"}
+    args["queryKo"] = queries.get(args.get("productType", ""), "외국인 가입 가능 상품")
     return args
 
 

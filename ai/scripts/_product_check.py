@@ -257,10 +257,18 @@ def tool_summary_lines(rows: Sequence[dict[str, Any]]) -> list[str]:
     with_args = [r for r in checked if r.get("expectedArgs") is not None]
     called = [r for r in with_args if r["productToolCheck"]["called"]]
     all_match = sum(1 for r in with_args if r["productToolCheck"]["argsAllMatch"])
+    # 순서 방식(search = B, catalog* = A). 측정 조건 확인용(채점에는 쓰지 않음).
+    ranked: dict[str, int] = {}
+    for r in checked:
+        how = (r.get("productTool") or {}).get("rankedBy")
+        if how:
+            ranked[how] = ranked.get(how, 0) + 1
     out = [
         "",
         "### 상품 도구 채점(v4)",
         "",
+        "- 순서 방식(도구 호출 회차): "
+        + (", ".join(f"{k} {v}" for k, v in sorted(ranked.items())) or "-"),
         f"- 상품 문항에서 도구 호출: {len(called)}/{len(with_args)}",
         f"- 인자 전체 일치: {all_match}/{len(with_args)}"
         + (f" ({all_match / len(with_args):.0%})" if with_args else ""),
