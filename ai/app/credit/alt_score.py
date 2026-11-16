@@ -7,12 +7,16 @@
 계산식은 원본의 loan_rate·basel_capital·pd_to_score·limit_components·dsr_max_principal·decide와
 같고 연산 순서도 맞춰 둔다. 원본 데모 1,000명과의 일치는 tests/credit/test_alt_score_parity.py가
 확인한다. 결과는 모의 사전진단이며 실제 대출 승인이나 신용점수가 아니다.
+
+원본에 없는 입력 처리 두 가지(원본 데모 입력은 모두 범위 안이라 일치 결과는 같다):
+- 누적 체류가 학습 범위(JSON feature_ranges, 6~120개월) 밖이면 계산하지 않는다(AltCreditRangeError).
+- 송금 비율이 REMIT_MAX(0.8)를 넘으면 그 값으로 잘라 계산하고 inputWarnings에 알린다.
 """
 
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from enum import StrEnum
 from functools import lru_cache
@@ -55,6 +59,22 @@ class AltCreditReason(StrEnum):
     SALARY_UNDER_3M = "SALARY_UNDER_3M"  # 급여 입금 3개월 미만
     EXPIRY_WITHIN_6M = "EXPIRY_WITHIN_6M"  # 체류만료 6개월 이내
     RATE_OVER_LEGAL_MAX = "RATE_OVER_LEGAL_MAX"  # 산출금리가 법정최고금리 초과
+
+
+class AltCreditWarning(StrEnum):
+    """계산은 했지만 입력을 바꿔 쓴 경우."""
+
+    REMIT_RATIO_CLIPPED = "REMIT_RATIO_CLIPPED"  # 송금 비율을 REMIT_MAX로 잘랐다
+
+
+class AltCreditRangeError(ValueError):
+    """입력이 모델 학습 범위 밖이라 계산하지 않는다. 필드 이름과 범위만 담는다(값은 담지 않음)."""
+
+    def __init__(self, field: str, low: float, high: float) -> None:
+        super().__init__(f"{field} must be between {low:g} and {high:g} (model training range)")
+        self.field = field
+        self.low = low
+        self.high = high
 
 
 class LimitBinding(StrEnum):
@@ -119,6 +139,9 @@ class AltCreditAssessment(_CamelResponse):
     max_limit_binding: LimitBinding | None = Field(description="최대한도를 정한 상한")
     decision: AltCreditDecision
     reason_code: AltCreditReason | None = Field(description="ELIGIBLE이면 null")
+    input_warnings: list[AltCreditWarning] = Field(
+        description="입력을 바꿔 계산했으면 그 코드. 없으면 빈 목록"
+    )
     disclaimer: str
 
 
@@ -151,6 +174,8 @@ class AltCreditModelFile(BaseModel):
     intercept: float
     score_scale: _ScoreScale
     remit_regularity_neutral: float = Field(ge=1, le=6)
+    # 학습 모집단의 변수별 [최솟값, 최댓값]
+    feature_ranges: dict[str, tuple[float, float]]
     assumptions: dict[str, _Assumption]
     training: dict[str, Any]
 
@@ -160,6 +185,10 @@ class AltCreditModelFile(BaseModel):
             raise ValueError(f"features must be {list(FEATURES)} in this order")
         if len(self.coef) != len(self.features):
             raise ValueError("coef must have one value per feature")
+        if set(self.feature_ranges) != set(FEATURES):
+            raise ValueError("feature_ranges must have one range per feature")
+        if any(low > high for low, high in self.feature_ranges.values()):
+            raise ValueError("feature_ranges must be [min, max]")
         return self
 
 
@@ -190,6 +219,7 @@ class _Params:
     term_before_expiry: int  # TERM_BEFORE_EXPIRY
     min_salary_months: int  # MIN_SALARY_MONTHS
     stress_rate_add: float  # STRESS_RATE_ADD
+    remit_max: float  # REMIT_MAX(학습 데이터의 송금 비율 상한)
 
 
 def _params(assumptions: dict[str, _Assumption]) -> _Params:
@@ -247,6 +277,7 @@ def _params(assumptions: dict[str, _Assumption]) -> _Params:
         term_before_expiry=integer("TERM_BEFORE_EXPIRY"),
         min_salary_months=integer("MIN_SALARY_MONTHS"),
         stress_rate_add=number("STRESS_RATE_ADD"),
+        remit_max=number("REMIT_MAX"),
     )
 
 
@@ -260,6 +291,7 @@ class AltCreditModel:
     score_offset: float
     score_factor: float
     remit_regularity_neutral: float
+    stay_range: tuple[float, float]  # 누적 체류 학습 범위(개월)
     params: _Params
 
 
@@ -273,6 +305,7 @@ def load_model(path: Path = MODEL_PATH) -> AltCreditModel:
         score_offset=file.score_scale.offset,
         score_factor=file.score_scale.factor,
         remit_regularity_neutral=file.remit_regularity_neutral,
+        stay_range=file.feature_ranges["stay_duration_months"],
         params=_params(file.assumptions),
     )
 
@@ -373,9 +406,19 @@ def _limit(
 def assess(
     inputs: AltCreditInput, *, is_mock: bool, model: AltCreditModel | None = None
 ) -> AltCreditAssessment:
-    """모의 사전진단 1건. is_mock은 입력 출처(Mock 데이터인지)에 따라 호출부가 정한다."""
+    """모의 사전진단 1건. is_mock은 입력 출처(Mock 데이터인지)에 따라 호출부가 정한다.
+
+    누적 체류가 학습 범위 밖이면 AltCreditRangeError를 올린다.
+    """
     m = default_model() if model is None else model
     a = m.params
+    low, high = m.stay_range
+    if not low <= inputs.stay_duration_months <= high:
+        raise AltCreditRangeError("stay_duration_months", low, high)
+    warnings: list[AltCreditWarning] = []
+    if inputs.remit_ratio > a.remit_max:
+        inputs = replace(inputs, remit_ratio=a.remit_max)
+        warnings.append(AltCreditWarning.REMIT_RATIO_CLIPPED)
     p = _probability(m, _features(inputs, m.remit_regularity_neutral))
     effective_income = inputs.monthly_income * (1 - a.turnover_rate)
     # 원본은 소득자에게만 금리를 낸다.
@@ -400,6 +443,7 @@ def assess(
             max_limit_binding=limits[2],
             decision=decision,
             reason_code=reason,
+            input_warnings=warnings,
             disclaimer=DISCLAIMER,
         )
 

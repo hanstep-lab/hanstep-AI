@@ -160,6 +160,11 @@ def model_document(
         "intercept": float(model.intercept_[0]),
         "score_scale": {"offset": float(v9.offset), "factor": float(v9.factor)},
         "remit_regularity_neutral": neutral,
+        # 학습 모집단(소득자) 변수별 [최솟값, 최댓값].
+        # 서빙은 누적 체류가 이 범위 밖이면 계산하지 않는다.
+        "feature_ranges": {
+            name: [plain(earners[name].min()), plain(earners[name].max())] for name in v9.FEATURES
+        },
         "assumptions": {
             name: {"value": plain(value), "basis": basis}
             for name, (value, basis) in v9.ASSUMPTIONS.items()

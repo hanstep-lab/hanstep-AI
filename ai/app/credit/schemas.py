@@ -30,6 +30,7 @@ class AltCreditRequest(BaseModel):
     is_mock: bool = Field(
         description="입력이 Mock 데이터 기반이면 true. 응답 isMock에 그대로 담는다"
     )
+    # 형식만 본다. 모델 학습 범위(6~120개월) 밖이면 계산 단계에서 400(out_of_training_range).
     stay_duration_months: Months = Field(description="누적 체류 개월(이전 체류 포함)")
     # 만료 없음과 값 누락을 구분하려고 null도 명시적으로 보내게 한다(기본값 없음).
     months_to_expiry: Months | None = Field(
@@ -46,7 +47,7 @@ class AltCreditRequest(BaseModel):
     util_late_6m: LateCount = Field(
         alias="utilLate6m", description="최근 6개월 건강보험·공과금 연체 횟수"
     )
-    # 원본 학습 데이터의 범위는 0~0.8(REMIT_MAX). 0.8 초과도 받아서 그대로 계산한다.
+    # 0~1을 받는다. 계산할 때 REMIT_MAX(0.8)를 넘으면 그 값으로 자르고 inputWarnings에 알린다.
     remit_ratio: float = Field(
         ge=0, le=1, allow_inf_nan=False, description="소득 대비 해외송금 비율"
     )

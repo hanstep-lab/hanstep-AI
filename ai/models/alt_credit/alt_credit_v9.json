@@ -24,6 +24,28 @@
     "factor": 58.24805229309855
   },
   "remit_regularity_neutral": 4.825236752692836,
+  "feature_ranges": {
+    "tel_late_6m": [
+      0,
+      6
+    ],
+    "remit_ratio": [
+      0.0,
+      0.8
+    ],
+    "stay_duration_months": [
+      6,
+      120
+    ],
+    "remit_regularity": [
+      1.0,
+      6.0
+    ],
+    "util_late_6m": [
+      0,
+      6
+    ]
+  },
   "assumptions": {
     "LOAN_DELINQ_LATEST": {
       "value": 0.0091,
@@ -309,6 +331,6 @@
       "scipy": "1.17.1",
       "scikit-learn": "1.9.1"
     },
-    "generated_at": "2026-11-16T03:02:33+00:00"
+    "generated_at": "2026-11-16T03:27:10+00:00"
   }
 }
