@@ -6,11 +6,11 @@ import logging
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 AI_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = AI_ROOT.parent
@@ -130,6 +130,14 @@ class Settings(BaseSettings):
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")
 
+    # RabbitMQ Worker(python -m app.worker).
+    rabbitmq_url: SecretStr = SecretStr("")
+    # 일시 오류 재시도 대기(ms). n번째 재시도 메시지가 n번째 값을 expiration으로 쓰고, 값 개수가
+    # 최대 재시도 횟수다. 작업 종류(정책 적재, OCR)가 같이 쓴다. 환경 변수는 "5000,15000,45000".
+    retry_delays_ms: Annotated[tuple[int, ...], NoDecode] = (5000, 15000, 45000)
+    # job_started의 workerId. 비우면 호스트 이름을 쓴다.
+    worker_id: str = ""
+
     rag_data_root: Path = REPO_ROOT / "data" / "rag_documents"
     rag_artifacts_dir: Path = AI_ROOT / "artifacts" / "rag"
     search_top_k_max: int = 20
@@ -138,6 +146,9 @@ class Settings(BaseSettings):
 
     def mongo_configured(self) -> bool:
         return not is_placeholder(self.mongo_uri.get_secret_value())
+
+    def rabbitmq_configured(self) -> bool:
+        return not is_placeholder(self.rabbitmq_url.get_secret_value())
 
     def r2_credentials_configured(self) -> bool:
         values = (
@@ -166,6 +177,22 @@ class Settings(BaseSettings):
         # 받아 온다.
         if value and not re.fullmatch(r"[0-9a-f]{7,40}|main", value):
             raise ValueError("EMBEDDING_MODEL_REVISION must be a commit hash, 'main' or empty")
+        return value
+
+    @field_validator("retry_delays_ms", mode="before")
+    @classmethod
+    def _parse_retry_delays(cls, value: object) -> object:
+        if isinstance(value, str):
+            return tuple(int(part) for part in value.split(",") if part.strip())
+        return value
+
+    @field_validator("retry_delays_ms")
+    @classmethod
+    def _retry_delays_positive(cls, value: tuple[int, ...]) -> tuple[int, ...]:
+        if not value or any(delay <= 0 for delay in value):
+            raise ValueError(
+                "RETRY_DELAYS_MS must list positive milliseconds, e.g. 5000,15000,45000"
+            )
         return value
 
     @field_validator("r2_endpoint_url")
