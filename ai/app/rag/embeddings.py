@@ -18,6 +18,7 @@ from app.rag.schemas import EMBEDDING_DIMENSIONS, validate_embedding
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
+    from transformers import PreTrainedTokenizerBase
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,14 @@ MODEL_FILE_PATTERNS = [
     "special_tokens_map.json",
     "sentencepiece.bpe.model",
     "pytorch_model.bin",
+]
+# 토큰 수만 셀 때 필요한 파일(모델 가중치 없이 토크나이저만).
+TOKENIZER_FILE_PATTERNS = [
+    "config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "sentencepiece.bpe.model",
 ]
 
 
@@ -86,6 +95,7 @@ class BgeM3Embedder:
         self.batch_size = batch_size
         self.local_files_only = local_files_only
         self._model: SentenceTransformer | None = None
+        self._tokenizer: PreTrainedTokenizerBase | None = None
 
     def load(self) -> SentenceTransformer:
         if self._model is None:
@@ -113,16 +123,34 @@ class BgeM3Embedder:
             self._model = model
         return self._model
 
-    def _ensure_local_files(self) -> None:
-        """dense 모델 파일을 내려받는다(ONNX, ColBERT/sparse 헤드, 이미지는 건너뛴다)."""
+    def _ensure_local_files(self, patterns: Sequence[str] = MODEL_FILE_PATTERNS) -> None:
+        """필요한 파일만 내려받는다(ONNX, ColBERT/sparse 헤드, 이미지는 건너뛴다)."""
         from huggingface_hub import snapshot_download
 
         snapshot_download(
             self.model_name,
             revision=self.revision,
-            allow_patterns=MODEL_FILE_PATTERNS,
+            allow_patterns=list(patterns),
             local_files_only=self.local_files_only,
         )
+
+    def _counting_tokenizer(self) -> PreTrainedTokenizerBase:
+        """토큰 수 세기용 토크나이저. 모델이 이미 로드돼 있으면 그 토크나이저를 쓴다.
+
+        모델이 없으면 토크나이저 파일만 불러온다. 토큰 수만 세는 경우(예: 변경 없는 재적재의 청킹)에
+        모델 전체(~2.3 GB, 워밍업 포함)를 올리지 않기 위해서다. 같은 모델·revision의 토크나이저다.
+        """
+        if self._model is not None:
+            loaded: PreTrainedTokenizerBase = self._model.tokenizer
+            return loaded
+        if self._tokenizer is None:
+            from transformers import AutoTokenizer
+
+            self._ensure_local_files(TOKENIZER_FILE_PATTERNS)
+            self._tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name, revision=self.revision, local_files_only=True
+            )
+        return self._tokenizer
 
     @property
     def loaded(self) -> bool:
@@ -147,10 +175,11 @@ class BgeM3Embedder:
         )
 
     def count_tokens(self, text: str) -> int:
-        tokenizer = self.load().tokenizer
+        tokenizer = self._counting_tokenizer()
         return len(tokenizer(text, add_special_tokens=True)["input_ids"])
 
     def _encode(self, texts: Sequence[str]) -> list[list[float]]:
+        # 길이 검사는 토크나이저로만 한다. 모델 전체는 실제로 임베딩할 때(아래) 처음 올린다.
         for text in texts:
             if self.count_tokens(text) > MODEL_MAX_TOKENS:
                 raise ValueError("text exceeds model max tokens; refusing to truncate")
