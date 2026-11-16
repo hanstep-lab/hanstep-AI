@@ -155,3 +155,24 @@ def test_results_cannot_be_modified_after_calculation() -> None:
 
 def test_default_rule_sets_are_loaded_once() -> None:
     assert default_rule_sets() is default_rule_sets()
+
+
+@pytest.mark.parametrize(
+    ("as_of", "status", "stay_status", "stay_months"),
+    [
+        (date(2026, 12, 4), EligibilityStatus.INELIGIBLE, "NOT_MET", 47),
+        (date(2026, 12, 5), EligibilityStatus.NEEDS_EVIDENCE, "MET", 48),
+    ],
+)
+def test_p05_reyes_meets_stay_period_from_2026_12_05(
+    as_of: date, status: EligibilityStatus, stay_status: str, stay_months: int
+) -> None:
+    """P05(BE 데모 시드 Reyes): 체류 시작 2022-12-05라 48개월이 2026-12-05에 찬다."""
+    result = assess_e74(E74Profile.model_validate(profile_json("P05")), as_of, include_draft=True)
+
+    assert result.status is status
+    assert (result.score.total, result.potential_score.total) == (235, 285)
+    [stay] = [item for item in result.items if item.rule_code == "REQ_STAY_PERIOD"]
+    assert stay.status.value == stay_status
+    assert stay.evidence["currentStayMonths"] == stay_months
+    assert stay.evidence["requiredMonths"] == 48
