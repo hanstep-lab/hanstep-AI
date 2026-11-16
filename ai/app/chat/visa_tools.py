@@ -4,6 +4,10 @@
 - 사용자 id와 요청 id는 요청마다 고정된다. LLM 인자로는 다른 사용자를 지정할 수 없다.
 - 점수: Spring 내부 API가 MySQL 프로필로 계산·저장하고 행 id를 준다. 결과 참조·근거·화면 카드는
   e74_records로 만든다(카드 숫자는 도구 결과에서만).
+- 점수 기준일: Spring에는 항상 오늘(KST)을 보낸다. LLM이 오늘이 아닌 asOfDate를 주면 가정
+  계산(scenario.asOfDate)으로 옮긴다. 일반 계산으로 저장되면 앱의 최신 평가(일반 계산 중 마지막
+  행)를 덮기 때문이다. LLM이 보는 도구 설명은 그대로이고, 결과의 asOfDate도 계산한 날짜 그대로다
+  (isScenario만 true).
 - 검색: 운영 검색(SearchService: MongoDB 벡터 검색 + Spring 승인 확인). 근거는 실제 검색 결과의
   문서·청크 id만 쓴다.
 - 채팅 기록(agent.tool_call의 arguments)에는 recorded_arguments를 거친 값만 남긴다(감점 6문항 답
@@ -28,6 +32,7 @@ from app.chat.tools import UNAVAILABLE, ToolOutcome
 from app.integrations.spring_client import SpringApiError, SpringInternalClient
 from app.rag.errors import ValidationFailedError
 from app.rag.retrieval import SearchHit, SearchService, SearchUnavailableError
+from app.visa.e74.schemas import E74Scenario
 from app.visa.tools import (
     CALCULATE_E74_SCORE,
     SEARCH_VISA_POLICIES,
@@ -77,6 +82,10 @@ E74_REJECTIONS = {
         "(RULE_SET_NOT_REGISTERED). Changing the arguments will not help"
     ),
 }
+# asOfDate(오늘이 아님)와 scenario.asOfDate가 둘 다 있고 서로 다를 때.
+AS_OF_CONFLICT = (
+    "invalid arguments: asOfDate (differs from scenario.asOfDate). Give the date only once"
+)
 # Spring은 감점·제외 답을 profile.legalDeclaration 아래로 검증한다. LLM이 쓰는 인자 이름으로 바꾼다.
 _LEGAL_FIELD_PREFIX = "profile.legalDeclaration"
 
@@ -183,9 +192,21 @@ class VisaTools:
     async def _calculate(self, parsed: CalculateE74ScoreInput, outcome: OutcomeFn) -> ToolOutcome:
         if self._e74 is None:
             return outcome("FAILED", UNAVAILABLE, error_code="SPRING_NOT_CONFIGURED")
+        today = kst_today()
+        scenario = parsed.scenario
+        as_of = parsed.as_of_date
+        if as_of is not None and as_of != today:
+            # 오늘이 아닌 기준일은 가정 계산으로 보낸다. 시나리오에 다른 기준일이 이미 있으면
+            # 어느 쪽인지 정하지 않고 LLM이 고쳐 부르게 한다.
+            if scenario is not None and scenario.as_of_date not in (None, as_of):
+                return outcome("REJECTED", AS_OF_CONFLICT, error_code="INVALID_ARGUMENTS")
+            if scenario is None:
+                scenario = E74Scenario.model_validate({"asOfDate": as_of})
+            else:
+                scenario = scenario.model_copy(update={"as_of_date": as_of})
         request = E74AssessmentToolRequest(
-            as_of_date=parsed.as_of_date or kst_today(),
-            scenario=parsed.scenario,
+            as_of_date=today,
+            scenario=scenario,
             legal_declaration=parsed.legal_declaration,
         )
         try:
