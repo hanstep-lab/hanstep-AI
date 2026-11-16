@@ -4,9 +4,9 @@
   "profile": {
     "visaProfile": {
       "visaTypeCode": "E-9",
-      "birthDate": "1996-07-21",
+      "birthDate": "1995-08-15",
       "evidenceStatus": "VERIFIED",
-      "currentStayStartedOn": "2022-03-07",
+      "currentStayStartedOn": "2022-12-05",
       "priorStayMonths": 0
     },
     "employmentHistories": [
@@ -16,7 +16,7 @@
         "industryCode": "MANUFACTURING",
         "workplaceRegionCode": "48250",
         "isDepopulationArea": false,
-        "startedOn": "2022-03-14",
+        "startedOn": "2022-12-12",
         "contractEndOn": "2029-03-13",
         "contractAnnualSalary": 31500000,
         "verificationStatus": "VERIFIED"
