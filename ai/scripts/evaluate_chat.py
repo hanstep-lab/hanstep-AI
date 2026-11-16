@@ -89,7 +89,8 @@ from app.rag.cli import EXIT_BLOCKED, EXIT_FAILED, EXIT_OK
 AI_ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
 REMIT_QUESTIONS = AI_ROOT / "specs" / "chat" / "remit_questions_v1.json"
-QUESTION_SETS = {"eval": QUESTIONS, "remit": REMIT_QUESTIONS}
+PRODUCT_QUESTIONS = AI_ROOT / "specs" / "chat" / "product_questions_v1.json"
+QUESTION_SETS = {"eval": QUESTIONS, "remit": REMIT_QUESTIONS, "product": PRODUCT_QUESTIONS}
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
 PROMPT_BASE = {"v3": "v2", "v3.1": "v3", "v3.2": "v3"}
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
@@ -1415,7 +1416,8 @@ def main(
         "--question-set",
         choices=sorted(QUESTION_SETS),
         default="eval",
-        help="eval: eval_questions_v1.json, remit: remit_questions_v1.json (prompt v3)",
+        help="eval: eval_questions_v1.json, remit: remit_questions_v1.json (prompt v3), "
+        "product: product_questions_v1.json (product tool, #65)",
     )
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--warmup", type=int, default=0, help="calls per variant, not summarized")
