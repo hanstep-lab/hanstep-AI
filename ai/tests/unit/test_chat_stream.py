@@ -691,8 +691,8 @@ def test_default_settings_reach_the_stream(monkeypatch: pytest.MonkeyPatch) -> N
     config = events[-2][1]["config"]
     assert config["model"] == "claude-haiku-5-5"
     assert config["judgmentFacts"] is True
-    assert config["promptVersion"] == "chat-v2"
-    assert events[-1][1]["promptVersion"] == "chat-v2"
+    assert config["promptVersion"] == "chat-v3"
+    assert events[-1][1]["promptVersion"] == "chat-v3"
     assert seen["judgment_facts"] is True
 
 

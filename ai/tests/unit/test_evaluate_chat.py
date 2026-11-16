@@ -74,8 +74,9 @@ def _run(settings: Settings, *argv: str, client: httpx.Client | None = None) -> 
     return code
 
 
+# fake 모드 측정 과정 확인용. v3는 fake 모드에서 'send'를 보고 송금 도구를 고르므로 v2로 고정
 def test_fake_mode_two_questions(tmp_path: Path) -> None:
-    settings = _settings()
+    settings = _settings(chat_prompt_version="v2")
     output = tmp_path / "run.jsonl"
     assert _run(settings, "--questions", "F01,T03", "--output", str(output)) == 0
 
@@ -764,14 +765,14 @@ def test_graded_numbers_are_counted_apart() -> None:
         ),
         (
             {"name": "v1", "model": "claude-haiku-5-5", "promptVersion": "v1"},
-            "promptVersion chat-v2 != chat-v1",
+            "promptVersion chat-v3 != chat-v1",
         ),
     ],  # fmt: skip
 )
 def test_stops_when_server_ignores_the_variant(
     tmp_path: Path, variant: dict[str, Any], problem: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # CHAT_ALLOW_CONFIG_OVERRIDE is off, so the server runs its defaults (haiku, facts, v2).
+    # CHAT_ALLOW_CONFIG_OVERRIDE is off, so the server runs its defaults (haiku, facts, v3).
     variants = tmp_path / "variants.json"
     variants.write_text(json.dumps([variant]), encoding="utf-8")
     output = tmp_path / "run.jsonl"
