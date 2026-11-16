@@ -814,9 +814,9 @@ def call_ai(
     header = config_header(variant)
     if header:
         headers["X-Chat-Config"] = header
-    if question.get("profileId"):
-        # 상품 문항(#65): 서버의 fixture 프로필(CHAT_ALLOW_CONFIG_OVERRIDE=true일 때만 쓰인다).
-        headers["X-Chat-Product-Profile"] = question["profileId"]
+    if question.get("productProfileHeader"):
+        # 상품 문항(#65): 질문 파일 profiles의 값(CHAT_ALLOW_CONFIG_OVERRIDE=true일 때만 쓰인다).
+        headers["X-Chat-Product-Profile"] = question["productProfileHeader"]
     url = base_url.rstrip("/") + "/internal/v1/agent/chat/stream"
     return stream_call(client, url, body, headers, "agent")
 
@@ -977,6 +977,25 @@ def product_fields(spec: dict[str, Any], question: dict[str, Any]) -> dict[str, 
         "productProfile": (spec.get("profiles") or {}).get(profile_id) if profile_id else None,
         "productAsOf": spec.get("asOf"),
     }
+
+
+def with_profile_header(spec: dict[str, Any], question: dict[str, Any]) -> dict[str, Any]:
+    """상품 문항에 서버로 보낼 프로필 값(JSON, 측정 전용 헤더)을 붙인 복사본.
+
+    질문 파일의 profiles가 기준이다. 서버는 이 값으로 추천하고,
+    채점도 같은 값으로 기대 결과를 계산한다.
+    """
+    profile = (spec.get("profiles") or {}).get(question.get("profileId") or "")
+    if not profile:
+        return question
+    values = {
+        "visaTypeCode": profile.get("visa"),
+        "stayExpiresOn": profile.get("stayExpiry"),
+        "age": profile.get("age"),
+        "asOf": spec.get("asOf"),
+        "spareKrw": profile.get("spareKrw"),
+    }
+    return {**question, "productProfileHeader": json.dumps(values, separators=(",", ":"))}
 
 
 def product_tool_result(metrics: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -1583,6 +1602,7 @@ def main(
     questions = select_questions(spec, args.questions, args.subset, parser)
     if remit:
         questions = [remit_question(q) for q in questions]
+    questions = [with_profile_header(spec, q) for q in questions]
     try:
         variants = load_variants(args.variants, settings)
     except (ValueError, OSError) as exc:

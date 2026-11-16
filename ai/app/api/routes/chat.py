@@ -137,8 +137,9 @@ def product_source(
 ) -> ProductContextSource:
     """상품 추천 프로필. fake 모드이거나 Spring 설정이 없으면 fixture 프로필(기본 P1).
 
-    측정 전용: CHAT_ALLOW_CONFIG_OVERRIDE=true일 때만 X-Chat-Product-Profile로
-    fixture 프로필을 고른다.
+    측정 전용: CHAT_ALLOW_CONFIG_OVERRIDE=true일 때만 X-Chat-Product-Profile을 쓴다. 값은 fixture
+    id(P1~P5) 또는 프로필 값 JSON(visaTypeCode·stayExpiresOn·age·asOf·spareKrw, evaluate_chat이
+    질문 파일의 profiles로 만든다). 운영 경로(anthropic 모드 + Spring 설정)에서는 쓰지 않는다.
     """
     settings: Settings = request.app.state.rag.settings
     if settings.chat_llm_mode == "anthropic" and settings.spring_configured():

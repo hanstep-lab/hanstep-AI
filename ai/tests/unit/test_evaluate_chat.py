@@ -982,3 +982,34 @@ def test_product_questions_outside_repo_without_gold_or_outcome(tmp_path: Path) 
     assert rows["H01"]["productToolCheck"]["outcomeCorrect"]
     assert rows["H02"]["expectedOutcome"] == {"type": "out_of_scope"}
     assert rows["H02"]["productToolCheck"]["outcomeCorrect"]
+
+
+def test_holdout_profiles_reach_the_server(tmp_path: Path) -> None:
+    # A안: 질문 파일 profiles의 값이 측정 전용 헤더로 서버에 간다(fixture에 없는 새 프로필).
+    holdout = {
+        "version": "holdout-test",
+        "asOf": "2026-11-16",
+        "profiles": {
+            "N1": {"visa": "E-9", "stayExpiry": "2026-12-01", "spareKrw": 675317, "age": None}
+        },
+        "questions": [
+            {
+                "id": "H01",
+                "category": "product",
+                "profileId": "N1",
+                "text": "I have a lump sum. Which time deposit do you suggest?",
+                "history": [],
+                "expectedTools": ["recommend_savings_products"],
+                "expectedArgs": {"productType": "DEPOSIT"},
+            }
+        ],
+    }
+    path = tmp_path / "holdout.json"
+    path.write_text(json.dumps(holdout), encoding="utf-8")
+    settings = _settings(chat_prompt_version="v4", chat_allow_config_override=True)
+    output = tmp_path / "holdout.jsonl"
+    assert _run(settings, "--product-questions", str(path), "--output", str(output)) == 0
+    row = _rows(output)[0]
+    assert row["productTool"]["content"]["user"]["remainingStayMonths"] == 0
+    assert row["expectedOutcome"] == {"type": "abstain", "reason": "STAY_TOO_SHORT"}
+    assert row["productToolCheck"]["outcomeCorrect"]

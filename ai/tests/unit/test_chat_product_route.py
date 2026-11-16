@@ -114,3 +114,36 @@ def test_card_question_does_not_call_the_product_tool() -> None:
     assert all(
         d["toolName"] != RECOMMEND_SAVINGS_PRODUCTS for n, d in events if n == "agent.tool_call"
     )
+
+
+def test_profile_values_header_only_with_override() -> None:
+    message = "I want to save 300,000 won every month. Which savings product is good?"
+    values = (
+        '{"visaTypeCode":"E-9","stayExpiresOn":"2028-11-16","age":null,'
+        '"asOf":"2026-11-16","spareKrw":100000}'
+    )
+    headers = {"X-Chat-Metrics": "1", "X-Chat-Product-Profile": values}
+    allowed = _events(_client(chat_allow_config_override=True), message, **headers)
+    tool = next(d for n, d in allowed if n == "agent.metrics")["tools"][0]
+    assert tool["abstainReason"] == "REQUEST_EXCEEDS_SURPLUS"
+    assert tool["content"]["user"]["monthlySpareKrw"] == 100000
+    ignored = _events(_client(), message, **headers)
+    tool = next(d for n, d in ignored if n == "agent.metrics")["tools"][0]
+    assert tool["content"]["user"]["monthlySpareKrw"] == 675317  # 운영과 같은 기본(P1)
+
+
+def test_invalid_profile_values_header_is_a_validation_error() -> None:
+    client = _client(chat_allow_config_override=True)
+    response = client.post(
+        STREAM,
+        json={
+            "runId": "run_x",
+            "userId": 1,
+            "sessionId": 1,
+            "language": "en",
+            "message": "savings?",
+        },
+        headers={"X-Internal-Token": TOKEN, "X-Chat-Product-Profile": '{"age": -1}'},
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "VALIDATION_ERROR"

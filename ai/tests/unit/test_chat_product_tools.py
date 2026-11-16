@@ -263,3 +263,33 @@ def test_spare_from_finance() -> None:
 def test_unknown_fixture_profile() -> None:
     with pytest.raises(ValueError):
         FixtureProductContext("P9")
+
+
+def test_fixture_takes_profile_values_as_json() -> None:
+    # 측정 전용: 질문 파일의 새 프로필(나이 없음, 체류 1개월 미만)을 그대로 쓴다.
+    values = {
+        "visaTypeCode": "E-9",
+        "stayExpiresOn": "2026-12-01",
+        "age": None,
+        "asOf": "2026-11-16",
+        "spareKrw": 500_000,
+    }
+    out = _run(_tool(FixtureProductContext(json.dumps(values))), {"productType": "DEPOSIT"})
+    content = json.loads(out.content)
+    assert content["user"] == {"remainingStayMonths": 0, "monthlySpareKrw": 500_000}
+    assert content["abstainReason"] == rec.REASON_STAY
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        '{"asOf": "2026-11-16", "age": -1}',
+        '{"asOf": "2026-11-16", "spareKrw": -5}',
+        '{"asOf": "2026-11-16", "userId": 2}',
+        '{"age": 30}',
+        "{not json",
+    ],
+)
+def test_invalid_profile_json_is_rejected(header: str) -> None:
+    with pytest.raises(ValueError):
+        FixtureProductContext(header)

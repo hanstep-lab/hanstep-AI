@@ -171,12 +171,33 @@ class ProductContextSource(Protocol):
     async def fetch(self, user_id: int, request_id: str | None) -> ProductContext: ...
 
 
-class FixtureProductContext:
-    """fake 모드이거나 Spring 설정이 없을 때: fixture 프로필 하나(기본 P1, 측정은 헤더로 선택)."""
+class MeasuredProfile(ProductProfile):
+    """측정 전용 헤더로 받는 프로필 값(질문 파일의 profiles). spareKrw는 INT-06 여유자금 대신."""
 
-    def __init__(self, profile_id: str | None = None, path: Path = PROFILE_FIXTURE) -> None:
+    model_config = ConfigDict(extra="forbid")
+
+    spareKrw: int | None = Field(default=None, ge=0)  # noqa: N815
+
+
+class FixtureProductContext:
+    """fake 모드이거나 Spring 설정이 없을 때의 프로필 하나.
+
+    profile이 없으면 fixture 기본(P1), fixture id(P1~P5)면 그 프로필, JSON 객체면 그 값
+    (측정 전용: 질문 파일의 profiles를 그대로 싣는다. hold-out의 새 프로필도 쓸 수 있다).
+    """
+
+    def __init__(self, profile: str | None = None, path: Path = PROFILE_FIXTURE) -> None:
+        if profile and profile.lstrip().startswith("{"):
+            try:
+                measured = MeasuredProfile.model_validate_json(profile)
+            except ValidationError as exc:
+                fields = sorted({str(e["loc"][0]) for e in exc.errors() if e["loc"]})
+                raise ValueError(f"invalid product profile: {', '.join(fields) or 'body'}") from exc
+            base = ProductProfile.model_validate(measured.model_dump(exclude={"spareKrw"}))
+            self._context = ProductContext(base, measured.spareKrw)
+            return
         data = json.loads(path.read_text(encoding="utf-8"))
-        key = profile_id or data["default"]
+        key = profile or data["default"]
         if key not in data["profiles"]:
             raise ValueError(f"unknown fixture profile: {key}")
         raw = data["profiles"][key]
