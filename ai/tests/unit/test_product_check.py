@@ -125,3 +125,116 @@ def test_summary_lines_only_for_checked_rows() -> None:
     assert "금리 값 언급(rateValue, 위반): 1" in text
     assert "get_financial_analysis 1" in text and "(없음) 1" in text
     assert "| Q01#1 | SOL글로벌 적금 | - |" in text
+
+
+# --- v4 상품 도구 채점 -------------------------------------------------------------------
+
+
+def _tool(conditions: dict, recommended: list[str], reason: str | None = None, names=()) -> dict:
+    return {
+        "toolName": PC.PRODUCT_TOOL,
+        "conditions": conditions,
+        "recommended": recommended,
+        "abstainReason": reason,
+        "content": {"products": [{"name": n} for n in names]},
+    }
+
+
+def test_tool_check_args_and_end_to_end() -> None:
+    expected = {
+        "productType": "SAVINGS",
+        "maxTermMonths": 3,
+        "monthlyAmountKrw": None,
+        "accrual": None,
+        "requireForeignerExplicit": False,
+    }
+    good = PC.tool_check(
+        _tool(
+            {"productType": "SAVINGS", "maxTermMonths": 3}, ["a", "b"], names=["신한 땡겨요 적금"]
+        ),
+        expected_args=expected,
+        expected_outcome={"type": "recommend"},
+        gold=["a", "b"],
+        answer_names=["신한 땡겨요 적금"],
+    )
+    assert good["argsAllMatch"] and good["violating"] == [] and good["recallAt5"] == 1.0
+    assert good["outcomeCorrect"] and good["namesNotInTool"] == []
+
+    wrong = PC.tool_check(
+        _tool({"productType": "SAVINGS"}, ["a", "x"]),
+        expected_args=expected,
+        expected_outcome={"type": "recommend"},
+        gold=["a", "b"],
+        answer_names=["SOL글로벌 적금"],
+    )
+    assert wrong["argsMatch"]["maxTermMonths"] is False and not wrong["argsAllMatch"]
+    assert wrong["violating"] == ["x"] and wrong["recallAt5"] == 0.5
+    assert wrong["namesNotInTool"] == ["SOL글로벌 적금"]
+
+
+def test_tool_check_abstain_and_out_of_scope() -> None:
+    abstain = {"type": "abstain", "reason": "STAY_TOO_SHORT"}
+    ok = PC.tool_check(
+        _tool({}, [], "STAY_TOO_SHORT"),
+        expected_args={},
+        expected_outcome=abstain,
+        gold=[],
+        answer_names=[],
+    )
+    assert ok["outcomeCorrect"]
+    other = PC.tool_check(
+        _tool({}, [], "NO_MATCHING_PRODUCT"),
+        expected_args={},
+        expected_outcome=abstain,
+        gold=[],
+        answer_names=[],
+    )
+    assert not other["outcomeCorrect"]
+    scope = {"type": "out_of_scope"}
+    assert PC.tool_check(
+        None, expected_args=None, expected_outcome=scope, gold=[], answer_names=[]
+    )["outcomeCorrect"]
+    assert not PC.tool_check(
+        _tool({}, []), expected_args=None, expected_outcome=scope, gold=[], answer_names=[]
+    )["outcomeCorrect"]
+
+
+def test_expected_gold_matches_the_question_set() -> None:
+    import json as _json
+
+    spec = _json.loads(
+        (SCRIPTS.parent / "specs" / "chat" / "product_questions_v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for q in spec["questions"]:
+        if q["expectedArgs"] is None:
+            continue
+        gold, reason = PC.expected_gold(
+            q["expectedArgs"], spec["profiles"][q["profileId"]], spec["asOf"]
+        )
+        assert gold == q["gold"], q["id"]
+        assert reason == q["expectedOutcome"].get("reason"), q["id"]
+
+
+def test_tool_summary_lines() -> None:
+    expected = {"productType": "SAVINGS"}
+    row = {
+        "questionId": "Q01",
+        "repeat": 1,
+        "expectedArgs": expected,
+        "expectedOutcome": {"type": "recommend"},
+        "productTool": _tool({"productType": "DEPOSIT"}, ["x"]),
+        "productToolCheck": PC.tool_check(
+            _tool({"productType": "DEPOSIT"}, ["x"]),
+            expected_args=expected,
+            expected_outcome={"type": "recommend"},
+            gold=["a"],
+            answer_names=[],
+        ),
+    }
+    text = "\n".join(PC.tool_summary_lines([row]))
+    assert "인자 전체 일치: 0/1 (0%)" in text
+    assert "위반 상품(기대 인자 기준): 1 — Q01#1" in text
+    assert '| Q01#1 | {"productType": "SAVINGS"} | {"productType": "DEPOSIT"} |' in text
+    assert PC.tool_summary_lines([{"questionId": "F01"}]) == []

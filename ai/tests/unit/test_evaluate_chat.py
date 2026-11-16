@@ -312,7 +312,7 @@ def _fixture_value(name: str) -> Decimal:
 def test_reference_values_match_fixture() -> None:
     """Hand-written referenceValues equal the formula computed from the chat fixture."""
     spec = EVAL.load_questions()
-    assert spec["version"] == "v1.6"
+    assert spec["version"] == "v1.7"
     assert spec["latencySubset"] == ["F01", "F03", "F07", "F09", "H01"]
     # Hold-out formulas are prose copied as is (see test_holdout_values_match_fixture).
     with_refs = [q for q in spec["questions"] if q.get("referenceValues") and "source" not in q]
@@ -449,7 +449,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
     lines = output.read_text(encoding="utf-8").splitlines()
     conditions = json.loads(lines[0])
     assert conditions["questionSet"]["file"] == "eval_questions_v1.json"
-    assert conditions["questionSet"]["version"] == "v1.6"
+    assert conditions["questionSet"]["version"] == "v1.7"
     assert conditions["questionSet"]["external"] is False
     rows = _rows(output)
     for row in rows:
@@ -458,7 +458,7 @@ def test_delta_times_question_set_and_reference_summary(tmp_path: Path) -> None:
         assert row["deltaTimesMs"][0] == row["timings"]["firstDeltaMs"]
         assert row["referenceCheck"]["verdict"] in ("reference", "wrong_number", "no_value")
     summary = output.with_suffix(".md").read_text(encoding="utf-8")
-    assert "- 질문 세트: eval_questions_v1.json (v1.6)" in summary
+    assert "- 질문 세트: eval_questions_v1.json (v1.7)" in summary
     assert "- 계산 질문 2개: 참조값 포함 " in summary
 
     # --rescore recomputes the reference check from the saved answer.
@@ -579,10 +579,10 @@ def test_judgment_variants_run_and_are_shown(tmp_path: Path) -> None:
 HOLDOUT_IDS = [f"X{i:02d}" for i in range(1, 13)]
 
 
-def test_question_set_v1_6_with_holdout() -> None:
+def test_question_set_v1_7_with_holdout() -> None:
     spec = EVAL.load_questions()
     ids = [q["id"] for q in spec["questions"]]
-    assert spec["version"] == "v1.6"
+    assert spec["version"] == "v1.7"
     assert len(ids) == 49 and len(set(ids)) == 49
     assert spec["holdoutSubset"] == HOLDOUT_IDS
     assert [q["id"] for q in spec["questions"] if q.get("source") == "holdout_v1"] == HOLDOUT_IDS
@@ -901,3 +901,38 @@ def test_v3_x_inherits_v3_expected_tools(version: str) -> None:
         "get_remittance_recipients",
         "quote_remittance",
     ]
+
+
+def test_o02_expects_the_product_tool_only_in_v4() -> None:
+    # v1.7: 상품 추천 도구(#65)가 붙는 v4에서만 O02가 도구를 부른다. v3까지는 거절.
+    o02 = next(q for q in EVAL.load_questions()["questions"] if q["id"] == "O02")
+    assert EVAL.expected_tools(o02, "v3") == []
+    assert EVAL.expected_tools(o02, "v4") == ["recommend_savings_products"]
+
+
+def test_product_questions_keep_their_tools_in_v4() -> None:
+    # 바탕 버전(v4 → v3)의 기준선 값(기대 도구 없음)을 v4가 물려받지 않는다.
+    spec = EVAL.load_questions(EVAL.PRODUCT_QUESTIONS)
+    for q in spec["questions"]:
+        assert EVAL.expected_tools(q, "v4") == q["expectedTools"], q["id"]
+        assert EVAL.expected_tools(q, "v3") == [], q["id"]
+
+
+def test_product_v4_fake_run_scores_tool_args(tmp_path: Path) -> None:
+    settings = _settings(chat_prompt_version="v4", chat_allow_config_override=True)
+    output = tmp_path / "product.jsonl"
+    argv = ["--question-set", "product", "--questions", "Q01,Q13,Q31", "--output", str(output)]
+    assert _run(settings, *argv) == 0
+    rows = {r["questionId"]: r for r in _rows(output)}
+    q01, q13, q31 = rows["Q01"], rows["Q13"], rows["Q31"]
+    assert q01["productTool"]["conditions"] == {"productType": "SAVINGS"}
+    assert q01["productToolCheck"]["argsAllMatch"] and q01["productToolCheck"]["violating"] == []
+    assert q01["productToolCheck"]["namesNotInTool"] == []
+    # 프로필 헤더(P4)가 서버 fixture에 쓰여 여유자금 초과로 기권한다.
+    assert q13["productTool"]["abstainReason"] == "REQUEST_EXCEEDS_SURPLUS"
+    assert q13["productToolCheck"]["outcomeCorrect"]
+    assert q31["productTool"] is None and q31["productToolCheck"]["outcomeCorrect"]
+    assert q01["numberCheck"]["unsupported"] == []
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    assert "### 상품 도구 채점(v4)" in summary
+    assert "부르지 말아야 할 때 호출: 0/1" in summary

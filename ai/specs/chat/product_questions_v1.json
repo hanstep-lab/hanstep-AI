@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "description": "챗봇 금융상품 추천 도구(recommend_savings_products, 이슈 #65) 측정 문항. 영어 32문항(상품 30 + 범위 밖 2). profileId는 product_recommend_questions_v1.json의 프로필(P1~P5, asOf 기준)이고, 측정에서는 fixture 프로필로 넣는다. expectedArgs는 queryKo를 뺀 도구 인자 기대값(채점 대상), accrual은 FLEXIBLE|FIXED|null. gold·expectedOutcome은 expectedArgs와 프로필로 app.products.recommender(조건표 전체 후보)를 돌린 값이다. forbidden: interest_rate는 금리·이자·우대금리를 말하면 위반(조건표에 금리 값 없음). byPromptVersion v3은 기준선(상품 도구 없는 지금 챗봇): 기대 도구 없음, 아직 제공하지 않는다는 안내. Q31·Q32(out_of_scope)는 카드·대출 질문으로 상품 도구를 부르지 않고 범위 밖이라고 안내해야 한다(expectedArgs null).",
+  "description": "챗봇 금융상품 추천 도구(recommend_savings_products, 이슈 #65) 측정 문항. 영어 32문항(상품 30 + 범위 밖 2). profileId는 product_recommend_questions_v1.json의 프로필(P1~P5, asOf 기준)이고, 측정에서는 fixture 프로필로 넣는다. expectedArgs는 queryKo를 뺀 도구 인자 기대값(채점 대상), accrual은 FLEXIBLE|FIXED|null. gold·expectedOutcome은 expectedArgs와 프로필로 app.products.recommender(조건표 전체 후보)를 돌린 값이다. forbidden: interest_rate는 금리·이자·우대금리를 말하면 위반(조건표에 금리 값 없음). byPromptVersion v3은 기준선(상품 도구 없는 지금 챗봇): 기대 도구 없음, 아직 제공하지 않는다는 안내. Q31·Q32(out_of_scope)는 카드·대출 질문으로 상품 도구를 부르지 않고 범위 밖이라고 안내해야 한다(expectedArgs null). byPromptVersion v4는 문항 기본값과 같다(evaluate_chat이 없는 버전을 바탕 버전 v3 값으로 읽지 않도록 명시).",
   "asOf": "2026-11-16",
   "catalog": "specs/rag/product_catalog_v1.json",
   "profiles": {
@@ -66,6 +66,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -104,6 +110,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -141,6 +153,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -173,6 +191,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -205,6 +229,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -237,6 +267,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -271,6 +307,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -305,6 +347,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -338,6 +386,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -370,6 +424,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -407,6 +467,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -443,6 +509,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -473,6 +545,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "explain_abstain_reason"
         }
       }
     },
@@ -503,6 +581,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "explain_abstain_reason"
         }
       }
     },
@@ -533,6 +617,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "explain_abstain_reason"
         }
       }
     },
@@ -563,6 +653,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "explain_abstain_reason"
         }
       }
     },
@@ -594,6 +690,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -624,6 +726,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "explain_abstain_reason"
         }
       }
     },
@@ -656,6 +764,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -693,6 +807,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -729,6 +849,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -760,6 +886,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -791,6 +923,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -823,6 +961,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -857,6 +1001,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -892,6 +1042,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -927,6 +1083,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -963,6 +1125,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -1004,6 +1172,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -1046,6 +1220,12 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_not_available"
+        },
+        "v4": {
+          "expectedTools": [
+            "recommend_savings_products"
+          ],
+          "expectBehavior": "recommend"
         }
       }
     },
@@ -1067,6 +1247,10 @@
         "v3": {
           "expectedTools": [],
           "expectBehavior": "decline_out_of_scope"
+        },
+        "v4": {
+          "expectedTools": [],
+          "expectBehavior": "decline_out_of_scope"
         }
       }
     },
@@ -1086,6 +1270,10 @@
       "expectBehavior": "decline_out_of_scope",
       "byPromptVersion": {
         "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_out_of_scope"
+        },
+        "v4": {
           "expectedTools": [],
           "expectBehavior": "decline_out_of_scope"
         }

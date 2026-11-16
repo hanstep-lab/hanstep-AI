@@ -17,6 +17,7 @@ evaluate_chat.py가 product_questions_v1.json 행(expectedOutcome이 있는 행)
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Sequence
 from typing import Any
@@ -144,6 +145,180 @@ def product_check(answer: str, tools_called: Sequence[str], out_of_scope: bool) 
         "needsReview": bool(reasons),
         "reviewReason": "; ".join(reasons),
     }
+
+
+ARG_FIELDS = (
+    "productType",
+    "maxTermMonths",
+    "monthlyAmountKrw",
+    "accrual",
+    "requireForeignerExplicit",
+)
+
+
+def _args(conditions: dict[str, Any] | None) -> dict[str, Any]:
+    """도구 인자 5개(없으면 None, 외국인 명시는 False)."""
+    data = conditions or {}
+    out = {name: data.get(name) for name in ARG_FIELDS}
+    out["requireForeignerExplicit"] = bool(data.get("requireForeignerExplicit"))
+    return out
+
+
+def expected_gold(
+    expected_args: dict[str, Any], profile: dict[str, Any], as_of: str
+) -> tuple[list[str], str | None]:
+    """기대 인자·프로필로 추천기를 돌린 통과 집합과 기권 이유(hold-out처럼 gold가 없을 때)."""
+    from datetime import date
+
+    from app.chat.product_tools import ACCRUAL_TO_CATALOG, load_catalog
+    from app.products import recommender as rec
+
+    catalog = load_catalog()
+    args = _args(expected_args)
+    args["accrual"] = ACCRUAL_TO_CATALOG.get(args["accrual"] or "")
+    result = rec.recommend_filtered(
+        [p["productId"] for p in catalog],
+        {p["productId"]: p for p in catalog},
+        profile,
+        args,
+        date.fromisoformat(as_of),
+        explicit_first=True,
+        with_reason=True,
+        k=len(catalog),
+    )
+    return sorted(result["recommended"]), result["reason"]
+
+
+def tool_check(
+    tool: dict[str, Any] | None,
+    *,
+    expected_args: dict[str, Any] | None,
+    expected_outcome: dict[str, Any],
+    gold: Sequence[str],
+    answer_names: Sequence[str],
+) -> dict[str, Any]:
+    """v4 채점(측정 전 고정 지표, 결과 문서 3절): 인자, 끝까지(기대 인자 기준), 도구에 없는 상품명.
+
+    tool은 agent.metrics의 상품 도구 측정 값(첫 호출). 위반 상품 = 추천했지만 기대 인자 기준
+    통과 집합(gold)에 없는 상품.
+    """
+    tool_names = [p.get("name") for p in ((tool or {}).get("content") or {}).get("products") or []]
+    names_not_in_tool = [n for n in answer_names if n not in tool_names]
+    if tool is None:
+        return {
+            "called": False,
+            "argsMatch": None,
+            "argsAllMatch": False if expected_args is not None else None,
+            "violating": [],
+            "recallAt5": None,
+            "outcomeCorrect": expected_outcome.get("type") == "out_of_scope",
+            "namesNotInTool": names_not_in_tool,
+        }
+    recommended = list(tool.get("recommended") or [])
+    reason = tool.get("abstainReason")
+    match = None
+    if expected_args is not None:
+        got, want = _args(tool.get("conditions")), _args(expected_args)
+        match = {name: got[name] == want[name] for name in ARG_FIELDS}
+    gold_set = set(gold)
+    kind = expected_outcome.get("type")
+    if kind == "recommend":
+        correct = bool(recommended)
+    elif kind == "abstain":
+        correct = not recommended and reason == expected_outcome.get("reason")
+    else:  # out_of_scope: 상품 도구를 부르면 틀림
+        correct = False
+    recall = (
+        len(set(recommended[:5]) & gold_set) / min(len(gold_set), 5)
+        if kind == "recommend" and gold_set
+        else None
+    )
+    return {
+        "called": True,
+        "argsMatch": match,
+        "argsAllMatch": None if match is None else all(match.values()),
+        "violating": [pid for pid in recommended if pid not in gold_set],
+        "recallAt5": recall,
+        "abstainReason": reason,
+        "outcomeCorrect": correct,
+        "namesNotInTool": names_not_in_tool,
+    }
+
+
+def tool_summary_lines(rows: Sequence[dict[str, Any]]) -> list[str]:
+    """v4 상품 도구 채점 요약(행에 productToolCheck가 있을 때만)."""
+    checked = [r for r in rows if r.get("productToolCheck")]
+    if not checked:
+        return []
+
+    def ref(r: dict[str, Any]) -> str:
+        return f"{r['questionId']}#{r['repeat']}"
+
+    with_args = [r for r in checked if r.get("expectedArgs") is not None]
+    called = [r for r in with_args if r["productToolCheck"]["called"]]
+    all_match = sum(1 for r in with_args if r["productToolCheck"]["argsAllMatch"])
+    out = [
+        "",
+        "### 상품 도구 채점(v4)",
+        "",
+        f"- 상품 문항에서 도구 호출: {len(called)}/{len(with_args)}",
+        f"- 인자 전체 일치: {all_match}/{len(with_args)}"
+        + (f" ({all_match / len(with_args):.0%})" if with_args else ""),
+    ]
+    if called:
+        per_field = ", ".join(
+            f"{name} {sum(1 for r in called if r['productToolCheck']['argsMatch'][name])}"
+            f"/{len(called)}"
+            for name in ARG_FIELDS
+        )
+        out.append(f"- 필드별 일치(호출한 회차): {per_field}")
+    violating = [r for r in checked if r["productToolCheck"]["violating"]]
+    n_violating = sum(len(r["productToolCheck"]["violating"]) for r in checked)
+    out.append(
+        f"- 위반 상품(기대 인자 기준): {n_violating}"
+        + (" — " + ", ".join(ref(r) for r in violating) if violating else "")
+    )
+    recalls = [
+        r["productToolCheck"]["recallAt5"]
+        for r in checked
+        if r["productToolCheck"].get("recallAt5") is not None
+    ]
+    if recalls:
+        out.append(f"- gold Recall@5 평균(추천 문항): {sum(recalls) / len(recalls):.3f}")
+    for kind, label in (("abstain", "기권 정확도·이유 코드"), ("recommend", "추천 문항 추천함")):
+        group = [r for r in checked if (r.get("expectedOutcome") or {}).get("type") == kind]
+        if group:
+            ok = sum(1 for r in group if r["productToolCheck"]["outcomeCorrect"])
+            out.append(f"- {label}: {ok}/{len(group)}")
+    scope = [r for r in checked if (r.get("expectedOutcome") or {}).get("type") == "out_of_scope"]
+    if scope:
+        wrong = [r for r in scope if r["productToolCheck"]["called"]]
+        out.append(
+            f"- 부르지 말아야 할 때 호출: {len(wrong)}/{len(scope)}"
+            + (" — " + ", ".join(ref(r) for r in wrong) if wrong else "")
+        )
+    names = [r for r in checked if r["productToolCheck"]["namesNotInTool"]]
+    out.append(
+        f"- 도구에 없는 상품명: {len(names)}"
+        + (
+            " — "
+            + "; ".join(
+                f"{ref(r)}: {', '.join(r['productToolCheck']['namesNotInTool'])}" for r in names
+            )
+            if names
+            else ""
+        )
+    )
+    mismatched = [r for r in called if not r["productToolCheck"]["argsAllMatch"]]
+    if mismatched:
+        out += ["", "| 문항 | 기대 인자 | 도구 인자 |", "|---|---|---|"]
+        for r in mismatched:
+            got = (r.get("productTool") or {}).get("conditions")
+            out.append(
+                f"| {ref(r)} | {json.dumps(r['expectedArgs'], ensure_ascii=False)} | "
+                f"{json.dumps(got, ensure_ascii=False)} |"
+            )
+    return out
 
 
 def summary_lines(rows: Sequence[dict[str, Any]]) -> list[str]:

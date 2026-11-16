@@ -360,13 +360,13 @@ def test_rescore_rereads_expected_tools_and_infers_remittance_data(tmp_path: Pat
     rescored = tmp_path / "rescored.jsonl"
     assert EVAL.main(["--rescore", str(run), "--output", str(rescored)]) == 0
     conditions = json.loads(rescored.read_text(encoding="utf-8").splitlines()[0])
-    assert conditions["expectedToolsFrom"] == {"file": "eval_questions_v1.json", "version": "v1.6"}
+    assert conditions["expectedToolsFrom"] == {"file": "eval_questions_v1.json", "version": "v1.7"}
     (after,) = _rows(rescored).values()
     assert after["expectedTools"] == ["get_remittance_recipients", "quote_remittance"]
     assert after["toolMatch"] is True
     assert after["numberCheck"]["unsupported"] == []
     summary = rescored.with_suffix(".md").read_text(encoding="utf-8")
-    assert "- 다시 채점: 기대 도구는 eval_questions_v1.json (v1.6) 기준" in summary
+    assert "- 다시 채점: 기대 도구는 eval_questions_v1.json (v1.7) 기준" in summary
 
 
 # --- 외부 질문 파일(--remit-questions) ---------------------------------------------------
