@@ -17,7 +17,9 @@ from app.credit.alt_score import (
     MODEL_PATH,
     AltCreditDecision,
     AltCreditInput,
+    AltCreditRangeError,
     AltCreditReason,
+    AltCreditWarning,
     LimitBinding,
     assess,
     default_model,
@@ -63,9 +65,39 @@ def test_reyes_example() -> None:
     assert out.rate_breakdown.preferential == pytest.approx(0.010)  # 신한 급여이체만
     assert out.rate_breakdown.final == pytest.approx(0.1101805340, abs=1e-9)
     assert out.rate_base_date == date(2026, 11, 11)
+    assert out.input_warnings == []
     assert (
         out.disclaimer == DISCLAIMER == "모의 사전진단이며 실제 대출 승인이나 신용점수가 아닙니다"
     )
+
+
+def test_remit_ratio_over_remit_max_is_clipped_with_warning() -> None:
+    clipped = assess(replace(REYES, remit_ratio=0.95), is_mock=True)
+    at_max = assess(replace(REYES, remit_ratio=0.8), is_mock=True)
+    assert default_model().params.remit_max == 0.8  # JSON의 REMIT_MAX
+    assert clipped.score == at_max.score and clipped.pd == at_max.pd
+    assert clipped.input_warnings == [AltCreditWarning.REMIT_RATIO_CLIPPED]
+    assert at_max.input_warnings == []  # 상한 그대로면 자르지 않는다
+
+
+@pytest.mark.parametrize("months", [5, 121, 0])
+def test_stay_outside_training_range_is_not_assessed(months: int) -> None:
+    with pytest.raises(AltCreditRangeError) as caught:
+        assess(replace(REYES, stay_duration_months=months), is_mock=True)
+    assert (caught.value.field, caught.value.low, caught.value.high) == (
+        "stay_duration_months",
+        6,
+        120,
+    )
+    # 소득이 없어도 계산 전에 막는다.
+    with pytest.raises(AltCreditRangeError):
+        assess(replace(REYES, stay_duration_months=months, monthly_income=0), is_mock=True)
+
+
+@pytest.mark.parametrize("months", [6, 120])
+def test_stay_at_training_range_edges_is_assessed(months: int) -> None:
+    out = assess(replace(REYES, stay_duration_months=months), is_mock=True)
+    assert out.decision is AltCreditDecision.ELIGIBLE
 
 
 def test_is_mock_comes_from_the_caller() -> None:
@@ -180,6 +212,9 @@ def test_model_file_loads() -> None:
         lambda d: d["assumptions"]["MAX_TERM"].update(value=36.5),
         lambda d: d["assumptions"]["USE_WELCOME"].update(value=1),
         lambda d: d.update(remit_regularity_neutral=0),
+        lambda d: d["feature_ranges"].pop("stay_duration_months"),
+        lambda d: d["feature_ranges"].update(stay_duration_months=[120, 6]),
+        lambda d: d["assumptions"].pop("REMIT_MAX"),
         lambda d: d.update(unknown=1),
     ],
     ids=[
@@ -190,6 +225,9 @@ def test_model_file_loads() -> None:
         "float-as-int",
         "int-as-flag",
         "neutral-range",
+        "range-missing",
+        "range-reversed",
+        "missing-remit-max",
         "extra-field",
     ],
 )
@@ -265,6 +303,7 @@ def test_api_returns_the_assessment(client: TestClient) -> None:
         "maxLimitBinding",
         "decision",
         "reasonCode",
+        "inputWarnings",
         "disclaimer",
     }
     assert set(body["rateBreakdown"]) == {
@@ -279,6 +318,25 @@ def test_api_returns_the_assessment(client: TestClient) -> None:
     assert body == assess(REYES, is_mock=True).model_dump(mode="json", by_alias=True)
     assert body["rateBaseDate"] == "2026-11-11"
     assert body["decision"] == "ELIGIBLE" and body["reasonCode"] is None
+    assert body["inputWarnings"] == []
+
+
+def test_api_reports_clipped_remit_ratio(client: TestClient) -> None:
+    response = _post(client, _body(remitRatio=0.95))
+    assert response.status_code == 200
+    assert response.json()["inputWarnings"] == ["REMIT_RATIO_CLIPPED"]
+
+
+@pytest.mark.parametrize("months", [5, 121])
+def test_api_rejects_stay_outside_training_range(client: TestClient, months: int) -> None:
+    response = _post(client, _body(stayDurationMonths=months))
+    assert response.status_code == 400
+    error = response.json()
+    assert error["code"] == "VALIDATION_ERROR"
+    assert error["details"]["fields"] == [
+        {"field": "stayDurationMonths", "reason": "out_of_training_range"}
+    ]
+    assert error["message"] == "stayDurationMonths must be between 6 and 120 (model training range)"
 
 
 def test_api_passes_optional_debt_and_nulls(client: TestClient) -> None:
