@@ -61,6 +61,8 @@ DECLINE_PATTERNS = (
     r"\baren(?:'|’)?t\s+(?:yet\s+)?available\b",
     r"\b(?:can(?:'|’)?t|cannot)\s+look\s+up\s+or\s+recommend\b",
     r"\b(?:can(?:'|’)?t|cannot)\s+be\s+recommended\b",
+    # 측정 뒤 추가(2026-11-17 v4 1차 사람 확인, 결과 문서 7절): "Chat can't check loans yet".
+    r"\b(?:can(?:'|’)?t|cannot)\s+check\s+(?:loans?|(?:credit\s+)?cards?|checking\s+accounts?)\b",
 )
 
 _KINDS = r"(?:Savings|Deposit|Account|Card|Loan)s?"

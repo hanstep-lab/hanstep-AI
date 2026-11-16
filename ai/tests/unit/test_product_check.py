@@ -32,6 +32,8 @@ def _check(answer: str, tools: list[str] | None = None, out_of_scope: bool = Fal
         "Product recommendations aren't available in chat yet.",
         "I can't look up or recommend time deposits in chat yet.",
         "Loan products can't be recommended in chat yet.",
+        # 측정 뒤 추가(v4 1차 사람 확인, Q32#1)
+        "Chat can't check loans yet, so I can't tell you whether you would qualify.",
     ],
 )
 def test_decline(answer: str) -> None:
