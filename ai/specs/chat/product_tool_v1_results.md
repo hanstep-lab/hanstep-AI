@@ -50,7 +50,7 @@
   P1~P5가 아닌 새 프로필도 정의할 수 있다(예: 나이 없음, 체류 1개월 미만). 문항 안이 아니라 `profiles`에 정의하고 `profileId`로 가리킨다.
   evaluate_chat이 이 값과 `asOf`를 측정 전용 헤더(`X-Chat-Product-Profile`, 서버 `CHAT_ALLOW_CONFIG_OVERRIDE=true`일 때만)로
   서버에 보내고, 서버는 그 값으로 추천한다. 채점도 같은 값으로 기대 결과를 계산한다. 운영 경로(Spring)에는 영향이 없다.
-- 문항 필드: `id`(필수, 예: `H01`), `category`(`product` 또는 `out_of_scope`), `profileId`(필수), `text`(필수, 영어),
+- 문항 필드: `id`(필수, 예: `H01`), `category`(필수, `product` 또는 `out_of_scope`), `profileId`(필수), `text`(필수, 영어),
   `history`(선택, 기본 `[]`, `[{"role":"USER|ASSISTANT","content":"..."}]`),
   `expectedTools`(필수, `["recommend_savings_products"]` 또는 범위 밖이면 `[]`),
   `expectedArgs`(필수 키. 범위 밖이면 `null`. 상품 문항은 `productType` SAVINGS|DEPOSIT|null, `maxTermMonths` 정수|null,
