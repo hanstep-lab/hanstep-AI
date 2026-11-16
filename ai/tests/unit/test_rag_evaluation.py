@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -21,6 +23,7 @@ from app.rag.evaluation import (
     run_cases,
     score_case,
     select_gateway,
+    split_ready,
 )
 from app.rag.retrieval import SearchHit, SearchUnavailableError
 
@@ -286,3 +289,39 @@ def test_latency_summary() -> None:
 )
 def test_latency_summary_p95_is_nearest_rank(latencies: list[float], p95: float) -> None:
     assert latency_summary(list(reversed(latencies)))["p95"] == p95
+
+
+SPEC = Path(__file__).resolve().parents[2] / "specs" / "rag" / "evaluation.json"
+
+
+def test_split_ready_keeps_only_ready_cases_and_reports_reasons() -> None:
+    cases = [
+        {"id": "a", "status": "ready"},
+        {"id": "b", "status": "needs_review", "blocked_reason": "gold 확인 필요"},
+        {"id": "c", "status": "draft"},
+        {"id": "d"},
+        {"id": "e", "status": "READY"},
+    ]
+
+    ready, blocked = split_ready(cases)
+
+    assert [c["id"] for c in ready] == ["a"]
+    assert blocked == [
+        {"id": "b", "reason": "gold 확인 필요"},
+        {"id": "c", "reason": "draft"},
+        {"id": "d", "reason": None},
+        {"id": "e", "reason": "READY"},
+    ]
+
+
+def test_visa_evaluation_spec_scores_24_ready_cases_without_ko12() -> None:
+    cases = json.loads(SPEC.read_text(encoding="utf-8"))["cases"]
+
+    ready, blocked = split_ready(cases)
+
+    assert len(cases) == 25 and len(ready) == 24
+    assert [b["id"] for b in blocked] == ["ko-12"]
+    assert case_counts(ready)["by_kind"] == {"answerable": 19, "unanswerable": 5}
+    assert invalid_kinds(ready) == []
+    # 채점하는 질문은 모두 사람이 확인한 gold가 있다
+    assert all(c["gold"] for c in ready if c["kind"] == "answerable")
