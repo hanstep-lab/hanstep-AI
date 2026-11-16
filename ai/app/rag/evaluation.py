@@ -22,6 +22,8 @@ from app.rag.retrieval import CANDIDATES_PER_RESULT, SearchHit, SearchUnavailabl
 ANSWERABLE = "answerable"
 UNANSWERABLE = "unanswerable"
 KINDS = frozenset({ANSWERABLE, UNANSWERABLE})
+# 사람이 gold를 확인한 케이스만 평가한다.
+READY = "ready"
 
 SearchFn = Callable[[str, int, list[str] | None], list[SearchHit]]
 
@@ -111,6 +113,26 @@ def corpus_snapshot(
         "searchable_document_ids": [d["policy_document_id"] for d in searchable],
         "searchable_chunks": sum(d["chunks"] for d in searchable),
     }
+
+
+def split_ready(
+    cases: Iterable[Mapping[str, Any]],
+) -> tuple[list[Mapping[str, Any]], list[dict[str, Any]]]:
+    """(평가할 ready 케이스, 빼는 케이스의 id·사유). ``status``가 정확히 ready인 것만 평가한다.
+
+    needs_review 등 ready가 아닌 케이스는 검색하지 않고 blocked로 보고한다(통과로 세지 않음).
+    사유는 ``blocked_reason``, 없으면 ``status``다.
+    """
+    ready: list[Mapping[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+    for case in cases:
+        if case.get("status") == READY:
+            ready.append(case)
+        else:
+            blocked.append(
+                {"id": case.get("id"), "reason": case.get("blocked_reason", case.get("status"))}
+            )
+    return ready, blocked
 
 
 def case_counts(cases: Iterable[Mapping[str, Any]]) -> dict[str, dict[str, int]]:
