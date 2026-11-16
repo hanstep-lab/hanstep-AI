@@ -1,4 +1,7 @@
-"""Chat prompt versions: v1 unchanged, v1.1 two lines, v2 adds visa rules, v3 remittance rules."""
+"""Chat prompt versions: v1 unchanged, v1.1 two lines, v2 adds visa rules, v3 remittance rules.
+
+v3.3 drops the number part of the visa score line (the v1.1 numbers rule covers it).
+"""
 
 from __future__ import annotations
 
@@ -9,8 +12,11 @@ import pytest
 from app.chat.prompts import (
     PROMPT_VERSION,
     PROMPT_VERSIONS,
+    VISA_SCORE_LINE,
+    VISA_STATUS_LINE,
     _with_remittance_rules,
     _with_visa_rules,
+    _without_visa_number_rule,
     system_prompt,
 )
 from app.chat.schemas import ChatStreamRequest, LlmConfig
@@ -58,6 +64,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v3": "chat-v3",
         "v3.1": "chat-v3.1",
         "v3.2": "chat-v3.2",
+        "v3.3": "chat-v3.3",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -154,6 +161,26 @@ def test_v3_x_is_v3_plus_one_rate_rule(version: str, rule: str) -> None:
     assert rule not in (PROMPTS / "remittance_rules.md").read_text(encoding="utf-8")
     config = LlmConfig.from_settings(_settings(chat_prompt_version=version))
     assert config.prompt_version_id == f"chat-{version}"
+
+
+def test_v3_3_changes_only_the_visa_score_line() -> None:
+    # visa_rules.md는 그대로 둔다(v2·v3 측정 조건 유지). v3.3에서만 그 줄을 바꾼다.
+    v3 = system_prompt("en", "v3").splitlines()
+    v33 = system_prompt("en", "v3.3").splitlines()
+    assert len(v3) == len(v33)
+    changed = [(a, b) for a, b in zip(v3, v33, strict=True) if a != b]
+    assert changed == [(VISA_SCORE_LINE, VISA_STATUS_LINE)]
+    assert VISA_SCORE_LINE in (PROMPTS / "visa_rules.md").read_text(encoding="utf-8").splitlines()
+    # 점수 숫자는 v1.1 숫자 규칙 하나로 다룬다.
+    assert V11_NUMBERS in v33
+    assert "estimate a score" not in system_prompt("en", "v3.3")
+    config = LlmConfig.from_settings(_settings(chat_prompt_version="v3.3"))
+    assert config.prompt_version_id == "chat-v3.3"
+
+
+def test_v3_3_fails_fast_when_the_visa_score_line_moves() -> None:
+    with pytest.raises(ValueError, match="visa-score line"):
+        _without_visa_number_rule("Rules:\n- something else\n")
 
 
 def test_default_is_v3() -> None:

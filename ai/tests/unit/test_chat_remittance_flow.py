@@ -74,7 +74,7 @@ def _card(turn: dict[str, Any]) -> dict[str, Any]:
     return card
 
 
-@pytest.mark.parametrize("version", ["v3", "v3.1", "v3.2"])
+@pytest.mark.parametrize("version", ["v3", "v3.1", "v3.2", "v3.3"])
 def test_clear_request_quotes_and_shows_the_card(version: str) -> None:
     turn = _turn(_client(version), "send 500k won to mama pls")
     assert [(t["toolName"], t["status"]) for t in turn["tools"]] == [
@@ -98,7 +98,7 @@ def test_clear_request_quotes_and_shows_the_card(version: str) -> None:
     assert turn["promptVersion"] == f"chat-{version}"
 
 
-@pytest.mark.parametrize("version", ["v3", "v3.1", "v3.2"])
+@pytest.mark.parametrize("version", ["v3", "v3.1", "v3.2", "v3.3"])
 def test_ambiguous_recipient_asks_then_quotes_after_the_reply(version: str) -> None:
     client = _client(version)
     first = _turn(client, "send 500k won home")

@@ -466,7 +466,7 @@ def test_record_failure_ends_only_that_tool_and_answer_continues(
     [
         ("v1.1", [TOOL_NAME]),  # 측정에 쓴 버전은 금융 도구만(측정 조건 유지)
         ("v2", [TOOL_NAME, SEARCH_VISA_POLICIES, CALCULATE_E74_SCORE]),
-        # v3·v3.1·v3.2: v2 + 송금 조회 도구 세 개.
+        # v3·v3.1·v3.2·v3.3: v2 + 송금 조회 도구 세 개.
         *(
             (
                 version,
@@ -479,7 +479,7 @@ def test_record_failure_ends_only_that_tool_and_answer_continues(
                     QUOTE_REMITTANCE,
                 ],
             )
-            for version in ("v3", "v3.1", "v3.2")
+            for version in ("v3", "v3.1", "v3.2", "v3.3")
         ),
     ],
 )
