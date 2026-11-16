@@ -73,7 +73,14 @@ torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = [".venv", ".uv-cache", ".pytest_cache", ".mypy_cache"]
+# 대안신용 원본 모델(신재현 V9)은 내용을 바꾸지 않고 보관만 하므로 포맷·린트 대상에서 뺀다.
+extend-exclude = [
+    ".venv",
+    ".uv-cache",
+    ".pytest_cache",
+    ".mypy_cache",
+    "models/alt_credit/v9_source.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
