@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, Literal
 
 import httpx
@@ -37,6 +38,21 @@ PolicyFailureCode = Literal[
 RETRYABLE_FAILURES: frozenset[str] = frozenset(
     {"SOURCE_FETCH_FAILED", "EMBEDDING_FAILED", "VECTOR_STORE_FAILED"}
 )
+
+
+class StartResult(StrEnum):
+    """INT-08 결과. Worker는 이 값과 메시지 redelivered로 처리할지 정한다."""
+
+    STARTED = "STARTED"  # 204: 이번 요청으로 PROCESSING이 됨
+    ALREADY_PROCESSING = "ALREADY_PROCESSING"  # 409 JOB_ALREADY_PROCESSING: 이미 처리 중
+    ALREADY_FINISHED = "ALREADY_FINISHED"  # 409 JOB_ALREADY_FINISHED: 이미 COMPLETED·FAILED
+
+
+# INT-08 409의 body.code별 결과. 여기에 없는 code의 409는 SpringApiError로 올린다.
+_START_CONFLICTS: dict[str, StartResult] = {
+    "JOB_ALREADY_PROCESSING": StartResult.ALREADY_PROCESSING,
+    "JOB_ALREADY_FINISHED": StartResult.ALREADY_FINISHED,
+}
 
 # 오류 본문 details.fields에서 받는 필드 경로(예: scenario.addEvidences.0.evidenceType)와
 # 사유(pydantic 오류 종류 int_parsing, Spring의 must be an object 등). Spring·AI는 값을 넣지
@@ -279,16 +295,22 @@ class SpringInternalClient:
     # INT-08
     def job_started(
         self, job_id: int, *, worker_id: str, started_at: datetime, request_id: str | None = None
-    ) -> None:
+    ) -> StartResult:
+        """204면 STARTED, 409면 body.code에 따라 ALREADY_PROCESSING·ALREADY_FINISHED.
+
+        409라도 code가 둘 다 아니면 SpringApiError를 그대로 올린다.
+        """
         body = {"workerId": worker_id, "startedAt": started_at.isoformat()}
         try:
             self._post(f"/internal/v1/ai/jobs/{job_id}/started", body, request_id)
         except SpringApiError as exc:
             # 이미 시작했거나 끝난 작업의 메시지가 다시 전달된 것은 여기서 오류가 아니다.
-            if exc.status == 409:
-                logger.info("job %s already started or finished", job_id)
-                return
-            raise
+            result = _START_CONFLICTS.get(exc.code) if exc.status == 409 else None
+            if result is None:
+                raise
+            logger.info("job %s not started: %s", job_id, exc.code)
+            return result
+        return StartResult.STARTED
 
     # INT-10
     def job_failed(
