@@ -115,7 +115,10 @@ B에서는 두 compose의 변수를 모두 이 저장소 루트 `.env`에서 읽
   `ai/.env`의 같은 키는 호스트에서 직접 실행할 때 쓰는 `localhost` 주소입니다. 비밀번호는 백엔드 `.env`와 같아야 합니다.
 - AI 서버 이미지는 CPU 전용 PyTorch를 써서 약 1.6GB입니다. BGE-M3 가중치(약 2.3GB)는 이미지에 넣지 않고
   `hf-cache` 볼륨에 처음 기동 때 한 번 내려받습니다. 받지 않고 띄우려면 `LOAD_MODEL_ON_STARTUP=false`.
-- `ai-worker`는 RabbitMQ 작업 규격이 정해질 때까지 기본으로 뜨지 않습니다(`--profile worker`).
+- `ai-worker`는 RabbitMQ POLICY_INGEST 작업을 받아 정책 문서를 적재합니다(`python -m app.worker`).
+  기본으로 뜨지 않으므로 `docker compose --profile worker up -d ai-worker`로 띄웁니다.
+  큐 인자는 백엔드와 같아야 해서, retry 큐에 TTL이 붙어 있던 예전 브로커는 `policy.ingest.retry`를 지우고 시작합니다.
+  재시도 대기는 `ai/.env`의 `RETRY_DELAYS_MS`(기본 `5000,15000,45000`)입니다.
 - 기동 전에 호스트 포트 충돌을 확인합니다: MySQL 3307, RabbitMQ 5672·15672, MongoDB 27017, AI 8000.
   이미 쓰는 포트가 있으면 `.env`의 `MONGODB_PORT`·`MYSQL_PORT`·`AI_PORT`를 바꿉니다
   (RabbitMQ 포트는 현재 백엔드 compose에 고정돼 있습니다).

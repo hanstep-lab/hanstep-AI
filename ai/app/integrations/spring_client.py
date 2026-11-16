@@ -12,11 +12,13 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from typing import Any, Literal
 
 import httpx
+from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic.alias_generators import to_camel
 
 from app.rag.errors import ContractBlockedError
 
@@ -34,9 +36,14 @@ PolicyFailureCode = Literal[
     "VERSION_CONFLICT",  # 같은 버전이 다른 해시/다른 청크로 저장되어 있음
     "EMBEDDING_FAILED",  # 모델 오류(재시도 가능)
     "VECTOR_STORE_FAILED",  # MongoDB 쓰기/검증 실패(재시도 가능)
+    "SOURCE_MISSING",  # 문서에 R2 원본 키가 없거나 그 객체가 없음
+    "METADATA_INVALID",  # 문서 메타가 청크 저장 조건에 맞지 않음(예: 체류자격 없음)
+    "SPRING_UNAVAILABLE",  # Spring 내부 API 연결 실패·시간 초과·5xx(재시도 가능)
+    "SPRING_REJECTED",  # Spring 내부 API 4xx(문서 없음, 버전·해시 불일치 등)
+    "WORKER_ERROR",  # 분류하지 않은 Worker 내부 오류
 ]
 RETRYABLE_FAILURES: frozenset[str] = frozenset(
-    {"SOURCE_FETCH_FAILED", "EMBEDDING_FAILED", "VECTOR_STORE_FAILED"}
+    {"SOURCE_FETCH_FAILED", "EMBEDDING_FAILED", "VECTOR_STORE_FAILED", "SPRING_UNAVAILABLE"}
 )
 
 
@@ -122,8 +129,32 @@ class PolicyIngestedReport:
         }
 
 
+class PolicyDocumentDetail(BaseModel):
+    """정책 문서 단건(GET /internal/v1/ai-context/policy-documents/{id}). Worker 적재 입력."""
+
+    model_config = ConfigDict(alias_generator=to_camel, frozen=True, extra="ignore")
+
+    policy_document_id: int
+    # MySQL policy_documents.source_type(LAW, ADMIN_RULE, NOTICE, GUIDE, SCORE_TABLE)
+    source_type: str
+    title: str
+    issuing_agency: str
+    source_url: str
+    external_id: str | None = None
+    visa_type_code: str | None = None
+    published_on: date | None = None
+    effective_from: date | None = None
+    effective_to: date | None = None
+    policy_version: str
+    content_hash: str
+    # R2 원본 키. 없으면 Worker가 원본을 읽을 수 없다.
+    object_key: str | None = None
+    review_status: str
+
+
 class SpringInternalClient:
-    """작업 시작·실패(INT-08, INT-10)와 정책 적재 완료(INT-13)를 Spring에 보고한다."""
+    """작업 시작·실패(INT-08, INT-10)와 정책 적재 완료(INT-13)를 Spring에 보고하고,
+    Worker가 적재할 정책 문서를 조회한다."""
 
     def __init__(
         self,
@@ -340,3 +371,15 @@ class SpringInternalClient:
         self._post(
             f"/internal/v1/ai/policies/{policy_document_id}/ingested", report.to_json(), request_id
         )
+
+    # Worker 적재 입력(hanstep-backend #76). 재시도하지 않는다(Worker가 retry 큐로 다시 시도).
+    # httpx.TransportError(연결 실패·시간 초과), SpringApiError(2xx가 아님)를 그대로 올린다.
+    def policy_document(
+        self, policy_document_id: int, *, timeout: float = 10.0, request_id: str | None = None
+    ) -> PolicyDocumentDetail:
+        path = f"/internal/v1/ai-context/policy-documents/{policy_document_id}"
+        body = self._get_object(path, request_id, timeout)
+        try:
+            return PolicyDocumentDetail.model_validate(body)
+        except ValidationError as exc:
+            raise SpringApiError(200, "INVALID_BODY", "") from exc

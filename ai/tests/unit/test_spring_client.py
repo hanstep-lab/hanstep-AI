@@ -248,3 +248,57 @@ def test_ingested_report_only_for_stored_documents() -> None:
             embedding_revision="r",
             now=NOW,
         )
+
+
+DETAIL = {
+    "policyDocumentId": 42,
+    "sourceType": "LAW",
+    "title": "출입국관리법",
+    "issuingAgency": "법무부",
+    "sourceUrl": "https://www.law.go.kr/x",
+    "externalId": "000001",
+    "visaTypeCode": None,
+    "publishedOn": "2026-01-01",
+    "effectiveFrom": "2026-07-01",
+    "effectiveTo": None,
+    "policyVersion": "LAW-000001-20260701",
+    "contentHash": "a" * 64,
+    "objectKey": "policy-sources/visa/sha256/" + "a" * 64 + ".xml",
+    "reviewStatus": "DRAFT",
+}
+
+
+def test_policy_document_gets_detail_with_token_and_request_id() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/internal/v1/ai-context/policy-documents/42"
+        assert request.headers["X-Internal-Token"] == KEY
+        assert request.headers["X-Request-Id"] == "req_abc"
+        return httpx.Response(200, json=DETAIL)
+
+    detail = _client(handler).policy_document(42, request_id="req_abc")
+    assert detail.policy_document_id == 42
+    assert detail.policy_version == "LAW-000001-20260701"
+    assert detail.object_key == DETAIL["objectKey"]
+    assert str(detail.effective_from) == "2026-07-01" and detail.effective_to is None
+
+
+def test_policy_document_does_not_retry_and_raises_status() -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(503, json={"code": "INTERNAL_ERROR"})
+
+    with pytest.raises(SpringApiError) as excinfo:
+        _client(handler).policy_document(42)
+    assert (excinfo.value.status, calls["n"]) == (503, 1)  # 재시도는 Worker retry 큐가 한다
+
+
+def test_policy_document_rejects_unexpected_body() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"policyDocumentId": 42})
+
+    with pytest.raises(SpringApiError) as excinfo:
+        _client(handler).policy_document(42)
+    assert (excinfo.value.status, excinfo.value.code) == (200, "INVALID_BODY")

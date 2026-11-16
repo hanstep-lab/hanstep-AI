@@ -233,6 +233,71 @@ def test_r2_store_refuses_arc_bucket() -> None:
         )
 
 
+class _Body:
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+
+    def read(self, size: int = -1) -> bytes:
+        chunk, self._data = self._data[:size], self._data[size:]
+        return chunk
+
+
+class _StubS3:
+    def __init__(self, result: Any) -> None:
+        self.result = result
+
+    def get_object(self, **kwargs: Any) -> dict[str, Any]:
+        if isinstance(self.result, Exception):
+            raise self.result
+        return {"Body": _Body(self.result)}
+
+
+def _r2_with(result: Any) -> R2ObjectStore:
+    store = R2ObjectStore(
+        endpoint_url="https://acc.r2.cloudflarestorage.com",
+        access_key_id="a",
+        secret_access_key="b",
+        bucket="hanstep-visa-policies",
+    )
+    store._client = _StubS3(result)
+    return store
+
+
+def test_r2_read_bytes_returns_object_and_classifies_errors() -> None:
+    from botocore.exceptions import ClientError, EndpointConnectionError
+
+    assert _r2_with(b"x" * 3_000_000).read_bytes("k") == b"x" * 3_000_000
+
+    missing = ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
+    with pytest.raises(LookupError):
+        _r2_with(missing).read_bytes("k")
+
+    unavailable = ClientError(
+        {"Error": {"Code": "InternalError"}, "ResponseMetadata": {"HTTPStatusCode": 503}},
+        "GetObject",
+    )
+    with pytest.raises(ConnectionError, match="503"):
+        _r2_with(unavailable).read_bytes("k")
+
+    with pytest.raises(ConnectionError, match="EndpointConnectionError"):
+        _r2_with(EndpointConnectionError(endpoint_url="https://acc")).read_bytes("k")
+
+    denied = ClientError(
+        {"Error": {"Code": "AccessDenied"}, "ResponseMetadata": {"HTTPStatusCode": 403}},
+        "GetObject",
+    )
+    with pytest.raises(ClientError):
+        _r2_with(denied).read_bytes("k")
+
+
+def test_in_memory_store_read_bytes() -> None:
+    store = InMemoryObjectStore()
+    store.objects["k"] = b"data"
+    assert store.read_bytes("k") == b"data"
+    with pytest.raises(LookupError):
+        store.read_bytes("missing")
+
+
 def _r2_settings(**overrides: Any) -> Settings:
     values: dict[str, Any] = {
         "_env_file": None,

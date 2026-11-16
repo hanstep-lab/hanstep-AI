@@ -29,14 +29,17 @@ services:
       - hanstep-net
 
   ai-worker:
-    # Not started by default: the RabbitMQ POLICY_INGEST contract is not settled yet.
-    # Run explicitly with:  docker compose --profile worker up -d ai-worker
+    # RabbitMQ Worker(POLICY_INGEST 적재). ai-server 이미지를 같이 쓰고 기본으로는 뜨지 않는다.
+    # 실행: docker compose --profile worker up -d ai-worker
     profiles: ["worker"]
     image: hanstep-ai:local
     container_name: hanstep-ai-worker
     restart: unless-stopped
     init: true
     command: ["python", "-m", "app.worker"]
+    # 이미지의 HEALTHCHECK는 ai-server의 8000 포트를 보므로 Worker에서는 끈다(HTTP 서버 없음).
+    healthcheck:
+      disable: true
     env_file:
       - ./ai/.env
     environment:
