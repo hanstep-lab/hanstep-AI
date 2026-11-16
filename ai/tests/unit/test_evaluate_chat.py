@@ -936,3 +936,49 @@ def test_product_v4_fake_run_scores_tool_args(tmp_path: Path) -> None:
     summary = output.with_suffix(".md").read_text(encoding="utf-8")
     assert "### 상품 도구 채점(v4)" in summary
     assert "부르지 말아야 할 때 호출: 0/1" in summary
+
+
+def test_product_questions_outside_repo_without_gold_or_outcome(tmp_path: Path) -> None:
+    # hold-out 형식(결과 문서 2-1절): gold·expectedOutcome을 비워도
+    # 기대 인자·프로필로 계산해 채점한다.
+    spec = EVAL.load_questions(EVAL.PRODUCT_QUESTIONS)
+    holdout = {
+        "version": "holdout-test",
+        "asOf": spec["asOf"],
+        "profiles": {"P4": spec["profiles"]["P4"]},
+        "questions": [
+            {
+                "id": "H01",
+                "category": "product",
+                "profileId": "P4",
+                "text": "I want to save 300,000 won every month. Which savings product is good?",
+                "history": [],
+                "expectedTools": ["recommend_savings_products"],
+                "expectedArgs": {"productType": "SAVINGS", "monthlyAmountKrw": 300000},
+                "forbidden": [],
+            },
+            {
+                "id": "H02",
+                "category": "out_of_scope",
+                "profileId": "P4",
+                "text": "Which credit card should I get?",
+                "history": [],
+                "expectedTools": [],
+                "expectedArgs": None,
+                "forbidden": [],
+            },
+        ],
+    }
+    path = tmp_path / "holdout.json"
+    path.write_text(json.dumps(holdout), encoding="utf-8")
+    settings = _settings(chat_prompt_version="v4", chat_allow_config_override=True)
+    output = tmp_path / "holdout.jsonl"
+    assert _run(settings, "--product-questions", str(path), "--output", str(output)) == 0
+    rows = {r["questionId"]: r for r in _rows(output)}
+    assert rows["H01"]["expectedOutcome"] == {
+        "type": "abstain",
+        "reason": "REQUEST_EXCEEDS_SURPLUS",
+    }
+    assert rows["H01"]["productToolCheck"]["outcomeCorrect"]
+    assert rows["H02"]["expectedOutcome"] == {"type": "out_of_scope"}
+    assert rows["H02"]["productToolCheck"]["outcomeCorrect"]

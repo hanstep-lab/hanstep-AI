@@ -938,16 +938,37 @@ def refresh_expected_tools(
         if is_remit_question(question):
             question = remit_question(question)
         row["expectedTools"] = expected_tools(question, row.get("promptVersion"))
-        if "expectedOutcome" not in row and question.get("expectedOutcome") is not None:
+        outcome = question_outcome(spec, question)
+        if "expectedOutcome" not in row and outcome is not None:
             # 상품 채점(#65) 전에 저장된 행: 기대 결과를 질문 세트에서 채운다(저장된 값은 그대로).
-            row["expectedOutcome"] = question["expectedOutcome"]
+            row["expectedOutcome"] = outcome
             row.update(product_fields(spec, question))
     return {"file": name, "version": spec.get("version")}
 
 
+def question_outcome(spec: dict[str, Any], question: dict[str, Any]) -> dict[str, Any] | None:
+    """상품 문항(#65)의 기대 결과. 상품 문항이 아니면 None.
+
+    질문 세트에 expectedOutcome이 없으면(hold-out) expectedArgs가 null인 문항은 범위 밖,
+    그 밖은 기대 인자·프로필로 추천기를 돌려 추천/기권(이유 코드)을 정한다.
+    """
+    if question.get("expectedOutcome") is not None:
+        outcome: dict[str, Any] = question["expectedOutcome"]
+        return outcome
+    if "expectedArgs" not in question:
+        return None
+    if question["expectedArgs"] is None:
+        return {"type": "out_of_scope"}
+    profile = (spec.get("profiles") or {}).get(question.get("profileId") or "")
+    if not profile or not spec.get("asOf"):
+        return None
+    gold, reason = _product_check.expected_gold(question["expectedArgs"], profile, spec["asOf"])
+    return {"type": "recommend"} if gold else {"type": "abstain", "reason": reason}
+
+
 def product_fields(spec: dict[str, Any], question: dict[str, Any]) -> dict[str, Any]:
     """상품 문항(#65) 채점에 쓰는 기대 값: 인자, 통과 집합(gold), 프로필, 기준일."""
-    if question.get("expectedOutcome") is None:
+    if question_outcome(spec, question) is None:
         return {}
     profile_id = question.get("profileId")
     return {
@@ -1730,7 +1751,7 @@ def main(
                 "expectedTools": expected_tools(question, prompt_version),
                 "referenceValues": question.get("referenceValues"),
                 # 상품 문항(#65)만 있다. productCheck를 붙이는 기준.
-                "expectedOutcome": question.get("expectedOutcome"),
+                "expectedOutcome": question_outcome(spec, question),
                 **product_fields(spec, question),
                 "productTool": product_tool_result(metrics),
                 # Listed for a person to grade: judgment questions and humanGraded ones only
