@@ -17,8 +17,11 @@ from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.prompts import (
     PROMPT_VERSION,
     PROMPT_VERSIONS,
+    V4_1_STAY_RULE,
+    V4_STAY_RULE,
     _with_product_rules,
     _with_remittance_rules,
+    _with_stay_rule,
     _with_visa_rules,
     system_prompt,
 )
@@ -70,6 +73,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v3.1": "chat-v3.1",
         "v3.2": "chat-v3.2",
         "v4": "chat-v4",
+        "v4.1": "chat-v4.1",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -213,6 +217,7 @@ PROMPT_SHA256 = {
     "v3.1": "80c7f20adb3219077541d060898ccc87572b79fbc47772775d5c4d901da86ec9",
     "v3.2": "e62f7dbb84c4eebfc244dfa294c722f6a8f615088c89e061f8d53a30ed36a8c7",
     "v4": "fc0e4ef7e61eef927cd1485d3a6e6a1e0c38c770ea0d8cdc068a5c10f632ee32",
+    "v4.1": "396e508c6213de778325464d2c5c847890c836817552dbbb8531545299c1d4e5",
 }
 
 
@@ -270,3 +275,13 @@ def test_v4_is_v3_plus_product_rules() -> None:
 def test_v4_fails_fast_when_v3_line_moves() -> None:
     with pytest.raises(ValueError, match="products line"):
         _with_product_rules("Rules:\n- something else", "- products")
+
+
+def test_v4_1_is_v4_with_one_stay_sentence() -> None:
+    # v4.1(v4 1차 측정 뒤 수정): STAY_TOO_SHORT 안내 문장 하나만 바뀐다.
+    v4, v41 = system_prompt("en", "v4"), system_prompt("en", "v4.1")
+    assert V4_STAY_RULE in v4 and V4_STAY_RULE not in v41
+    assert v41 == v4.replace(V4_STAY_RULE, V4_1_STAY_RULE)
+    assert "extending the stay or the visa" in V4_1_STAY_RULE
+    with pytest.raises(ValueError, match="STAY_TOO_SHORT rule"):
+        _with_stay_rule("no such rule")

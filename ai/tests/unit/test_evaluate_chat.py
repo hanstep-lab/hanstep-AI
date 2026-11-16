@@ -908,6 +908,7 @@ def test_o02_expects_the_product_tool_only_in_v4() -> None:
     o02 = next(q for q in EVAL.load_questions()["questions"] if q["id"] == "O02")
     assert EVAL.expected_tools(o02, "v3") == []
     assert EVAL.expected_tools(o02, "v4") == ["recommend_savings_products"]
+    assert EVAL.expected_tools(o02, "v4.1") == ["recommend_savings_products"]
 
 
 def test_product_questions_keep_their_tools_in_v4() -> None:
@@ -915,6 +916,7 @@ def test_product_questions_keep_their_tools_in_v4() -> None:
     spec = EVAL.load_questions(EVAL.PRODUCT_QUESTIONS)
     for q in spec["questions"]:
         assert EVAL.expected_tools(q, "v4") == q["expectedTools"], q["id"]
+        assert EVAL.expected_tools(q, "v4.1") == q["expectedTools"], q["id"]
         assert EVAL.expected_tools(q, "v3") == [], q["id"]
 
 

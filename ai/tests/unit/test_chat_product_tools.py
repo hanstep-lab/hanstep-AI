@@ -293,3 +293,26 @@ def test_fixture_takes_profile_values_as_json() -> None:
 def test_invalid_profile_json_is_rejected(header: str) -> None:
     with pytest.raises(ValueError):
         FixtureProductContext(header)
+
+
+def test_v4_1_tool_descriptions() -> None:
+    # v4 스키마는 그대로 두고(측정 재현), v4.1은 인자 오류 두 유형을 줄이는 설명을 쓴다.
+    from app.chat.product_tools import TOOL_SCHEMA, TOOL_SCHEMAS_BY_PROMPT
+
+    v4 = TOOL_SCHEMAS_BY_PROMPT["v4"]["input_schema"]["properties"]
+    v41 = TOOL_SCHEMAS_BY_PROMPT["v4.1"]["input_schema"]["properties"]
+    assert TOOL_SCHEMAS_BY_PROMPT["v4"] is TOOL_SCHEMA
+    assert "Whenever the user mentions savings" in v41["productType"]["description"]
+    assert "Whenever" not in v4["productType"]["description"]
+    assert "'every month' alone is not FIXED" in v41["accrual"]["description"]
+    assert {k: v for k, v in v41.items() if k not in ("productType", "accrual")} == {
+        k: v for k, v in v4.items() if k not in ("productType", "accrual")
+    }
+    tool = ProductTool(
+        FixtureProductContext(),
+        user_id=1,
+        request_id=None,
+        timeout=1,
+        schema=TOOL_SCHEMAS_BY_PROMPT["v4.1"],
+    )
+    assert tool.schemas == [TOOL_SCHEMAS_BY_PROMPT["v4.1"]]

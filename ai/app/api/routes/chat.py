@@ -17,6 +17,7 @@ from langchain_core.language_models import BaseChatModel
 from app.api.errors import ApiError, request_id
 from app.chat.fake_llm import FAKE_MODEL_ID, FakeChatModel
 from app.chat.product_tools import (
+    TOOL_SCHEMAS_BY_PROMPT,
     FixtureProductContext,
     ProductContextSource,
     ProductTool,
@@ -53,11 +54,11 @@ router = APIRouter(prefix="/agent/chat", tags=["chat"])
 
 # 비자 도구(정책 검색·E-7-4 점수)를 설명하는 프롬프트 버전. 이 버전에서만 비자 도구를 붙인다.
 # v1·v1.1은 금융 도구만 붙어서 그 버전으로 잰 측정 조건이 그대로 남는다.
-VISA_PROMPT_VERSIONS = frozenset({"v2", "v3", "v3.1", "v3.2", "v4"})
+VISA_PROMPT_VERSIONS = frozenset({"v2", "v3", "v3.1", "v3.2", "v4", "v4.1"})
 # 송금 조회 도구(받는 분·환율·견적)를 설명하는 프롬프트 버전. v1~v2의 도구 구성은 그대로다.
-REMITTANCE_PROMPT_VERSIONS = frozenset({"v3", "v3.1", "v3.2", "v4"})
+REMITTANCE_PROMPT_VERSIONS = frozenset({"v3", "v3.1", "v3.2", "v4", "v4.1"})
 # 상품 추천 도구(#65)를 설명하는 프롬프트 버전. v3까지의 도구 구성은 그대로다.
-PRODUCT_PROMPT_VERSIONS = frozenset({"v4"})
+PRODUCT_PROMPT_VERSIONS = frozenset({"v4", "v4.1"})
 
 
 @dataclass(frozen=True)
@@ -230,6 +231,7 @@ async def chat_stream(
                 request_id=rid,
                 timeout=settings.chat_tool_timeout_seconds,
                 ranker=request.app.state.rag.product_search,
+                schema=TOOL_SCHEMAS_BY_PROMPT[setup.config.prompt_version],
             )
         )
     tool = ChatToolset(*tools)

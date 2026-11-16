@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import time
@@ -107,6 +108,21 @@ TOOL_SCHEMA: dict[str, Any] = {
         "additionalProperties": False,
     },
 }
+
+
+# v4.1(2026-11-17, v4 1차 측정 결과를 보고 수정): 인자 오류 두 유형을 줄이는 설명.
+# v4 측정을 그대로 다시 낼 수 있도록 v4 스키마는 바꾸지 않고 프롬프트 버전별로 고른다.
+TOOL_SCHEMA_V4_1: dict[str, Any] = copy.deepcopy(TOOL_SCHEMA)
+TOOL_SCHEMA_V4_1["input_schema"]["properties"]["productType"]["description"] = (
+    "SAVINGS: installment savings, paying in every month. Whenever the user mentions savings "
+    "(a savings account, savings plan or savings product), pass SAVINGS. DEPOSIT: time deposit "
+    "of a lump sum (also 'fixed deposit')."
+)
+TOOL_SCHEMA_V4_1["input_schema"]["properties"]["accrual"]["description"] = (
+    "FLEXIBLE: pay in any amount any time. FIXED: only when the user says they will pay the same "
+    "amount each time. A monthly amount or 'every month' alone is not FIXED; leave accrual out."
+)
+TOOL_SCHEMAS_BY_PROMPT: dict[str, dict[str, Any]] = {"v4": TOOL_SCHEMA, "v4.1": TOOL_SCHEMA_V4_1}
 
 
 class RecommendInput(BaseModel):
@@ -329,8 +345,10 @@ class ProductTool:
         timeout: float,
         ranker: ProductRanker | None = None,
         catalog: Sequence[Mapping[str, Any]] | None = None,
+        schema: dict[str, Any] = TOOL_SCHEMA,
     ) -> None:
         self._source = source
+        self._schema = schema
         self._user_id = user_id
         self._request_id = request_id
         self._timeout = timeout
@@ -339,7 +357,7 @@ class ProductTool:
 
     @property
     def schemas(self) -> list[dict[str, Any]]:
-        return [TOOL_SCHEMA]
+        return [self._schema]
 
     async def run(self, name: str, arguments: dict[str, Any]) -> ToolOutcome:
         started = time.perf_counter()
