@@ -56,6 +56,10 @@ DECLINE_PATTERNS = (
     r"\b(?:outside|beyond)\s+(?:of\s+)?what\s+I\s+can\s+help\b",
     r"\bnot\s+something\s+I\s+can\s+help\b",
     r"\bI\s+don(?:'|’)?t\s+have\s+(?:information|details)\s+(?:about|on)\s+specific\s+products\b",
+    # 측정 뒤 추가(2026-11-16 기준선 사람 확인, 결과 문서 7절): 축약형·나열형·수동형 거절.
+    r"\baren(?:'|’)?t\s+(?:yet\s+)?available\b",
+    r"\b(?:can(?:'|’)?t|cannot)\s+look\s+up\s+or\s+recommend\b",
+    r"\b(?:can(?:'|’)?t|cannot)\s+be\s+recommended\b",
 )
 
 _KINDS = r"(?:Savings|Deposit|Account|Card|Loan)s?"

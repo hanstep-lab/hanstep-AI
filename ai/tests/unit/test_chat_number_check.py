@@ -101,3 +101,12 @@ def test_other_numbers_next_to_a_visa_code_are_still_checked() -> None:
 )
 def test_only_the_visa_code_format_is_skipped(answer: str, flagged: list[str]) -> None:
     assert _check(answer).unsupported == flagged
+
+
+def test_thousand_unit_in_question_and_answer() -> None:
+    # 2026-11-16 상품 기준선 Q14: 질문의 "300 thousand won"을 300,000으로 읽지 못해
+    # 답변의 "300,000 won"이 근거 없는 숫자가 됐다.
+    question = "Can I open a savings account with monthly payments of 300 thousand won?"
+    assert _check("You want to save 300,000 won a month.", [question]).unsupported == []
+    assert _check("That is 300 thousand won a month.", [question]).unsupported == []
+    assert _check("Maybe 400 thousand won.", [question]).unsupported == ["400 thousand won"]

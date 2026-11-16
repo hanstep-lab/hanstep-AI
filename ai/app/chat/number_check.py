@@ -2,7 +2,7 @@
 
 Not part of the response flow. The answer text (no thinking) is scanned for numbers with
 thousands separators, decimals, %, currencies (KRW, ₩, won, 원, VND), Korean units (천·만·억),
-"약"/"about" and English k/million. Allowed numbers come from the tool result (numeric
+"약"/"about" and English k/thousand/million. Allowed numbers come from the tool result (numeric
 values and numbers in its strings) and from the question or history texts. The year, month
 and day of dates found there (periodTo 2026-10-31 -> 2026, 10, 31) are kept apart: they back
 dates, ordinals and unit-less numbers ("October 31") only, never an amount or a percent, so
@@ -38,12 +38,17 @@ _NUMBER = re.compile(
     r"(?P<approx>(?:about|around|approximately|약)\s*|~\s*)?"
     r"(?P<cur>KRW|₩|VND)?\s*"
     r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
-    r"(?:\s*(?P<unit>million|mn|k|K)\b)?"
+    r"(?:\s*(?P<unit>million|mn|thousand|k|K)\b)?"
     r"(?P<pct>\s*(?:%|퍼센트|percent))?"
     r"(?P<cur2>\s*(?:KRW|won|원|VND))?",
     re.IGNORECASE,
 )
-_UNITS = {"million": Decimal(1_000_000), "mn": Decimal(1_000_000), "k": Decimal(1000)}
+_UNITS = {
+    "million": Decimal(1_000_000),
+    "mn": Decimal(1_000_000),
+    "thousand": Decimal(1000),
+    "k": Decimal(1000),
+}
 
 
 @dataclass
