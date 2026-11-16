@@ -12,6 +12,12 @@
   실제 Spring·실제 사용자 데이터는 쓰지 않는다.
 - 후보·순서: 조건표 전체 → 코드 조건 필터 → ③ 검색 점수 순(실패 시 조건표 순). 근거는
   `specs/rag/product_recommend_v1_results.md` 12절.
+- **운영 서버는 상품 문서 적재 전까지 A(조건표 순서)로 동작한다.** 순서 B는 상품설명서 폴더(`PRODUCT_CORPUS_DIR`)와
+  로드된 임베딩 모델(`LOAD_MODEL_ON_STARTUP=true`)이 있을 때만 쓰인다.
+- v4 측정은 B로 한다(2026-11-16 태건 결정): 측정 서버를 `PRODUCT_CORPUS_DIR=C:\Projects\hanstep\rag-data\products`,
+  `LOAD_MODEL_ON_STARTUP=true`로 띄우고, 상품 검색이 만들어진 뒤 시작한다. 요약의 '순서 방식'이 모두 `search`인지 확인한다.
+- B 무료 확인(2026-11-16, fake 모드 32문항, LLM 호출 없음): 상품 도구 호출 23회 모두 `rankedBy=search`, 그중 13회는 A와 순서·구성이
+  달랐고 추천 23회 모두 조건 통과 집합 안이었다. 모델 로드 직후 첫 실행(검색을 만들기 전)은 23회 모두 A였다.
 - 총 비용 상한 $1.2(이슈 #65 전체). 유료 실행은 매번 직전에 예상 비용을 보고하고 승인 뒤 실행한다.
 
 ## 2. 문항 세트
