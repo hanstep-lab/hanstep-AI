@@ -138,7 +138,8 @@
       "id": "P1-R5",
       "profileId": "P1",
       "requestId": "R5",
-      "gold": []
+      "gold": [],
+      "expectedReason": "STAY_TOO_SHORT"
     },
     {
       "id": "P1-R6",
@@ -189,7 +190,8 @@
       "id": "P2-R5",
       "profileId": "P2",
       "requestId": "R5",
-      "gold": []
+      "gold": [],
+      "expectedReason": "STAY_TOO_SHORT"
     },
     {
       "id": "P2-R6",
@@ -311,7 +313,8 @@
       "id": "P4-R5",
       "profileId": "P4",
       "requestId": "R5",
-      "gold": []
+      "gold": [],
+      "expectedReason": "STAY_TOO_SHORT"
     },
     {
       "id": "P4-R6",
