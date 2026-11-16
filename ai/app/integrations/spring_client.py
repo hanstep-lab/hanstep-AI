@@ -271,6 +271,13 @@ class SpringInternalClient:
         }
         return self._get_object(path, request_id, timeout, params)
 
+    # 채팅 상품 추천 도구(specs/chat/product_profile_contract_v1.md). 재시도하지 않는다.
+    def product_profile(
+        self, user_id: int, *, timeout: float, request_id: str | None = None
+    ) -> dict[str, Any]:
+        path = f"/internal/v1/ai-context/users/{user_id}/product-profile"
+        return self._get_object(path, request_id, timeout)
+
     def _get_object(
         self,
         path: str,

@@ -12,6 +12,8 @@ from typing import Any
 
 import pytest
 
+from app.products import recommender as REC
+
 pytestmark = pytest.mark.unit
 
 AI_ROOT = Path(__file__).resolve().parents[2]
@@ -70,11 +72,11 @@ def _request(query: str = "q", **conditions: Any) -> dict[str, Any]:
     [("2027-10-04", 10), ("2027-05-16", 6), ("2028-11-16", 24), ("2026-11-15", 0)],
 )
 def test_months_between_counts_full_months(end: str, months: int) -> None:
-    assert EV.months_between(AS_OF, date.fromisoformat(end)) == months
+    assert REC.months_between(AS_OF, date.fromisoformat(end)) == months
 
 
 def test_profile_checks() -> None:
-    checks = EV.check_product(_savings(), PROFILE, _request(kind="SAVINGS"), AS_OF)
+    checks = REC.check_product(_savings(), PROFILE, _request(kind="SAVINGS"), AS_OF)
     assert checks["kind"] == "ok"
     assert checks["foreigner"] == "ok"  # inferred는 위반이 아니다
     assert checks["visa"] == "unknown"
@@ -83,18 +85,18 @@ def test_profile_checks() -> None:
     assert checks["spare"] == "ok"
     youth = _savings(ageMin=_v(18), ageMax=_v(39), termMonthsMin=_v(12))
     old = {**PROFILE, "age": 40}
-    checks = EV.check_product(youth, old, _request(kind="DEPOSIT"), AS_OF)
+    checks = REC.check_product(youth, old, _request(kind="DEPOSIT"), AS_OF)
     assert checks["age"] == "violation"
     assert checks["stayTerm"] == "violation"  # 12개월 > 남은 체류 10개월
     assert checks["kind"] == "violation"
     assert (
-        EV.check_product(_savings(foreignerEligible=_v(False)), PROFILE, _request(), AS_OF)[
+        REC.check_product(_savings(foreignerEligible=_v(False)), PROFILE, _request(), AS_OF)[
             "foreigner"
         ]
         == "violation"
     )
     assert (
-        EV.check_product(_savings(foreignerEligible=_v(None)), PROFILE, _request(), AS_OF)[
+        REC.check_product(_savings(foreignerEligible=_v(None)), PROFILE, _request(), AS_OF)[
             "foreigner"
         ]
         == "unknown"
@@ -104,28 +106,28 @@ def test_profile_checks() -> None:
 def test_term_options_use_the_shortest_choice() -> None:
     product = _savings(termOptions=_v([6, 12]), termMonthsMin=_v(6), termMonthsMax=_v(12))
     short_stay = {**PROFILE, "stayExpiry": "2027-02-16"}  # 3개월
-    assert EV.shortest_term(product) == 6
-    assert EV.check_product(product, short_stay, _request(), AS_OF)["stayTerm"] == "violation"
+    assert REC.shortest_term(product) == 6
+    assert REC.check_product(product, short_stay, _request(), AS_OF)["stayTerm"] == "violation"
 
 
 def test_request_monthly_and_no_limit() -> None:
     request = _request(kind="SAVINGS", monthlyKrw=300000)
-    assert EV.check_product(_savings(), PROFILE, request, AS_OF)["requestMonthly"] == "ok"
+    assert REC.check_product(_savings(), PROFILE, request, AS_OF)["requestMonthly"] == "ok"
     small = _savings(monthlyMaxKrw=_v(200000))
-    assert EV.check_product(small, PROFILE, request, AS_OF)["requestMonthly"] == "violation"
+    assert REC.check_product(small, PROFILE, request, AS_OF)["requestMonthly"] == "violation"
     unlimited = _savings(monthlyMaxKrw=_v(None, noLimit=True))
-    assert EV.check_product(unlimited, PROFILE, request, AS_OF)["requestMonthly"] == "ok"
+    assert REC.check_product(unlimited, PROFILE, request, AS_OF)["requestMonthly"] == "ok"
     missing = _savings(monthlyMinKrw=_v(None), monthlyMaxKrw=_v(None))
-    assert EV.check_product(missing, PROFILE, request, AS_OF)["requestMonthly"] == "unknown"
+    assert REC.check_product(missing, PROFILE, request, AS_OF)["requestMonthly"] == "unknown"
     # 요청액이 여유자금보다 크면 어떤 상품이든 위반이다.
     poor = {**PROFILE, "spareKrw": 200000}
-    assert EV.check_product(_savings(), poor, request, AS_OF)["requestMonthly"] == "violation"
+    assert REC.check_product(_savings(), poor, request, AS_OF)["requestMonthly"] == "violation"
 
 
 def test_terms_document_and_not_recommendable_are_violations() -> None:
-    assert EV.check_product(None, PROFILE, _request(), AS_OF) == {"recommendable": "violation"}
+    assert REC.check_product(None, PROFILE, _request(), AS_OF) == {"recommendable": "violation"}
     gift = _savings(recommendable=False)
-    assert EV.check_product(gift, PROFILE, _request(), AS_OF)["recommendable"] == "violation"
+    assert REC.check_product(gift, PROFILE, _request(), AS_OF)["recommendable"] == "violation"
 
 
 def test_gold_candidate_rules() -> None:
@@ -274,22 +276,22 @@ def test_tool_args_and_request_round_trip() -> None:
         "accrual": None,
         "requireForeignerExplicit": True,
     }
-    assert EV.request_from_args(args) == {"conditions": request["conditions"]}
+    assert REC.request_from_args(args) == {"conditions": request["conditions"]}
 
 
 def test_passes_keeps_profile_unknowns_and_drops_request_unknowns() -> None:
     args = EV.tool_args(_request(kind="SAVINGS"))
     # 나이·비자 판정 불가(프로필 조건)는 남긴다.
-    assert EV.passes(_savings(), PROFILE, args, AS_OF)
+    assert REC.passes(_savings(), PROFILE, args, AS_OF)
     monthly = EV.tool_args(_request(kind="SAVINGS", monthlyKrw=300000))
     missing = _savings(monthlyMinKrw=_v(None), monthlyMaxKrw=_v(None))
-    assert not EV.passes(missing, PROFILE, monthly, AS_OF)  # 요청 조건 판정 불가는 뺀다
+    assert not REC.passes(missing, PROFILE, monthly, AS_OF)  # 요청 조건 판정 불가는 뺀다
     explicit = {**args, "requireForeignerExplicit": True}
-    assert not EV.passes(_savings(), PROFILE, explicit, AS_OF)
-    assert EV.passes(_savings(foreignerEligible=_v("explicit")), PROFILE, explicit, AS_OF)
+    assert not REC.passes(_savings(), PROFILE, explicit, AS_OF)
+    assert REC.passes(_savings(foreignerEligible=_v("explicit")), PROFILE, explicit, AS_OF)
     long_term = _savings(termMonthsMin=_v(12))
-    assert not EV.passes(long_term, PROFILE, args, AS_OF)
-    assert EV.passes(long_term, PROFILE, args, AS_OF, frozenset({"stayTerm"}))
+    assert not REC.passes(long_term, PROFILE, args, AS_OF)
+    assert REC.passes(long_term, PROFILE, args, AS_OF, frozenset({"stayTerm"}))
 
 
 def _products() -> dict[str, Any]:
@@ -305,40 +307,40 @@ def test_recommend_filtered_orders_and_explains() -> None:
     products = _products()
     pool = ["gift", "a", "long", "b"]
     args = EV.tool_args(_request(kind="SAVINGS"))
-    two = EV.recommend_filtered(
+    two = REC.recommend_filtered(
         pool, products, PROFILE, args, AS_OF, explicit_first=False, with_reason=False
     )
     assert two["recommended"] == ["a", "b"] and two["reason"] is None
-    three = EV.recommend_filtered(
+    three = REC.recommend_filtered(
         pool, products, PROFILE, args, AS_OF, explicit_first=True, with_reason=True
     )
     assert three["recommended"] == ["b", "a"]  # explicit 먼저
     assert three["pool"] == pool and three["toolArgs"] == args
 
     def reason(args: dict[str, Any], profile: dict[str, Any] = PROFILE) -> Any:
-        return EV.recommend_filtered(
+        return REC.recommend_filtered(
             pool, products, profile, args, AS_OF, explicit_first=True, with_reason=True
         )
 
     explicit_long = {**args, "requireForeignerExplicit": True}
     short_stay = {**PROFILE, "stayExpiry": "2027-04-16"}  # 5개월: b(6개월)도 빠짐
     result = reason(explicit_long, short_stay)
-    assert result["recommended"] == [] and result["reason"] == EV.REASON_STAY
+    assert result["recommended"] == [] and result["reason"] == REC.REASON_STAY
     poor = {**PROFILE, "spareKrw": 200000}
     monthly = EV.tool_args(_request(kind="SAVINGS", monthlyKrw=300000))
-    assert reason(monthly, poor)["reason"] == EV.REASON_SURPLUS
+    assert reason(monthly, poor)["reason"] == REC.REASON_SURPLUS
     deposit = EV.tool_args(_request(kind="DEPOSIT"))
-    assert reason(deposit)["reason"] == EV.REASON_NONE
+    assert reason(deposit)["reason"] == REC.REASON_NONE
 
 
 def test_regressions_and_summary_fields() -> None:
     catalog = {"products": [_savings(), _savings(productId="doc-g")]}
     qset = _qset()
-    qset["questions"][1]["expectedReason"] = EV.REASON_NONE
+    qset["questions"][1]["expectedReason"] = REC.REASON_NONE
     base, _ = EV.evaluate(catalog, qset, lambda q: ["doc-s", "doc-g"] if q["id"] == "P-R" else [])
     picks = {
         "P-R": {"recommended": ["doc-s"], "pool": ["doc-s"]},
-        "P-R2": {"recommended": [], "pool": [], "reason": EV.REASON_NONE},
+        "P-R2": {"recommended": [], "pool": [], "reason": REC.REASON_NONE},
     }
     rows, summary = EV.evaluate(catalog, qset, lambda q: picks[q["id"]])
     assert EV.regressions(base, rows) == ["P-R"]  # 적중 2 → 1
@@ -361,3 +363,34 @@ def test_filters_on_the_repo_set_have_no_judgeable_violations() -> None:
         assert summary["emptyGoldAbstained"] == summary["emptyGoldQuestions"] == 4
         assert summary["falseAbstain"] == 0
     assert summary["reasonMatch"] == 4  # ③만 이유 코드를 붙인다
+
+
+# --- 프로필 값이 없을 때(#65: 생년월일·비자 프로필·분석 결과가 없는 사용자) -------------------
+
+
+def test_missing_profile_values_are_unknown_not_violations() -> None:
+    adult = _savings(ageMin=_v(19), visaTypes=_v(["E-9"]), termMonthsMin=_v(24))
+    empty = {**PROFILE, "visa": None, "age": None, "stayExpiry": None, "spareKrw": None}
+    checks = REC.check_product(adult, empty, _request(monthlyKrw=900_000), AS_OF)
+    assert checks["visa"] == checks["age"] == checks["stayTerm"] == checks["spare"] == "unknown"
+    assert checks["requestMonthly"] == "violation"  # 상품 월 상한(300,000)은 그대로 본다
+    assert REC.remaining_stay_months(empty, AS_OF) is None
+
+
+def test_missing_profile_values_do_not_give_their_abstain_reason() -> None:
+    long_term = _savings(termMonthsMin=_v(36))
+    products = {"doc-s": long_term}
+    no_spare = {**PROFILE, "spareKrw": None}
+    args = {"productType": "SAVINGS", "monthlyAmountKrw": 900_000}
+    assert REC.abstain_reason(["doc-s"], products, no_spare, args, AS_OF) == REC.REASON_NONE
+    no_stay = {**PROFILE, "stayExpiry": "2026-12-31"}
+    assert REC.abstain_reason(["doc-s"], products, no_stay, {}, AS_OF) == REC.REASON_STAY
+    unknown_stay = {**PROFILE, "stayExpiry": None}
+    # 체류 만료일이 없으면 기간 조건은 판정 불가(제외하지 않음)라 상품이 남는다.
+    assert REC.passes(long_term, unknown_stay, {}, AS_OF)
+
+
+def test_search_order_puts_unsearched_products_after_in_catalog_order() -> None:
+    from app.products.search import search_order
+
+    assert search_order(["c", "x", "a"], ["a", "b", "c", "d"]) == ["c", "a", "b", "d"]

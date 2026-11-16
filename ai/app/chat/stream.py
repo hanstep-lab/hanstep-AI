@@ -152,6 +152,12 @@ async def run_chat(
                     for c in calls
                     if c["stopReason"] == "tool_use"
                 ),
+                # 도구가 남긴 측정 값(상품 추천: 인자·추천·기권 이유·순서 방식·LLM에 준 결과).
+                "tools": [
+                    {"order": t["order"], "toolName": t["toolName"], **t["measurement"]}
+                    for t in tools
+                    if t.get("measurement")
+                ],
             },
         )
 

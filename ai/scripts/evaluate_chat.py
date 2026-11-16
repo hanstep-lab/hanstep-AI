@@ -68,9 +68,10 @@ from pathlib import Path
 from typing import Any
 
 import _bootstrap  # noqa: F401
+import _product_check
 import httpx
 
-from app.api.routes.chat import REMITTANCE_PROMPT_VERSIONS
+from app.api.routes.chat import PRODUCT_PROMPT_VERSIONS, REMITTANCE_PROMPT_VERSIONS
 from app.chat.fake_llm import FAKE_MODEL_ID
 from app.chat.judgment import judgment_facts
 from app.chat.number_check import check_answer, rounded_values, scan_numbers
@@ -89,9 +90,10 @@ from app.rag.cli import EXIT_BLOCKED, EXIT_FAILED, EXIT_OK
 AI_ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
 REMIT_QUESTIONS = AI_ROOT / "specs" / "chat" / "remit_questions_v1.json"
-QUESTION_SETS = {"eval": QUESTIONS, "remit": REMIT_QUESTIONS}
+PRODUCT_QUESTIONS = AI_ROOT / "specs" / "chat" / "product_questions_v1.json"
+QUESTION_SETS = {"eval": QUESTIONS, "remit": REMIT_QUESTIONS, "product": PRODUCT_QUESTIONS}
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
-PROMPT_BASE = {"v3": "v2", "v3.1": "v3", "v3.2": "v3"}
+PROMPT_BASE = {"v3": "v2", "v3.1": "v3", "v3.2": "v3", "v4": "v3", "v4.1": "v4"}
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
 PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
 EXIT_INTERRUPTED = 130
@@ -812,6 +814,9 @@ def call_ai(
     header = config_header(variant)
     if header:
         headers["X-Chat-Config"] = header
+    if question.get("productProfileHeader"):
+        # 상품 문항(#65): 질문 파일 profiles의 값(CHAT_ALLOW_CONFIG_OVERRIDE=true일 때만 쓰인다).
+        headers["X-Chat-Product-Profile"] = question["productProfileHeader"]
     url = base_url.rstrip("/") + "/internal/v1/agent/chat/stream"
     return stream_call(client, url, body, headers, "agent")
 
@@ -933,7 +938,84 @@ def refresh_expected_tools(
         if is_remit_question(question):
             question = remit_question(question)
         row["expectedTools"] = expected_tools(question, row.get("promptVersion"))
+        outcome = question_outcome(spec, question)
+        if "expectedOutcome" not in row and outcome is not None:
+            # 상품 채점(#65) 전에 저장된 행: 기대 결과를 질문 세트에서 채운다(저장된 값은 그대로).
+            row["expectedOutcome"] = outcome
+            row.update(product_fields(spec, question))
     return {"file": name, "version": spec.get("version")}
+
+
+def question_outcome(spec: dict[str, Any], question: dict[str, Any]) -> dict[str, Any] | None:
+    """상품 문항(#65)의 기대 결과. 상품 문항이 아니면 None.
+
+    질문 세트에 expectedOutcome이 없으면(hold-out) expectedArgs가 null인 문항은 범위 밖,
+    그 밖은 기대 인자·프로필로 추천기를 돌려 추천/기권(이유 코드)을 정한다.
+    """
+    if question.get("expectedOutcome") is not None:
+        outcome: dict[str, Any] = question["expectedOutcome"]
+        return outcome
+    if "expectedArgs" not in question:
+        return None
+    if question["expectedArgs"] is None:
+        return {"type": "out_of_scope"}
+    profile = (spec.get("profiles") or {}).get(question.get("profileId") or "")
+    if not profile or not spec.get("asOf"):
+        return None
+    gold, reason = _product_check.expected_gold(question["expectedArgs"], profile, spec["asOf"])
+    return {"type": "recommend"} if gold else {"type": "abstain", "reason": reason}
+
+
+def product_fields(spec: dict[str, Any], question: dict[str, Any]) -> dict[str, Any]:
+    """상품 문항(#65) 채점에 쓰는 기대 값: 인자, 통과 집합(gold), 프로필, 기준일."""
+    if question_outcome(spec, question) is None:
+        return {}
+    profile_id = question.get("profileId")
+    return {
+        "expectedArgs": question.get("expectedArgs"),
+        "gold": question.get("gold"),
+        "productProfile": (spec.get("profiles") or {}).get(profile_id) if profile_id else None,
+        "productAsOf": spec.get("asOf"),
+    }
+
+
+def with_profile_header(spec: dict[str, Any], question: dict[str, Any]) -> dict[str, Any]:
+    """상품 문항에 서버로 보낼 프로필 값(JSON, 측정 전용 헤더)을 붙인 복사본.
+
+    질문 파일의 profiles가 기준이다. 서버는 이 값으로 추천하고,
+    채점도 같은 값으로 기대 결과를 계산한다.
+    """
+    profile = (spec.get("profiles") or {}).get(question.get("profileId") or "")
+    if not profile:
+        return question
+    values = {
+        "visaTypeCode": profile.get("visa"),
+        "stayExpiresOn": profile.get("stayExpiry"),
+        "age": profile.get("age"),
+        "asOf": spec.get("asOf"),
+        "spareKrw": profile.get("spareKrw"),
+    }
+    return {**question, "productProfileHeader": json.dumps(values, separators=(",", ":"))}
+
+
+def product_tool_result(metrics: dict[str, Any] | None) -> dict[str, Any] | None:
+    """agent.metrics의 상품 도구 측정 값(첫 호출)."""
+    for tool in (metrics or {}).get("tools") or []:
+        if tool.get("toolName") == _product_check.PRODUCT_TOOL:
+            return dict(tool)
+    return None
+
+
+def row_gold(row: dict[str, Any]) -> list[str]:
+    """행의 통과 집합. 질문 세트에 gold가 없으면(hold-out) 기대 인자·프로필로 계산한다."""
+    if row.get("gold") is not None:
+        return list(row["gold"])
+    if row.get("expectedArgs") is None or not row.get("productProfile"):
+        return []
+    gold, _ = _product_check.expected_gold(
+        row["expectedArgs"], row["productProfile"], row["productAsOf"]
+    )
+    return gold
 
 
 def score(row: dict[str, Any]) -> None:
@@ -961,12 +1043,35 @@ def score(row: dict[str, Any]) -> None:
             *(row.get("blocks") or []),
             *(follow.get("blocks") or []),
         ]
+    product_tool = row.get("productTool")
+    if product_tool and product_tool.get("content"):
+        # 상품 도구가 LLM에 준 값(기간·금액 범위·여유자금·남은 체류 개월)도 근거다.
+        tool_results.append(product_tool["content"])
     check = check_answer(answer, tool_results, [*row["contextTexts"], *prompt_fixed_numbers(row)])
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
     called = sorted({t.get("toolName") for t in row.get("tools", [])})
     row["toolMatch"] = called == sorted(set(row["expectedTools"]))
+    if row.get("expectedOutcome") is not None:
+        # 상품 문항(product_questions_v1.json): 거절·상품명·금리 언급(scripts/_product_check.py).
+        row["productCheck"] = _product_check.product_check(
+            row.get("answer") or "",
+            [t.get("toolName") for t in row.get("tools", [])],
+            out_of_scope=row["expectedOutcome"].get("type") == "out_of_scope",
+        )
+        # 상품 도구가 붙는 프롬프트 버전(v4)의 행: 범위 밖 문항의 '부르지 말아야 할 때 호출'도 본다.
+        if row.get("promptVersion") in PRODUCT_PROMPT_VERSIONS or product_tool is not None:
+            # v4(상품 도구가 붙은 버전): 인자·끝까지·도구에 없는 상품명(결과 문서 3절).
+            row["productToolCheck"] = _product_check.tool_check(
+                product_tool,
+                expected_args=row.get("expectedArgs"),
+                expected_outcome=row["expectedOutcome"],
+                gold=row_gold(row),
+                answer_names=row["productCheck"]["catalogNames"],
+            )
+        else:
+            row.pop("productToolCheck", None)
     if row.get("expectedAction") or called_remittance:
         # 두 턴의 답변을 함께 본다(송금 문항이 아니면 1턴뿐).
         full = "\n\n".join(a for a in (row.get("answer") or "", follow.get("answer") or "") if a)
@@ -1132,6 +1237,8 @@ def render_summary(
                 }[check["verdict"]]
                 out.append(f"  - {r['questionId']} #{r['repeat']}: {detail}")
         out += source_split_table(mine)
+        out += _product_check.summary_lines(mine)
+        out += _product_check.tool_summary_lines(mine)
         out += [
             "",
             "| 문항 | 호출 | 입력 토큰 | 출력 토큰 | 비용(USD) |",
@@ -1415,7 +1522,8 @@ def main(
         "--question-set",
         choices=sorted(QUESTION_SETS),
         default="eval",
-        help="eval: eval_questions_v1.json, remit: remit_questions_v1.json (prompt v3)",
+        help="eval: eval_questions_v1.json, remit: remit_questions_v1.json (prompt v3), "
+        "product: product_questions_v1.json (product tool, #65)",
     )
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--warmup", type=int, default=0, help="calls per variant, not summarized")
@@ -1426,6 +1534,13 @@ def main(
         default=None,
         help="remit question file (same schema as remit_questions_v1.json, may be outside the "
         "repo); implies --question-set remit",
+    )
+    parser.add_argument(
+        "--product-questions",
+        type=Path,
+        default=None,
+        help="product question file (same schema as product_questions_v1.json, may be outside "
+        "the repo, e.g. the hold-out); implies --question-set product",
     )
     parser.add_argument("--max-usd", type=float, default=1.0)
     parser.add_argument("--rescore", type=Path, default=None, help="re-score a saved JSONL")
@@ -1462,11 +1577,20 @@ def main(
     if args.target == "ai" and not settings.internal_token_configured():
         print("BLOCKED: AI_INTERNAL_API_TOKEN is not configured")
         return EXIT_BLOCKED
-    external = args.remit_questions is not None
-    remit = args.question_set == "remit" or external
+    product_external = args.product_questions is not None
+    if product_external and args.remit_questions is not None:
+        parser.error("--product-questions and --remit-questions cannot be used together")
+    external = args.remit_questions is not None or product_external
+    remit = args.question_set == "remit" or args.remit_questions is not None
     if remit and args.subset:
         parser.error("--subset works with --question-set eval only")
-    question_file = args.remit_questions if external else QUESTION_SETS[args.question_set]
+    question_file = (
+        args.remit_questions
+        if args.remit_questions is not None
+        else args.product_questions
+        if product_external
+        else QUESTION_SETS[args.question_set]
+    )
     try:
         spec = load_questions(question_file)
     except (OSError, ValueError) as exc:
@@ -1478,6 +1602,7 @@ def main(
     questions = select_questions(spec, args.questions, args.subset, parser)
     if remit:
         questions = [remit_question(q) for q in questions]
+    questions = [with_profile_header(spec, q) for q in questions]
     try:
         variants = load_variants(args.variants, settings)
     except (ValueError, OSError) as exc:
@@ -1645,6 +1770,10 @@ def main(
                 "promptVersion": prompt_version,
                 "expectedTools": expected_tools(question, prompt_version),
                 "referenceValues": question.get("referenceValues"),
+                # 상품 문항(#65)만 있다. productCheck를 붙이는 기준.
+                "expectedOutcome": question_outcome(spec, question),
+                **product_fields(spec, question),
+                "productTool": product_tool_result(metrics),
                 # Listed for a person to grade: judgment questions and humanGraded ones only
                 # (other calculation questions keep their conclusion in the spec, not here).
                 "expectedConclusion": (

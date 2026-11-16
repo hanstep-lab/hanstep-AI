@@ -20,7 +20,7 @@ PLACEHOLDER_MARKERS = ("your-", "CHANGE_ME", "example.", "username:password")
 
 ChatThinking = Literal["model_default", "adaptive", "between_tools", "disabled"]
 ChatEffort = Literal["", "low", "medium", "high"]
-ChatPromptVersion = Literal["v1", "v1.1", "v2", "v3", "v3.1", "v3.2"]
+ChatPromptVersion = Literal["v1", "v1.1", "v2", "v3", "v3.1", "v3.2", "v4", "v4.1"]
 # Efforts allowed when thinking is turned off (between_tools / disabled).
 _EFFORTS_WITHOUT_THINKING = {"", "low", "medium", "high"}
 
@@ -125,11 +125,16 @@ class Settings(BaseSettings):
     chat_fake_delta_delay_ms: int = Field(default=30, ge=0, le=5000)
     # Add code-computed judgment facts (judgmentFacts) to the finance tool result.
     chat_judgment_facts: bool = True
-    # System prompt version (app/chat/prompts): v1 | v1.1 | v2 | v3 | v3.1 | v3.2.
-    # 비자 도구는 v2·v3.x, 송금 조회 도구는 v3.x에서만 붙는다(app/api/routes/chat.py).
+    # System prompt version (app/chat/prompts): v1 | v1.1 | v2 | v3 | v3.1 | v3.2 | v4 | v4.1.
+    # 비자 도구는 v2~v4, 송금 조회 도구는 v3.x·v4, 상품 추천 도구는 v4에서만 붙는다
+    # (app/api/routes/chat.py).
     chat_prompt_version: ChatPromptVersion = "v3"
-    # Measurement only: honour the per-request X-Chat-Config header.
+    # Measurement only: honour the per-request X-Chat-Config header (and X-Chat-Product-Profile
+    # for the product tool's fixture profile).
     chat_allow_config_override: bool = False
+    # 상품 추천 도구의 순서 B(상품설명서 검색, #65). 상품설명서 PDF 폴더. 비우면 조건표 순서(A).
+    # 검색은 임베딩 모델이 로드된 뒤(LOAD_MODEL_ON_STARTUP=true) 만든다.
+    product_corpus_dir: str = ""
 
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")

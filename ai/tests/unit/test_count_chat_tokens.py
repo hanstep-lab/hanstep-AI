@@ -61,3 +61,18 @@ def test_counts_both_approaches_per_finance_question(tmp_path: Path) -> None:
     second = next(c for c in counter.calls if "tools" in c and len(c["messages"]) == 3)
     assert second["messages"][2]["content"][0]["type"] == "tool_result"
     assert "675317" in second["messages"][2]["content"][0]["content"]
+
+
+def test_product_baseline_counts_v3_tools_per_question(tmp_path: Path) -> None:
+    counter = FakeCounter()
+    output = tmp_path / "product.md"
+    argv = ["--question-set", "product", "--models", "claude-haiku-5-5", "--output", str(output)]
+    assert COUNT.main(argv, client=counter) == 0
+
+    report = output.read_text(encoding="utf-8")
+    assert report.count("| claude-haiku-5-5 | Q") == 32
+    assert "| claude-haiku-5-5 | 평균 |" in report
+    names = [t["name"] for t in counter.calls[0]["tools"]]
+    assert names[0] == "get_financial_analysis"
+    assert "recommend_savings_products" not in names  # 기준선: 상품 도구 없음
+    assert len(counter.calls) == 64  # 1차·2차 × 32문항

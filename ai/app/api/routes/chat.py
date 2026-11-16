@@ -16,6 +16,13 @@ from langchain_core.language_models import BaseChatModel
 
 from app.api.errors import ApiError, request_id
 from app.chat.fake_llm import FAKE_MODEL_ID, FakeChatModel
+from app.chat.product_tools import (
+    TOOL_SCHEMAS_BY_PROMPT,
+    FixtureProductContext,
+    ProductContextSource,
+    ProductTool,
+    SpringProductContext,
+)
 from app.chat.remittance_tools import (
     FixtureRemittanceSource,
     RemittanceSource,
@@ -47,9 +54,11 @@ router = APIRouter(prefix="/agent/chat", tags=["chat"])
 
 # 비자 도구(정책 검색·E-7-4 점수)를 설명하는 프롬프트 버전. 이 버전에서만 비자 도구를 붙인다.
 # v1·v1.1은 금융 도구만 붙어서 그 버전으로 잰 측정 조건이 그대로 남는다.
-VISA_PROMPT_VERSIONS = frozenset({"v2", "v3", "v3.1", "v3.2"})
+VISA_PROMPT_VERSIONS = frozenset({"v2", "v3", "v3.1", "v3.2", "v4", "v4.1"})
 # 송금 조회 도구(받는 분·환율·견적)를 설명하는 프롬프트 버전. v1~v2의 도구 구성은 그대로다.
-REMITTANCE_PROMPT_VERSIONS = frozenset({"v3", "v3.1", "v3.2"})
+REMITTANCE_PROMPT_VERSIONS = frozenset({"v3", "v3.1", "v3.2", "v4", "v4.1"})
+# 상품 추천 도구(#65)를 설명하는 프롬프트 버전. v3까지의 도구 구성은 그대로다.
+PRODUCT_PROMPT_VERSIONS = frozenset({"v4", "v4.1"})
 
 
 @dataclass(frozen=True)
@@ -124,6 +133,25 @@ def remittance_source(request: Request) -> RemittanceSource:
     return FixtureRemittanceSource()
 
 
+def product_source(
+    request: Request, x_chat_product_profile: Annotated[str | None, Header()] = None
+) -> ProductContextSource:
+    """상품 추천 프로필. fake 모드이거나 Spring 설정이 없으면 fixture 프로필(기본 P1).
+
+    측정 전용: CHAT_ALLOW_CONFIG_OVERRIDE=true일 때만 X-Chat-Product-Profile을 쓴다. 값은 fixture
+    id(P1~P5) 또는 프로필 값 JSON(visaTypeCode·stayExpiresOn·age·asOf·spareKrw, evaluate_chat이
+    질문 파일의 profiles로 만든다). 운영 경로(anthropic 모드 + Spring 설정)에서는 쓰지 않는다.
+    """
+    settings: Settings = request.app.state.rag.settings
+    if settings.chat_llm_mode == "anthropic" and settings.spring_configured():
+        return SpringProductContext(_chat_spring(request), settings.chat_tool_timeout_seconds)
+    profile = x_chat_product_profile if settings.chat_allow_config_override else None
+    try:
+        return FixtureProductContext(profile)
+    except ValueError as exc:
+        raise ApiError(400, "VALIDATION_ERROR", str(exc)) from exc
+
+
 def e74_source(request: Request) -> E74AssessmentSource | None:
     """E-7-4 점수는 Spring이 MySQL 프로필로 계산·저장한다. 설정이 없으면 None(도구가 FAILED)."""
     settings: Settings = request.app.state.rag.settings
@@ -157,6 +185,7 @@ async def chat_stream(
     e74: Annotated[E74AssessmentSource | None, Depends(e74_source)],
     search: Annotated[PolicySearchSource | None, Depends(policy_search)],
     remittance: Annotated[RemittanceSource, Depends(remittance_source)],
+    product: Annotated[ProductContextSource, Depends(product_source)],
     x_chat_metrics: Annotated[str | None, Header()] = None,
 ) -> AsyncIterator[ServerSentEvent]:
     settings: Settings = request.app.state.rag.settings
@@ -191,6 +220,18 @@ async def chat_stream(
                 user_id=body.user_id,
                 request_id=rid,
                 timeout=settings.chat_tool_timeout_seconds,
+            )
+        )
+    # 상품 추천 도구는 v4에서만 붙는다. 순서 B(검색)는 상품설명서 검색이 준비됐을 때만.
+    if setup.config.prompt_version in PRODUCT_PROMPT_VERSIONS:
+        tools.append(
+            ProductTool(
+                product,
+                user_id=body.user_id,
+                request_id=rid,
+                timeout=settings.chat_tool_timeout_seconds,
+                ranker=request.app.state.rag.product_search,
+                schema=TOOL_SCHEMAS_BY_PROMPT[setup.config.prompt_version],
             )
         )
     tool = ChatToolset(*tools)

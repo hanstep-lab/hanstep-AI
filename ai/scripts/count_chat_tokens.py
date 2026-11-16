@@ -12,6 +12,14 @@ For each finance question (category finance in specs/chat/eval_questions_v1.json
    with the tool_use and the tool result (chat fixture summary). Reported as the sum.
 Also prints the prefix alone (tools + system) and whether it reaches the 512-token minimum
 for prompt caching. The API key is never printed or written.
+
+--question-set product (issue #65 baseline): each question in specs/chat/product_questions_v1.json
+with the current chat setup (system prompt v3 + the v3 tools: finance, visa, remittance, no product
+tool). Counts the first call, and the second call as if get_financial_analysis was called with
+the chat fixture (the baseline may call it for spare-money questions). History is included.
+
+    uv run python scripts/count_chat_tokens.py --question-set product \
+        --models claude-haiku-5-5 --output artifacts/chat/product_baseline_tokens.md
 """
 
 from __future__ import annotations
@@ -25,13 +33,17 @@ from typing import Any
 
 import _bootstrap  # noqa: F401
 
-from app.chat.prompts import PROMPT_VERSION, system_prompt
+from app.chat.prompts import PROMPT_VERSION, PROMPT_VERSIONS, system_prompt
+from app.chat.remittance_tools import TOOL_SCHEMAS as REMITTANCE_TOOL_SCHEMAS
 from app.chat.tools import FIXTURE, TOOL_NAME, TOOL_SCHEMA, summarize
+from app.chat.visa_tools import VISA_TOOL_NAMES
 from app.core.config import get_settings
 from app.rag.cli import EXIT_BLOCKED, EXIT_OK
 
 AI_ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
+PRODUCT_QUESTIONS = AI_ROOT / "specs" / "chat" / "product_questions_v1.json"
+BASELINE_PROMPT = "v3"
 TRANSACTIONS = AI_ROOT / "tests" / "fixtures" / "finance" / "minh_12m.json"
 CACHE_MIN_TOKENS = 512
 EXIT_USAGE = 2
@@ -44,6 +56,75 @@ RAW_SYSTEM = (
 def finance_questions() -> list[dict[str, Any]]:
     spec = json.loads(QUESTIONS.read_text(encoding="utf-8"))
     return [q for q in spec["questions"] if q["category"] == "finance"]
+
+
+def v3_tools() -> list[dict[str, Any]]:
+    """The tools the server binds for prompt v3 (finance + visa + remittance), in that order."""
+    from app.visa.tools import tool_definitions
+
+    visa = [d for d in tool_definitions() if d["name"] in VISA_TOOL_NAMES]
+    return [TOOL_SCHEMA, *visa, *(dict(s) for s in REMITTANCE_TOOL_SCHEMAS)]
+
+
+def history_messages(history: list[dict[str, str]]) -> list[dict[str, Any]]:
+    return [{"role": h["role"].lower(), "content": h["content"]} for h in history]
+
+
+def baseline_requests(question: dict[str, Any]) -> list[dict[str, Any]]:
+    """Product question with the current chat (v3, no product tool): first and second call."""
+    system = system_prompt("en", BASELINE_PROMPT)
+    tools = v3_tools()
+    result = summarize(json.loads(FIXTURE.read_text(encoding="utf-8")))
+    first = [*history_messages(question["history"]), {"role": "user", "content": question["text"]}]
+    second = [
+        *first,
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "id": "toolu_count_1", "name": TOOL_NAME, "input": {}}
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_count_1",
+                    "content": json.dumps(result, ensure_ascii=False),
+                }
+            ],
+        },
+    ]
+    return [
+        {"system": system, "tools": tools, "messages": first},
+        {"system": system, "tools": tools, "messages": second},
+    ]
+
+
+def render_baseline(rows: list[dict[str, Any]]) -> str:
+    out = [
+        "# 상품 질문 기준선 입력 토큰 (count_tokens)",
+        "",
+        "count_tokens 는 추정치다. 실제 과금 토큰과 조금 다를 수 있다.",
+        f"지금 챗봇 설정: system {PROMPT_VERSIONS[BASELINE_PROMPT]} + v3 도구(금융·비자·송금), "
+        "상품 도구 없음. 문항: product_questions_v1.json.",
+        "2차는 get_financial_analysis를 부르고 fixture 결과를 받았다고 가정한 호출이다.",
+        "",
+        "| 모델 | 문항 | 1차 | 2차 | 합계 |",
+        "|---|---|---|---|---|",
+    ]
+    for r in rows:
+        total = r["first"] + r["second"]
+        out.append(f"| {r['model']} | {r['question']} | {r['first']} | {r['second']} | {total} |")
+    for model in dict.fromkeys(r["model"] for r in rows):
+        mine = [r for r in rows if r["model"] == model]
+        firsts = [r["first"] for r in mine]
+        totals = [r["first"] + r["second"] for r in mine]
+        out.append(
+            f"| {model} | 평균 | {sum(firsts) / len(firsts):.0f} | – | "
+            f"{sum(totals) / len(totals):.0f} |"
+        )
+    return "\n".join(out) + "\n"
 
 
 def raw_request(question: str) -> dict[str, Any]:
@@ -141,6 +222,12 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
         help="comma-separated model ids",
     )
     parser.add_argument("--output", type=Path, default=None, help="markdown path (required)")
+    parser.add_argument(
+        "--question-set",
+        choices=["finance", "product"],
+        default="finance",
+        help="finance: raw vs tool (eval_questions_v1.json), product: #65 baseline (v3 tools)",
+    )
     args = parser.parse_args(argv)
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -159,6 +246,26 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
         import anthropic
 
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
+
+    if args.question_set == "product":
+        spec = json.loads(PRODUCT_QUESTIONS.read_text(encoding="utf-8"))
+        base_rows: list[dict[str, Any]] = []
+        for model in models:
+            for q in spec["questions"]:
+                first, second = baseline_requests(q)
+                row = {
+                    "model": model,
+                    "question": q["id"],
+                    "first": count(client, model, first),
+                    "second": count(client, model, second),
+                }
+                base_rows.append(row)
+                print(f"{model} {q['id']} first={row['first']} second={row['second']}", flush=True)
+        report = render_baseline(base_rows)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(report, encoding="utf-8")
+        print(report)
+        return EXIT_OK
 
     questions = finance_questions()
     rows: list[dict[str, Any]] = []

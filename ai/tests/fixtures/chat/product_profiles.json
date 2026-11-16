@@ -1,0 +1,41 @@
+{
+  "description": "상품 추천 도구 fixture(fake 모드·Spring 미설정·측정 전용, 데모 값이며 실제 사용자 데이터가 아님). visaTypeCode·stayExpiresOn·age·asOf는 product-profile 계약(specs/chat/product_profile_contract_v1.md) 형식이고, spareKrw는 INT-06 latestAnalysis.spare 대신 쓰는 월 여유자금이다. 값은 specs/chat/product_questions_v1.json의 프로필과 같다. 기본은 P1, 측정에서는 X-Chat-Product-Profile 헤더(CHAT_ALLOW_CONFIG_OVERRIDE=true일 때만)로 고른다.",
+  "default": "P1",
+  "profiles": {
+    "P1": {
+      "visaTypeCode": "E-9",
+      "stayExpiresOn": "2027-10-04",
+      "age": 30,
+      "asOf": "2026-11-16",
+      "spareKrw": 675317
+    },
+    "P2": {
+      "visaTypeCode": "E-9",
+      "stayExpiresOn": "2027-04-16",
+      "age": 30,
+      "asOf": "2026-11-16",
+      "spareKrw": 675317
+    },
+    "P3": {
+      "visaTypeCode": "E-9",
+      "stayExpiresOn": "2028-11-16",
+      "age": 30,
+      "asOf": "2026-11-16",
+      "spareKrw": 675317
+    },
+    "P4": {
+      "visaTypeCode": "E-9",
+      "stayExpiresOn": "2027-10-04",
+      "age": 30,
+      "asOf": "2026-11-16",
+      "spareKrw": 200000
+    },
+    "P5": {
+      "visaTypeCode": "E-9",
+      "stayExpiresOn": "2028-11-16",
+      "age": 40,
+      "asOf": "2026-11-16",
+      "spareKrw": 675317
+    }
+  }
+}

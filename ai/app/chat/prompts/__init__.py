@@ -15,6 +15,8 @@ PROMPT_VERSIONS = {
     "v3": "chat-v3",
     "v3.1": "chat-v3.1",
     "v3.2": "chat-v3.2",
+    "v4": "chat-v4",
+    "v4.1": "chat-v4.1",
 }
 PROMPT_VERSION = PROMPT_VERSIONS["v1"]  # the default
 
@@ -65,6 +67,40 @@ def _with_remittance_rules(base: str, remittance_rules: str) -> str:
     return "\n".join(lines).rstrip("\n") + "\n\n" + remittance_rules
 
 
+# v4를 만들 때 v3에서 바꾸는 줄: 상품 추천 도구(#65)가 생겼으니
+# '상품 추천은 아직 안 됨'을 상품 규칙으로.
+PRODUCTS_RULES_LINE = (
+    "- Recommend only savings and time deposit products, following the product rules below. "
+    "Other product recommendations (cards, loans, checking accounts) are not available in chat "
+    "yet. Say so briefly."
+)
+
+
+def _with_product_rules(base: str, product_rules: str) -> str:
+    """v3 + 상품 규칙(product_rules.md). 바꿀 줄이 v3에 없으면 시작할 때 실패한다."""
+    lines = _replace_line(base, PRODUCTS_UNAVAILABLE_LINE, PRODUCTS_RULES_LINE, "products")
+    return "\n".join(lines).rstrip("\n") + "\n\n" + product_rules
+
+
+# v4.1(2026-11-17, v4 1차 측정 결과를 보고 수정):
+# STAY_TOO_SHORT 안내는 남은 체류 기간과 상품 기간만.
+V4_STAY_RULE = (
+    "STAY_TOO_SHORT: the products that fit last longer than the user's remaining stay; give the "
+    "remaining months and do not suggest extending the stay."
+)
+V4_1_STAY_RULE = (
+    "STAY_TOO_SHORT: say only the user's remaining months of stay and that the fitting products "
+    "last longer; do not suggest extending the stay or the visa."
+)
+
+
+def _with_stay_rule(base: str) -> str:
+    """v4에서 STAY_TOO_SHORT 안내 문장 하나만 바꾼다. 바꿀 문장이 정확히 한 번 없으면 실패한다."""
+    if base.count(V4_STAY_RULE) != 1:
+        raise ValueError("the base prompt must contain the STAY_TOO_SHORT rule exactly once")
+    return base.replace(V4_STAY_RULE, V4_1_STAY_RULE)
+
+
 def _with_rule(base: str, rule: str) -> str:
     """base(v3) 끝에 규칙 한 줄을 더한다. v3의 마지막 절은 송금 규칙이다."""
     return base.rstrip("\n") + "\n" + rule + "\n"
@@ -84,7 +120,11 @@ _SYSTEM = {
     # v3 그대로 + 환율 규칙 한 줄(송금 규칙 끝). 송금 도구 구성은 v3와 같다.
     "v3.1": _with_rule(_V3, RATE_TEXT_RULE),  # rateText를 그대로 옮겨 쓰기
     "v3.2": _with_rule(_V3, NO_RATE_RULE),  # 답변에 환율을 쓰지 않기
+    # v3 그대로 + 상품 추천 규칙(#65). 상품 추천 도구는 v4에서만 붙는다.
+    "v4": _with_product_rules(_V3, (_DIR / "product_rules.md").read_text(encoding="utf-8")),
 }
+# v4 그대로 + STAY_TOO_SHORT 안내 한 문장(체류·비자 연장을 권하지 않음). 도구 설명도 v4.1용을 쓴다.
+_SYSTEM["v4.1"] = _with_stay_rule(_SYSTEM["v4"])
 
 
 def system_prompt(language: str, version: str = "v1") -> str:

@@ -131,6 +131,8 @@ def build_graph(
                     "errorCode": outcome.error_code,
                     "sources": outcome.sources,
                     "blocks": outcome.blocks,
+                    # 측정 전용(agent.metrics의 tools, X-Chat-Metrics: 1일 때만 나간다).
+                    "measurement": outcome.measurement,
                 }
             )
             results.append(
