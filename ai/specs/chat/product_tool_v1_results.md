@@ -234,7 +234,7 @@
 ### 8-4. hold-out (27문항 × 3, v4.1, 한 번만 실행)
 
 - 실행: 2026-11-17 01:16(한국 시간), 8-3과 같은 서버 조건, 설정 `variants_product_v4_1_v1.json`. 출력은 레포 밖
-  `C:\Projects\hanstep\holdoutesults\product_tool_holdout_v4_1.*`. 이 절에는 집계만 적는다(문항 원문 없음).
+  `C:\Projects\hanstep\holdout\results\product_tool_holdout_v4_1.*`. 이 절에는 집계만 적는다(문항 원문 없음).
 - 비용 $0.1393(81회, 오류 0). 순서 방식: 상품 도구 호출 69회 모두 `search`. 첫 delta 중앙값 3,297 ms, 전체 4,105 ms(p95 6,473).
 
 | 성공 기준(5절) | 기준 | hold-out 결과 | 판정 |
