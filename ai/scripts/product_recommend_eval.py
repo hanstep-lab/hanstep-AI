@@ -74,6 +74,7 @@ CONDITIONS = (
 Product = Mapping[str, Any]
 Profile = Mapping[str, Any]
 Request = Mapping[str, Any]
+Recommendation = Mapping[str, Any]
 
 
 def value(product: Product, field: str) -> Any:
@@ -231,15 +232,26 @@ def gold_candidates(catalog: Mapping[str, Any], qset: Mapping[str, Any]) -> list
     return rows
 
 
+def as_recommendation(result: Recommendation | Sequence[str]) -> Recommendation:
+    """추천 결과를 {"recommended", "pool", "reason"} 형태로 맞춘다(목록만 오면 추천 목록)."""
+    if isinstance(result, Mapping):
+        return result
+    return {"recommended": list(result)}
+
+
 def score_question(
     question: Mapping[str, Any],
-    recommended: Sequence[str],
+    recommended: Recommendation | Sequence[str],
     products: Mapping[str, Product],
     as_of: date,
 ) -> dict[str, Any]:
-    """문항 하나의 추천 목록(상위 k)을 채점한다."""
-    top = list(recommended)[:TOP_K]
+    """문항 하나의 추천(상위 k, 후보 풀, 기권 이유)을 채점한다."""
+    result = as_recommendation(recommended)
+    top = list(result["recommended"])[:TOP_K]
+    pool = result.get("pool")
+    reason = result.get("reason")
     gold = list(question["gold"])
+    expected_reason = question.get("expectedReason")
     checks = {
         pid: check_product(products.get(pid), question["profile"], question["request"], as_of)
         for pid in top
@@ -270,7 +282,15 @@ def score_question(
         "recall@5": len(hits) / min(len(gold), TOP_K) if gold else None,
         "emptyGold": not gold,
         "abstained": not top,
+        "falseAbstain": bool(gold) and not top,
+        "pool": None if pool is None else list(pool),
+        "goldNotInPool": None if pool is None else [g for g in gold if g not in pool],
+        "reason": reason,
+        "expectedReason": expected_reason,
+        "reasonMatch": (reason == expected_reason) if not gold else None,
     }
+    if "toolArgs" in result:
+        row["toolArgs"] = result["toolArgs"]
     return row
 
 
@@ -298,15 +318,28 @@ def summarize(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "emptyGoldAbstainRate": (
             sum(1 for r in empty if r["abstained"]) / len(empty) if empty else None
         ),
+        "falseAbstain": sum(1 for r in with_gold if r["abstained"]),
+        "reasonMatch": sum(1 for r in empty if r.get("reasonMatch")),
+        "goldNotInPool": (
+            None
+            if any(r.get("goldNotInPool") is None for r in rows)
+            else sum(len(r["goldNotInPool"]) for r in rows)
+        ),
     }
+
+
+def regressions(base: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[str, Any]]) -> list[str]:
+    """gold가 있는 문항 중 기준(base)보다 gold 적중 수가 줄어든 문항 id."""
+    before = {r["id"]: len(r["goldHits"]) for r in base}
+    return [r["id"] for r in rows if not r["emptyGold"] and len(r["goldHits"]) < before[r["id"]]]
 
 
 def evaluate(
     catalog: Mapping[str, Any],
     qset: Mapping[str, Any],
-    recommend: Callable[[Mapping[str, Any]], Sequence[str]],
+    recommend: Callable[[Mapping[str, Any]], Recommendation | Sequence[str]],
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """recommend(문항) → 상품 id 목록(순위순)을 받아 문항별 결과와 요약을 만든다."""
+    """recommend(문항) → 추천(상품 id 목록 또는 Recommendation)으로 문항별 결과·요약을 만든다."""
     as_of = date.fromisoformat(qset["asOf"])
     products = catalog_index(catalog)
     rows = [score_question(q, recommend(q), products, as_of) for q in expand_questions(qset)]
@@ -328,6 +361,101 @@ def rank_products(
             best[doc_id] = (score, best.get(doc_id, (score, order))[1])
     ranked = sorted(best.items(), key=lambda item: (-item[1][0], item[1][1]))
     return [doc_id for doc_id, _ in ranked[:k]]
+
+
+# ②③: 조건은 챗봇 도구 인자와 같은 형태로 받는다.
+# 오프라인 평가에서는 질문 세트의 요청 조건을 이 형태로 바꿔 넣는다.
+REASON_SURPLUS = "REQUEST_EXCEEDS_SURPLUS"
+REASON_STAY = "STAY_TOO_SHORT"
+REASON_NONE = "NO_MATCHING_PRODUCT"
+
+
+def tool_args(request: Request) -> dict[str, Any]:
+    """질문 세트의 요청 조건 → 챗봇 도구 인자 형태."""
+    conditions = request.get("conditions", {})
+    return {
+        "productType": conditions.get("kind"),
+        "maxTermMonths": conditions.get("maxTermMonths"),
+        "monthlyAmountKrw": conditions.get("monthlyKrw"),
+        "accrual": conditions.get("savingType"),
+        "requireForeignerExplicit": (
+            request.get("goldRequires", {}).get("foreignerEligible") == "explicit"
+        ),
+    }
+
+
+def request_from_args(args: Mapping[str, Any]) -> dict[str, Any]:
+    """도구 인자 → check_product가 읽는 요청 조건."""
+    pairs = [
+        ("kind", args.get("productType")),
+        ("maxTermMonths", args.get("maxTermMonths")),
+        ("monthlyKrw", args.get("monthlyAmountKrw")),
+        ("savingType", args.get("accrual")),
+    ]
+    return {"conditions": {name: v for name, v in pairs if v is not None}}
+
+
+def passes(
+    product: Product,
+    profile: Profile,
+    args: Mapping[str, Any],
+    as_of: date,
+    ignore: frozenset[str] = frozenset(),
+) -> bool:
+    """위반 없음 + 요청 조건 판정 불가 없음 + (요청 시) 외국인 명시. ignore 조건은 보지 않는다."""
+    checks = check_product(product, profile, request_from_args(args), as_of)
+    checks = {name: verdict for name, verdict in checks.items() if name not in ignore}
+    if VIOLATION in checks.values():
+        return False
+    if any(checks.get(name) == UNKNOWN for name in REQUEST_CONDITIONS):
+        return False
+    if args.get("requireForeignerExplicit") and value(product, "foreignerEligible") != "explicit":
+        return False
+    return True
+
+
+def abstain_reason(
+    pool: Sequence[str],
+    products: Mapping[str, Product],
+    profile: Profile,
+    args: Mapping[str, Any],
+    as_of: date,
+) -> str:
+    """남는 상품이 없을 때의 이유 코드(9-1 순서)."""
+    amount = args.get("monthlyAmountKrw")
+    if amount is not None and amount > profile["spareKrw"]:
+        return REASON_SURPLUS
+    without_stay = frozenset({"stayTerm"})
+    if any(passes(products[pid], profile, args, as_of, without_stay) for pid in pool):
+        return REASON_STAY
+    return REASON_NONE
+
+
+def recommend_filtered(
+    pool: Sequence[str],
+    products: Mapping[str, Product],
+    profile: Profile,
+    args: Mapping[str, Any],
+    as_of: date,
+    *,
+    explicit_first: bool,
+    with_reason: bool,
+    k: int = TOP_K,
+) -> Recommendation:
+    """② / ③: 후보 풀(검색 점수 순)에서 조건을 통과한 상품만 남겨 상위 k를 고른다.
+
+    pool은 조건표에 있는 상품만 담는다(약관은 미리 뺀다). explicit_first면
+    foreignerEligible=explicit 상품을 먼저 두고(안에서는 검색 순서 유지),
+    with_reason이면 빈 목록일 때 이유 코드를 붙인다.
+    """
+    kept = [pid for pid in pool if passes(products[pid], profile, args, as_of)]
+    if explicit_first:
+        kept.sort(key=lambda pid: value(products[pid], "foreignerEligible") != "explicit")
+    top = kept[:k]
+    reason = (
+        abstain_reason(pool, products, profile, args, as_of) if with_reason and not top else None
+    )
+    return {"recommended": top, "pool": list(pool), "reason": reason, "toolArgs": dict(args)}
 
 
 def _fmt(x: float | None) -> str:
@@ -367,7 +495,62 @@ def write_gold_candidates(catalog: Mapping[str, Any], qset: Mapping[str, Any], o
     return len(filled["questions"])
 
 
-def run_baseline(args: argparse.Namespace) -> int:
+METHODS = {
+    "1": "③ 검색(dense+BM25 RRF) → 약관 청크 제외 → 상품별 최고 점수 상위 5, 필터 없음",
+    "2": "① 후보 풀 → 조건표 필터(위반·요청 조건 판정 불가·외국인 명시 요청) → 검색 점수 상위 5",
+    "3": "② + foreignerEligible explicit 우선 + 남는 상품이 없으면 이유 코드",
+}
+
+
+def make_recommender(
+    method: str,
+    search: Callable[[str], list[str]],
+    products: Mapping[str, Product],
+    as_of: date,
+) -> Callable[[Mapping[str, Any]], Recommendation]:
+    """search(검색어) → 조건표 상품만 담은 후보 풀(검색 점수 순)을 받아 방식별 추천기를 만든다."""
+
+    def recommend(question: Mapping[str, Any]) -> Recommendation:
+        pool = search(question["request"]["query"])
+        if method == "1":
+            return {"recommended": pool[:TOP_K], "pool": pool}
+        return recommend_filtered(
+            pool,
+            products,
+            question["profile"],
+            tool_args(question["request"]),
+            as_of,
+            explicit_first=method == "3",
+            with_reason=method == "3",
+        )
+
+    return recommend
+
+
+def comparison(
+    results: Mapping[str, tuple[list[dict[str, Any]], dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """방식별 9-2 기준 표. 문항별 후퇴는 ① 대비."""
+    base_rows = results["1"][0] if "1" in results else None
+    table = []
+    for method, (rows, summary) in results.items():
+        back = regressions(base_rows, rows) if base_rows is not None else None
+        table.append(
+            {
+                "method": method,
+                "recall@5": summary["recall@5"],
+                "regressions": back,
+                "abstain": f"{summary['emptyGoldAbstained']}/{summary['emptyGoldQuestions']}",
+                "falseAbstain": f"{summary['falseAbstain']}/{summary['goldQuestions']}",
+                "reasonMatch": f"{summary['reasonMatch']}/{summary['emptyGoldQuestions']}",
+                "goldNotInPool": summary["goldNotInPool"],
+                "violatingProducts": summary["violatingProducts"],
+            }
+        )
+    return table
+
+
+def run_methods(args: argparse.Namespace, methods: Sequence[str]) -> int:
     from app.rag.embeddings import BgeM3Embedder
     from app.rag.experiments.product_corpus import load_corpus
     from app.rag.experiments.product_eval import (
@@ -380,10 +563,15 @@ def run_baseline(args: argparse.Namespace) -> int:
 
     catalog = load_json(args.catalog)
     qset = load_json(args.questions)
+    products = catalog_index(catalog)
+    as_of = date.fromisoformat(qset["asOf"])
     documents = load_corpus(args.corpus)
     terms = {d.doc_id for d in documents if d.kind == "terms"}
     if terms != set(catalog["termsDocuments"]):
         print(f"FAILED: terms documents {sorted(terms)} != catalog {catalog['termsDocuments']}")
+        return 1
+    if {d.doc_id for d in documents} - terms != set(products):
+        print("FAILED: product documents differ from the catalog")
         return 1
     variant = VARIANTS["3"]
     embedder = BgeM3Embedder(
@@ -395,38 +583,41 @@ def run_baseline(args: argparse.Namespace) -> int:
     cache = EmbeddingCache(args.cache_dir, args.model, args.revision)
     retriever, index_info = build_retriever(variant, embedder, chunks, documents, cache)
 
-    def recommend(question: Mapping[str, Any]) -> list[str]:
-        # dense 20 + BM25 20을 RRF로 합친 전체 후보(최대 40 청크)에서 상품 순위를 만든다.
-        fused = retriever.search(question["request"]["query"], len(chunks))
-        return rank_products([(chunks[i].doc_id, s) for i, s in fused], terms)
+    def search(query: str) -> list[str]:
+        # dense 20 + BM25 20을 RRF로 합친 전체 후보(최대 40 청크) → 약관 제외 → 상품 순위(후보 풀).
+        fused = retriever.search(query, len(chunks))
+        return rank_products([(chunks[i].doc_id, s) for i, s in fused], terms, k=len(products))
 
     started = datetime.now(UTC)
-    rows, summary = evaluate(catalog, qset, recommend)
-    stem = f"product-recommend-1-{started.strftime('%Y%m%dT%H%M%SZ')}"
+    stamp = started.strftime("%Y%m%dT%H%M%SZ")
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    jsonl = args.output_dir / f"{stem}.jsonl"
-    meta = {
-        "type": "conditions",
-        "method": "1",
-        "description": (
-            "③ 검색(dense+BM25 RRF) → 약관 청크 제외 → 상품별 최고 점수 상위 5, 필터 없음"
-        ),
-        "startedAt": started.isoformat(timespec="seconds"),
-        "model": args.model,
-        "revision": args.revision,
-        "chunks": len(chunks),
-        "chunkTextSha256": texts_sha256([c.text for c in chunks]),
-        "index": index_info,
-        "catalog": args.catalog.as_posix(),
-        "questions": args.questions.as_posix(),
-        "summary": summary,
-    }
-    with jsonl.open("w", encoding="utf-8", newline="\n") as fh:
-        fh.write(json.dumps(meta, ensure_ascii=False) + "\n")
-        for row in rows:
-            fh.write(json.dumps({"type": "question", **row}, ensure_ascii=False) + "\n")
-    print(json.dumps(meta, ensure_ascii=False, indent=2))
-    print(f"\nwrote {jsonl}")
+    results: dict[str, tuple[list[dict[str, Any]], dict[str, Any]]] = {}
+    for method in methods:
+        rows, summary = evaluate(catalog, qset, make_recommender(method, search, products, as_of))
+        results[method] = (rows, summary)
+        meta = {
+            "type": "conditions",
+            "method": method,
+            "description": METHODS[method],
+            "startedAt": started.isoformat(timespec="seconds"),
+            "model": args.model,
+            "revision": args.revision,
+            "chunks": len(chunks),
+            "chunkTextSha256": texts_sha256([c.text for c in chunks]),
+            "index": index_info,
+            "catalog": args.catalog.as_posix(),
+            "questions": args.questions.as_posix(),
+            "summary": summary,
+        }
+        jsonl = args.output_dir / f"product-recommend-{method}-{stamp}.jsonl"
+        with jsonl.open("w", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(meta, ensure_ascii=False) + "\n")
+            for row in rows:
+                fh.write(json.dumps({"type": "question", **row}, ensure_ascii=False) + "\n")
+        print(f"wrote {jsonl}")
+    # 문항 내용은 출력하지 않는다(집계만).
+    print(json.dumps({m: r[1] for m, r in results.items()}, ensure_ascii=False, indent=2))
+    print(json.dumps(comparison(results), ensure_ascii=False, indent=2))
     return 0
 
 
@@ -434,8 +625,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
     gold = sub.add_parser("gold", help="조건표로 gold 후보 표를 출력(모델 없음)")
-    base = sub.add_parser("baseline", help="기준선 ①을 돌려 문항별 jsonl을 쓴다")
-    for p in (gold, base):
+    base = sub.add_parser("baseline", help="기준선 ①만 돌려 문항별 jsonl을 쓴다")
+    run = sub.add_parser("run", help="①②③을 같은 검색으로 돌려 방식별 jsonl과 비교표를 쓴다")
+    run.add_argument("--methods", default="1,2,3", help="쉼표로 구분한 방식(1, 2, 3)")
+    for p in (gold, base, run):
         p.add_argument("--catalog", type=Path, default=CATALOG_PATH)
         p.add_argument("--questions", type=Path, default=QUESTIONS_PATH)
     gold.add_argument(
@@ -443,13 +636,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="gold를 후보로 채운 질문 세트를 새 파일로 쓴다(goldConfirmed=false, 덮어쓰지 않음)",
     )
-    base.add_argument("--corpus", type=Path, required=True, help="상품설명서·약관 PDF 폴더")
-    base.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-    base.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
-    base.add_argument("--model", default="BAAI/bge-m3")
-    base.add_argument("--revision", required=True, help="BGE-M3 HF 커밋 해시(#47과 같은 값)")
-    base.add_argument("--device", default="cpu")
-    base.add_argument("--batch-size", type=int, default=8)
+    for p in (base, run):
+        p.add_argument("--corpus", type=Path, required=True, help="상품설명서·약관 PDF 폴더")
+        p.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+        p.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
+        p.add_argument("--model", default="BAAI/bge-m3")
+        p.add_argument("--revision", required=True, help="BGE-M3 HF 커밋 해시(#47과 같은 값)")
+        p.add_argument("--device", default="cpu")
+        p.add_argument("--batch-size", type=int, default=8)
     args = parser.parse_args(argv)
     if args.command == "gold":
         catalog, qset = load_json(args.catalog), load_json(args.questions)
@@ -462,7 +656,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             # 파일 내용은 출력하지 않는다(경로와 문항 수만).
             print(f"\nwrote {args.write} ({count} questions, goldConfirmed=false)")
         return 0
-    return run_baseline(args)
+    if args.command == "baseline":
+        return run_methods(args, ["1"])
+    methods = [m.strip() for m in args.methods.split(",") if m.strip()]
+    unknown = [m for m in methods if m not in METHODS]
+    if unknown or not methods:
+        print(f"FAILED: unknown methods {unknown}; choose from {list(METHODS)}")
+        return 1
+    return run_methods(args, methods)
 
 
 if __name__ == "__main__":

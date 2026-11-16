@@ -259,3 +259,105 @@ def test_gold_write_fills_candidates_unconfirmed(
     # 있는 파일은 덮어쓰지 않는다.
     assert EV.main([*argv, "--write", str(output)]) == 1
     assert json.loads(output.read_text(encoding="utf-8")) == written
+
+
+def test_tool_args_and_request_round_trip() -> None:
+    request = {
+        "conditions": {"kind": "SAVINGS", "maxTermMonths": 3, "monthlyKrw": 300000},
+        "goldRequires": {"foreignerEligible": "explicit"},
+    }
+    args = EV.tool_args(request)
+    assert args == {
+        "productType": "SAVINGS",
+        "maxTermMonths": 3,
+        "monthlyAmountKrw": 300000,
+        "accrual": None,
+        "requireForeignerExplicit": True,
+    }
+    assert EV.request_from_args(args) == {"conditions": request["conditions"]}
+
+
+def test_passes_keeps_profile_unknowns_and_drops_request_unknowns() -> None:
+    args = EV.tool_args(_request(kind="SAVINGS"))
+    # 나이·비자 판정 불가(프로필 조건)는 남긴다.
+    assert EV.passes(_savings(), PROFILE, args, AS_OF)
+    monthly = EV.tool_args(_request(kind="SAVINGS", monthlyKrw=300000))
+    missing = _savings(monthlyMinKrw=_v(None), monthlyMaxKrw=_v(None))
+    assert not EV.passes(missing, PROFILE, monthly, AS_OF)  # 요청 조건 판정 불가는 뺀다
+    explicit = {**args, "requireForeignerExplicit": True}
+    assert not EV.passes(_savings(), PROFILE, explicit, AS_OF)
+    assert EV.passes(_savings(foreignerEligible=_v("explicit")), PROFILE, explicit, AS_OF)
+    long_term = _savings(termMonthsMin=_v(12))
+    assert not EV.passes(long_term, PROFILE, args, AS_OF)
+    assert EV.passes(long_term, PROFILE, args, AS_OF, frozenset({"stayTerm"}))
+
+
+def _products() -> dict[str, Any]:
+    return {
+        "a": _savings(productId="a"),
+        "b": _savings(productId="b", foreignerEligible=_v("explicit")),
+        "long": _savings(productId="long", termMonthsMin=_v(12), foreignerEligible=_v("explicit")),
+        "gift": _savings(productId="gift", recommendable=False),
+    }
+
+
+def test_recommend_filtered_orders_and_explains() -> None:
+    products = _products()
+    pool = ["gift", "a", "long", "b"]
+    args = EV.tool_args(_request(kind="SAVINGS"))
+    two = EV.recommend_filtered(
+        pool, products, PROFILE, args, AS_OF, explicit_first=False, with_reason=False
+    )
+    assert two["recommended"] == ["a", "b"] and two["reason"] is None
+    three = EV.recommend_filtered(
+        pool, products, PROFILE, args, AS_OF, explicit_first=True, with_reason=True
+    )
+    assert three["recommended"] == ["b", "a"]  # explicit 먼저
+    assert three["pool"] == pool and three["toolArgs"] == args
+
+    def reason(args: dict[str, Any], profile: dict[str, Any] = PROFILE) -> Any:
+        return EV.recommend_filtered(
+            pool, products, profile, args, AS_OF, explicit_first=True, with_reason=True
+        )
+
+    explicit_long = {**args, "requireForeignerExplicit": True}
+    short_stay = {**PROFILE, "stayExpiry": "2027-04-16"}  # 5개월: b(6개월)도 빠짐
+    result = reason(explicit_long, short_stay)
+    assert result["recommended"] == [] and result["reason"] == EV.REASON_STAY
+    poor = {**PROFILE, "spareKrw": 200000}
+    monthly = EV.tool_args(_request(kind="SAVINGS", monthlyKrw=300000))
+    assert reason(monthly, poor)["reason"] == EV.REASON_SURPLUS
+    deposit = EV.tool_args(_request(kind="DEPOSIT"))
+    assert reason(deposit)["reason"] == EV.REASON_NONE
+
+
+def test_regressions_and_summary_fields() -> None:
+    catalog = {"products": [_savings(), _savings(productId="doc-g")]}
+    qset = _qset()
+    qset["questions"][1]["expectedReason"] = EV.REASON_NONE
+    base, _ = EV.evaluate(catalog, qset, lambda q: ["doc-s", "doc-g"] if q["id"] == "P-R" else [])
+    picks = {
+        "P-R": {"recommended": ["doc-s"], "pool": ["doc-s"]},
+        "P-R2": {"recommended": [], "pool": [], "reason": EV.REASON_NONE},
+    }
+    rows, summary = EV.evaluate(catalog, qset, lambda q: picks[q["id"]])
+    assert EV.regressions(base, rows) == ["P-R"]  # 적중 2 → 1
+    assert rows[0]["goldNotInPool"] == ["doc-g"]
+    assert summary["goldNotInPool"] == 1
+    assert summary["falseAbstain"] == 0 and summary["reasonMatch"] == 1
+    assert rows[1]["reasonMatch"] is True and rows[0]["reasonMatch"] is None
+
+
+def test_filters_on_the_repo_set_have_no_judgeable_violations() -> None:
+    # 9-2: 필터와 채점이 같은 조건표·규칙을 쓰므로 위반 0은 구조상 보장이다(후보 풀 = 상품 전체).
+    catalog = json.loads(EV.CATALOG_PATH.read_text(encoding="utf-8"))
+    qset = json.loads(EV.QUESTIONS_PATH.read_text(encoding="utf-8"))
+    products = EV.catalog_index(catalog)
+    pool = list(products)
+    for method in ("2", "3"):
+        recommend = EV.make_recommender(method, lambda _: pool, products, AS_OF)
+        rows, summary = EV.evaluate(catalog, qset, recommend)
+        assert summary["violatingProducts"] == 0
+        assert summary["emptyGoldAbstained"] == summary["emptyGoldQuestions"] == 4
+        assert summary["falseAbstain"] == 0
+    assert summary["reasonMatch"] == 4  # ③만 이유 코드를 붙인다
