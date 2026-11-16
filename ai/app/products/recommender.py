@@ -51,8 +51,10 @@ def months_between(start: date, end: date) -> int:
     return max(months, 0)
 
 
-def remaining_stay_months(profile: Profile, as_of: date) -> int:
-    return months_between(as_of, date.fromisoformat(profile["stayExpiry"]))
+def remaining_stay_months(profile: Profile, as_of: date) -> int | None:
+    """남은 체류 개월. 프로필에 체류 만료일이 없으면 None(판정 불가)."""
+    expiry = profile.get("stayExpiry")
+    return None if expiry is None else months_between(as_of, date.fromisoformat(expiry))
 
 
 def shortest_term(product: Product) -> int | None:
@@ -74,7 +76,12 @@ def _upper(limit: Any, unlimited: bool, amount: int) -> str:
 def check_product(
     product: Product | None, profile: Profile, request: Request, as_of: date
 ) -> dict[str, str]:
-    """상품 하나를 프로필·요청 조건으로 판정한다. product가 None이면 조건표에 없는 문서(약관)."""
+    """상품 하나를 프로필·요청 조건으로 판정한다. product가 None이면 조건표에 없는 문서(약관).
+
+    프로필 값(visa·age·stayExpiry·spareKrw)이 None이면 그 조건은 판정 불가다
+    (#65, 생년월일·비자 프로필·분석 결과가 없는 사용자). 여유자금이 None이면
+    '요청 월 납입액 > 여유자금' 판정도 하지 않는다.
+    """
     if product is None:
         return {"recommendable": VIOLATION}
     conditions = request.get("conditions", {})
@@ -92,27 +99,33 @@ def check_product(
     )
 
     visas = value(product, "visaTypes")
-    result["visa"] = UNKNOWN if visas is None else (OK if profile["visa"] in visas else VIOLATION)
+    visa = profile.get("visa")
+    result["visa"] = (
+        UNKNOWN if visas is None or visa is None else (OK if visa in visas else VIOLATION)
+    )
 
     age_min, age_max = value(product, "ageMin"), value(product, "ageMax")
-    if age_min is None and age_max is None:
+    age = profile.get("age")
+    if (age_min is None and age_max is None) or age is None:
         result["age"] = UNKNOWN
     else:
-        age = profile["age"]
         too_young = age_min is not None and age < age_min
         too_old = age_max is not None and age > age_max
         result["age"] = VIOLATION if too_young or too_old else OK
 
     term = shortest_term(product)
     stay = remaining_stay_months(profile, as_of)
-    result["stayTerm"] = UNKNOWN if term is None else (OK if term <= stay else VIOLATION)
+    result["stayTerm"] = (
+        UNKNOWN if term is None or stay is None else (OK if term <= stay else VIOLATION)
+    )
 
     # 여유자금은 월 흐름이라 적금의 월 최소액과만 비교한다. 예금(목돈)은 프로필에 목돈 값이
     # 없으므로 최소 가입액 조건을 적용하지 않는다(위반도 판정 불가도 아님).
+    spare = profile.get("spareKrw")
     if kind == "SAVINGS":
         minimum = value(product, "monthlyMinKrw")
         result["spare"] = (
-            UNKNOWN if minimum is None else (OK if minimum <= profile["spareKrw"] else VIOLATION)
+            UNKNOWN if minimum is None or spare is None else (OK if minimum <= spare else VIOLATION)
         )
 
     if "maxTermMonths" in conditions:
@@ -124,7 +137,7 @@ def check_product(
         amount = conditions["monthlyKrw"]
         low = value(product, "monthlyMinKrw")
         high = _upper(value(product, "monthlyMaxKrw"), no_limit(product, "monthlyMaxKrw"), amount)
-        if amount > profile["spareKrw"]:
+        if spare is not None and amount > spare:
             result["requestMonthly"] = VIOLATION
         elif low is None or high == UNKNOWN:
             result["requestMonthly"] = UNKNOWN
@@ -183,12 +196,16 @@ def abstain_reason(
     args: Mapping[str, Any],
     as_of: date,
 ) -> str:
-    """남는 상품이 없을 때의 이유 코드(9-1 순서)."""
+    """남는 상품이 없을 때의 이유 코드(9-1 순서). 프로필 값이 없으면 그 이유는 내지 않는다."""
     amount = args.get("monthlyAmountKrw")
-    if amount is not None and amount > profile["spareKrw"]:
+    spare = profile.get("spareKrw")
+    if amount is not None and spare is not None and amount > spare:
         return REASON_SURPLUS
     without_stay = frozenset({"stayTerm"})
-    if any(passes(products[pid], profile, args, as_of, without_stay) for pid in pool):
+    stay_known = profile.get("stayExpiry") is not None
+    if stay_known and any(
+        passes(products[pid], profile, args, as_of, without_stay) for pid in pool
+    ):
         return REASON_STAY
     return REASON_NONE
 

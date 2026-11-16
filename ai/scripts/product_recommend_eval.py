@@ -64,6 +64,7 @@ from app.products.recommender import (
     recommend_filtered,
     value,
 )
+from app.products.search import rank_products
 
 AI_ROOT = _bootstrap.AI_ROOT
 CATALOG_PATH = AI_ROOT / "specs" / "rag" / "product_catalog_v1.json"
@@ -233,23 +234,6 @@ def evaluate(
     products = catalog_index(catalog)
     rows = [score_question(q, recommend(q), products, as_of) for q in expand_questions(qset)]
     return rows, summarize(rows)
-
-
-def rank_products(
-    fused: Sequence[tuple[str, float]], excluded: set[str], k: int = TOP_K
-) -> list[str]:
-    """(문서 id, 점수) 청크 순위에서 excluded 문서를 빼고 문서별 최고 점수로 상위 k 문서를 고른다.
-
-    동점은 먼저 나온 청크 순서(입력 순서)로 정한다.
-    """
-    best: dict[str, tuple[float, int]] = {}
-    for order, (doc_id, score) in enumerate(fused):
-        if doc_id in excluded:
-            continue
-        if doc_id not in best or score > best[doc_id][0]:
-            best[doc_id] = (score, best.get(doc_id, (score, order))[1])
-    ranked = sorted(best.items(), key=lambda item: (-item[1][0], item[1][1]))
-    return [doc_id for doc_id, _ in ranked[:k]]
 
 
 def tool_args(request: Request) -> dict[str, Any]:

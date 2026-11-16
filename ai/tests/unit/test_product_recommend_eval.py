@@ -363,3 +363,34 @@ def test_filters_on_the_repo_set_have_no_judgeable_violations() -> None:
         assert summary["emptyGoldAbstained"] == summary["emptyGoldQuestions"] == 4
         assert summary["falseAbstain"] == 0
     assert summary["reasonMatch"] == 4  # ③만 이유 코드를 붙인다
+
+
+# --- 프로필 값이 없을 때(#65: 생년월일·비자 프로필·분석 결과가 없는 사용자) -------------------
+
+
+def test_missing_profile_values_are_unknown_not_violations() -> None:
+    adult = _savings(ageMin=_v(19), visaTypes=_v(["E-9"]), termMonthsMin=_v(24))
+    empty = {**PROFILE, "visa": None, "age": None, "stayExpiry": None, "spareKrw": None}
+    checks = REC.check_product(adult, empty, _request(monthlyKrw=900_000), AS_OF)
+    assert checks["visa"] == checks["age"] == checks["stayTerm"] == checks["spare"] == "unknown"
+    assert checks["requestMonthly"] == "violation"  # 상품 월 상한(300,000)은 그대로 본다
+    assert REC.remaining_stay_months(empty, AS_OF) is None
+
+
+def test_missing_profile_values_do_not_give_their_abstain_reason() -> None:
+    long_term = _savings(termMonthsMin=_v(36))
+    products = {"doc-s": long_term}
+    no_spare = {**PROFILE, "spareKrw": None}
+    args = {"productType": "SAVINGS", "monthlyAmountKrw": 900_000}
+    assert REC.abstain_reason(["doc-s"], products, no_spare, args, AS_OF) == REC.REASON_NONE
+    no_stay = {**PROFILE, "stayExpiry": "2026-12-31"}
+    assert REC.abstain_reason(["doc-s"], products, no_stay, {}, AS_OF) == REC.REASON_STAY
+    unknown_stay = {**PROFILE, "stayExpiry": None}
+    # 체류 만료일이 없으면 기간 조건은 판정 불가(제외하지 않음)라 상품이 남는다.
+    assert REC.passes(long_term, unknown_stay, {}, AS_OF)
+
+
+def test_search_order_puts_unsearched_products_after_in_catalog_order() -> None:
+    from app.products.search import search_order
+
+    assert search_order(["c", "x", "a"], ["a", "b", "c", "d"]) == ["c", "a", "b", "d"]
