@@ -72,12 +72,12 @@ def test_default_is_judgment_facts_v2_haiku() -> None:
     # Prompt v2: v1.1 vs v2 regression run (2026-11-15).
     settings = _settings()
     assert settings.chat_judgment_facts is True
-    assert settings.chat_prompt_version == "v2"
+    assert settings.chat_prompt_version == "v3"
     assert settings.chat_model == "claude-haiku-5-5"
     config = LlmConfig.from_settings(settings)
     assert config.model == "claude-haiku-5-5"
     assert config.judgment_facts is True
-    assert (config.prompt_version, config.prompt_version_id) == ("v2", "chat-v2")
+    assert (config.prompt_version, config.prompt_version_id) == ("v3", "chat-v3")
 
 
 def test_v2_is_v1_1_plus_visa_rules() -> None:
@@ -156,8 +156,8 @@ def test_v3_x_is_v3_plus_one_rate_rule(version: str, rule: str) -> None:
     assert config.prompt_version_id == f"chat-{version}"
 
 
-def test_default_stays_v2() -> None:
-    assert _settings().chat_prompt_version == "v2"
+def test_default_is_v3() -> None:
+    assert _settings().chat_prompt_version == "v3"
 
 
 def test_v3_fails_fast_when_v2_line_moves() -> None:

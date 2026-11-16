@@ -1,4 +1,6 @@
-"""Versioned chat system prompts (CHAT_PROMPT_VERSION picks one; v1 is the default)."""
+"""Versioned chat system prompts (CHAT_PROMPT_VERSION picks one;
+the default is Settings.chat_prompt_version).
+"""
 
 from __future__ import annotations
 
