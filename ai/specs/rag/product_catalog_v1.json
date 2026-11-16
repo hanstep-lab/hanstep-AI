@@ -1,0 +1,1351 @@
+{
+  "version": "product-catalog-v1",
+  "description": "상품 추천 조건표(이슈 #56). #47 말뭉치 16개 문서 중 상품설명서 13개(정기예금·적금)만 추천 대상. 약관 3개(doc-22161fc4c388 거치식예금약관, doc-e7690d9611cd 예금거래기본약관, doc-daec614f5b77 적립식예금약관)는 추천하지 않고 검색 근거로만 쓴다. 값마다 source{file, page, quote(30자 이내, 추출 텍스트에서 공백 무시하고 확인)}. 문서에 없는 값은 value·source 모두 null. noLimit=true는 문서가 '제한없음'이라고 적은 상한. 금액은 원 단위 정수, 기간은 개월. foreignerEligible: explicit(문서에 외국인 명시) / inferred(해석, note에 근거) / null. termOptions는 정해진 기간 중 고르는 상품만(범위형은 termMonthsMin/Max만). recommendable=false는 추천 대상에서 뺀 상품(recommendableNote에 이유). channel은 필터에 쓰지 않는다.",
+  "corpus": "C:/Projects/hanstep/rag-data/products (레포에 복사하지 않음)",
+  "termsDocuments": [
+    "doc-22161fc4c388",
+    "doc-e7690d9611cd",
+    "doc-daec614f5b77"
+  ],
+  "products": [
+    {
+      "productId": "doc-7b32d0e385aa",
+      "recommendable": true,
+      "nameKo": {
+        "value": "SOL글로벌 적금",
+        "source": {
+          "file": "SOL 글로벌 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: SOL글로벌 적금"
+        }
+      },
+      "kind": {
+        "value": "SAVINGS",
+        "source": {
+          "file": "SOL 글로벌 적금 상품설명서.pdf",
+          "page": 3,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "foreignerEligible": {
+        "value": "explicit",
+        "source": {
+          "file": "SOL 글로벌 적금 상품설명서.pdf",
+          "page": 4,
+          "quote": "실명의 외국인(비거주자 제외)"
+        },
+        "note": "비거주자 제외, 1인 1계좌"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": null,
+        "source": null
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 12,
+        "source": {
+          "file": "SOL 글로벌 적금 상품설명서.pdf",
+          "page": 3,
+          "quote": "계약기간 1년제"
+        }
+      },
+      "termMonthsMax": {
+        "value": 12,
+        "source": {
+          "file": "SOL 글로벌 적금 상품설명서.pdf",
+          "page": 3,
+          "quote": "계약기간 1년제"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": 1000,
+        "source": {
+          "file": "SOL 글로벌 적금 상품설명서.pdf",
+          "page": 4,
+          "quote": "최저가입금액 1천원 이상"
+        }
+      },
+      "monthlyMaxKrw": {
+        "value": 3000000,
+        "source": {
+          "file": "SOL 글로벌 적금 상품설명서.pdf",
+          "page": 4,
+          "quote": "최고가입금액 월 3백만원 이하"
+        }
+      },
+      "depositMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "savingType": {
+        "value": "자유",
+        "source": {
+          "file": "SOL 글로벌 적금 상품설명서.pdf",
+          "page": 3,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "channel": {
+        "value": null,
+        "source": null
+      }
+    },
+    {
+      "productId": "doc-a32e7bfdf57e",
+      "recommendable": true,
+      "nameKo": {
+        "value": "슈퍼SOL 웰컴 정기예금",
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: 슈퍼SOL 웰컴 정기예금"
+        }
+      },
+      "kind": {
+        "value": "DEPOSIT",
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 정기예금"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "실명의 개인 및 개인사업자"
+        },
+        "note": "'실명의 개인'을 국내 거주 외국인(외국인등록 실명) 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": 14,
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "가입일 현재 만 14세 이상"
+        }
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": [
+          6,
+          12
+        ],
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 6개월, 12개월"
+        }
+      },
+      "termMonthsMin": {
+        "value": 6,
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 6개월, 12개월"
+        },
+        "note": "6개월 또는 12개월 중 선택"
+      },
+      "termMonthsMax": {
+        "value": 12,
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 6개월, 12개월"
+        },
+        "note": "6개월 또는 12개월 중 선택"
+      },
+      "monthlyMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "monthlyMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMinKrw": {
+        "value": 500000,
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "50만원 이상 2,000만원 이하"
+        }
+      },
+      "depositMaxKrw": {
+        "value": 20000000,
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "50만원 이상 2,000만원 이하"
+        }
+      },
+      "savingType": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "channel": {
+        "value": [
+          "신한 슈퍼SOL"
+        ],
+        "source": {
+          "file": "슈퍼SOL 웰컴 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "가입방법 신한 슈퍼SOL"
+        }
+      }
+    },
+    {
+      "productId": "doc-6e1e33b14263",
+      "recommendable": true,
+      "nameKo": {
+        "value": "신한 My플러스 정기예금",
+        "source": {
+          "file": "신한 MY플러스 정기예금.pdf",
+          "page": 1,
+          "quote": "상품명: 신한 My플러스 정기예금"
+        }
+      },
+      "kind": {
+        "value": "DEPOSIT",
+        "source": {
+          "file": "신한 MY플러스 정기예금.pdf",
+          "page": 1,
+          "quote": "상품유형 정기예금"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "신한 MY플러스 정기예금.pdf",
+          "page": 1,
+          "quote": "가입대상 실명의 개인 (1인 1계좌)"
+        },
+        "note": "'실명의 개인'을 국내 거주 외국인(외국인등록 실명) 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": null,
+        "source": null
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": [
+          1,
+          3,
+          6,
+          12
+        ],
+        "source": {
+          "file": "신한 MY플러스 정기예금.pdf",
+          "page": 1,
+          "quote": "계약기간 1개월, 3개월, 6개월, 12개월"
+        }
+      },
+      "termMonthsMin": {
+        "value": 1,
+        "source": {
+          "file": "신한 MY플러스 정기예금.pdf",
+          "page": 1,
+          "quote": "계약기간 1개월, 3개월, 6개월, 12개월"
+        },
+        "note": "1·3·6·12개월 중 선택"
+      },
+      "termMonthsMax": {
+        "value": 12,
+        "source": {
+          "file": "신한 MY플러스 정기예금.pdf",
+          "page": 1,
+          "quote": "계약기간 1개월, 3개월, 6개월, 12개월"
+        },
+        "note": "1·3·6·12개월 중 선택"
+      },
+      "monthlyMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "monthlyMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMinKrw": {
+        "value": 500000,
+        "source": {
+          "file": "신한 MY플러스 정기예금.pdf",
+          "page": 1,
+          "quote": "가입금액 50만원 이상 1억원 이내"
+        }
+      },
+      "depositMaxKrw": {
+        "value": 100000000,
+        "source": {
+          "file": "신한 MY플러스 정기예금.pdf",
+          "page": 1,
+          "quote": "가입금액 50만원 이상 1억원 이내"
+        }
+      },
+      "savingType": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "channel": {
+        "value": [
+          "영업점",
+          "신한 슈퍼SOL"
+        ],
+        "source": {
+          "file": "신한 MY플러스 정기예금.pdf",
+          "page": 1,
+          "quote": "가입방법 영업점, 신한 슈퍼SOL"
+        }
+      }
+    },
+    {
+      "productId": "doc-b5f79d5c502c",
+      "recommendable": true,
+      "nameKo": {
+        "value": "신한 S드림(DREAM)정기예금",
+        "source": {
+          "file": "신한 S드림(DREAM)정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "신한 S드림(DREAM)정기예금 상품설명서"
+        }
+      },
+      "kind": {
+        "value": "DEPOSIT",
+        "source": {
+          "file": "신한 S드림(DREAM)정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "맞춤형 정기예금"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "신한 S드림(DREAM)정기예금 상품설명서.pdf",
+          "page": 5,
+          "quote": "가입대상 제한없음"
+        },
+        "note": "'가입대상 제한없음'을 국내 거주 외국인 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": null,
+        "source": null
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 1,
+        "source": {
+          "file": "신한 S드림(DREAM)정기예금 상품설명서.pdf",
+          "page": 3,
+          "quote": "계약기간 1개월 ~ 60개월"
+        }
+      },
+      "termMonthsMax": {
+        "value": 60,
+        "source": {
+          "file": "신한 S드림(DREAM)정기예금 상품설명서.pdf",
+          "page": 3,
+          "quote": "계약기간 1개월 ~ 60개월"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "monthlyMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMinKrw": {
+        "value": 500000,
+        "source": {
+          "file": "신한 S드림(DREAM)정기예금 상품설명서.pdf",
+          "page": 4,
+          "quote": "비대면채널을 이용하여 신규할 경우 50만원 이상"
+        },
+        "note": "서비스는 앱(비대면) 가입이라 비대면 최소액. 영업점 신규는 300만원 이상(p4)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": {
+          "file": "신한 S드림(DREAM)정기예금 상품설명서.pdf",
+          "page": 4,
+          "quote": "최고가입금액 제한없음"
+        },
+        "noLimit": true
+      },
+      "savingType": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "channel": {
+        "value": null,
+        "source": null
+      }
+    },
+    {
+      "productId": "doc-de733331abd3",
+      "recommendable": true,
+      "nameKo": {
+        "value": "신한 땡겨요 적금",
+        "source": {
+          "file": "신한 땡겨요 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: 신한 땡겨요 적금"
+        }
+      },
+      "kind": {
+        "value": "SAVINGS",
+        "source": {
+          "file": "신한 땡겨요 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "신한 땡겨요 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "가입대상 실명의 개인 및 개인사업자"
+        },
+        "note": "'실명의 개인'을 국내 거주 외국인(외국인등록 실명) 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": null,
+        "source": null
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 6,
+        "source": {
+          "file": "신한 땡겨요 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 6개월"
+        }
+      },
+      "termMonthsMax": {
+        "value": 6,
+        "source": {
+          "file": "신한 땡겨요 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 6개월"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": 1000,
+        "source": {
+          "file": "신한 땡겨요 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "최소 1천원 이상 월 30만원 이하"
+        }
+      },
+      "monthlyMaxKrw": {
+        "value": 300000,
+        "source": {
+          "file": "신한 땡겨요 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "최소 1천원 이상 월 30만원 이하"
+        }
+      },
+      "depositMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "savingType": {
+        "value": "자유",
+        "source": {
+          "file": "신한 땡겨요 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "channel": {
+        "value": null,
+        "source": null
+      }
+    },
+    {
+      "productId": "doc-b89237ab049e",
+      "recommendable": true,
+      "nameKo": {
+        "value": "신한 스마트 적금",
+        "source": {
+          "file": "신한 스마트 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: 신한 스마트 적금"
+        }
+      },
+      "kind": {
+        "value": "SAVINGS",
+        "source": {
+          "file": "신한 스마트 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "예금과목 정기적금"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "신한 스마트 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "실명의 개인 및 개인사업자(1인 1계좌)"
+        },
+        "note": "'실명의 개인'을 국내 거주 외국인(외국인등록 실명) 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": null,
+        "source": null
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 12,
+        "source": {
+          "file": "신한 스마트 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 1년제"
+        }
+      },
+      "termMonthsMax": {
+        "value": 12,
+        "source": {
+          "file": "신한 스마트 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 1년제"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": 1000,
+        "source": {
+          "file": "신한 스마트 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "가입금액 1천원 이상"
+        }
+      },
+      "monthlyMaxKrw": {
+        "value": 1000000,
+        "source": {
+          "file": "신한 스마트 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "저축한도 월 1백만원 이하"
+        }
+      },
+      "depositMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "savingType": {
+        "value": "자유",
+        "source": {
+          "file": "신한 스마트 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "channel": {
+        "value": [
+          "스마트폰뱅킹"
+        ],
+        "source": {
+          "file": "신한 스마트 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "가입방법 스마트폰뱅킹에서 가입"
+        }
+      }
+    },
+    {
+      "productId": "doc-83bd20591678",
+      "recommendable": true,
+      "nameKo": {
+        "value": "신한 안녕, 반가워 적금",
+        "source": {
+          "file": "신한 안녕, 반가워 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: 신한 안녕, 반가워 적금"
+        }
+      },
+      "kind": {
+        "value": "SAVINGS",
+        "source": {
+          "file": "신한 안녕, 반가워 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "신한 안녕, 반가워 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "실명의 개인 및 개인사업자 (1인 1계좌)"
+        },
+        "note": "'실명의 개인'을 국내 거주 외국인(외국인등록 실명) 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": null,
+        "source": null
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 12,
+        "source": {
+          "file": "신한 안녕, 반가워 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 12개월"
+        }
+      },
+      "termMonthsMax": {
+        "value": 12,
+        "source": {
+          "file": "신한 안녕, 반가워 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 12개월"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": 1000,
+        "source": {
+          "file": "신한 안녕, 반가워 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "최저가입금액 최소 1천원 이상"
+        }
+      },
+      "monthlyMaxKrw": {
+        "value": 500000,
+        "source": {
+          "file": "신한 안녕, 반가워 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "최고가입금액 월 50만원 이하"
+        }
+      },
+      "depositMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "savingType": {
+        "value": "자유",
+        "source": {
+          "file": "신한 안녕, 반가워 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "channel": {
+        "value": null,
+        "source": null
+      }
+    },
+    {
+      "productId": "doc-c9e9643c92ad",
+      "recommendable": true,
+      "nameKo": {
+        "value": "신한 알.쏠 적금",
+        "source": {
+          "file": "신한 알.쏠 적금.pdf",
+          "page": 1,
+          "quote": "상품명: 신한 알.쏠 적금"
+        }
+      },
+      "kind": {
+        "value": "SAVINGS",
+        "source": {
+          "file": "신한 알.쏠 적금.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "신한 알.쏠 적금.pdf",
+          "page": 1,
+          "quote": "가입대상 실명의 개인 (1인 다계좌)"
+        },
+        "note": "'실명의 개인'을 국내 거주 외국인(외국인등록 실명) 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": null,
+        "source": null
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 12,
+        "source": {
+          "file": "신한 알.쏠 적금.pdf",
+          "page": 1,
+          "quote": "12개월 이상 36개월 이내"
+        }
+      },
+      "termMonthsMax": {
+        "value": 36,
+        "source": {
+          "file": "신한 알.쏠 적금.pdf",
+          "page": 1,
+          "quote": "12개월 이상 36개월 이내"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": 1000,
+        "source": {
+          "file": "신한 알.쏠 적금.pdf",
+          "page": 1,
+          "quote": "최저가입금액 최소 1천원 이상"
+        }
+      },
+      "monthlyMaxKrw": {
+        "value": 3000000,
+        "source": {
+          "file": "신한 알.쏠 적금.pdf",
+          "page": 1,
+          "quote": "최고가입금액 월 300만원 이하"
+        }
+      },
+      "depositMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "savingType": {
+        "value": "자유",
+        "source": {
+          "file": "신한 알.쏠 적금.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "channel": {
+        "value": null,
+        "source": null
+      }
+    },
+    {
+      "productId": "doc-3c9b6a61eac7",
+      "recommendable": false,
+      "recommendableNote": "선물받는 사람이 가입하는 구조라 본인 저축 추천 대상 아님",
+      "nameKo": {
+        "value": "쏠편한 선물하는 적금",
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: 쏠편한 선물하는 적금"
+        }
+      },
+      "kind": {
+        "value": "SAVINGS",
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "예금과목 정기적금"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "만 14세 이상의 실명의 개인고객"
+        },
+        "note": "'실명의 개인'을 국내 거주 외국인(외국인등록 실명) 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": 14,
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "만 14세 이상의 실명의 개인고객"
+        }
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 6,
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 2,
+          "quote": "계약기간 6개월"
+        }
+      },
+      "termMonthsMax": {
+        "value": 6,
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 2,
+          "quote": "계약기간 6개월"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": 1000,
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 2,
+          "quote": "가입금액 최소 1천원 이상"
+        }
+      },
+      "monthlyMaxKrw": {
+        "value": 300000,
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 2,
+          "quote": "저축한도 월 30만원 이하"
+        }
+      },
+      "depositMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "savingType": {
+        "value": "자유",
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "channel": {
+        "value": [
+          "선물 URL"
+        ],
+        "source": {
+          "file": "쏠편한 선물하는 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "URL을 접속하여 적금을 신규함"
+        },
+        "note": "받는 사람이 슈퍼SOL로 보낸 선물 URL로 신규"
+      }
+    },
+    {
+      "productId": "doc-a976ef26deed",
+      "recommendable": true,
+      "nameKo": {
+        "value": "쏠편한 정기예금",
+        "source": {
+          "file": "쏠편한 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: 쏠편한 정기예금"
+        }
+      },
+      "kind": {
+        "value": "DEPOSIT",
+        "source": {
+          "file": "쏠편한 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 정기예금"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "쏠편한 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "가입대상 만 14세 이상 개인고객"
+        },
+        "note": "'개인고객'을 국내 거주 외국인 포함으로 해석('실명' 표기 없음)"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": 14,
+        "source": {
+          "file": "쏠편한 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "가입대상 만 14세 이상 개인고객"
+        }
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 1,
+        "source": {
+          "file": "쏠편한 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 1개월 ~ 60개월"
+        }
+      },
+      "termMonthsMax": {
+        "value": 60,
+        "source": {
+          "file": "쏠편한 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 1개월 ~ 60개월"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "monthlyMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMinKrw": {
+        "value": 10000,
+        "source": {
+          "file": "쏠편한 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "최저가입금액 1만원 이상"
+        }
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": {
+          "file": "쏠편한 정기예금 상품설명서.pdf",
+          "page": 1,
+          "quote": "최고가입금액 제한없음"
+        },
+        "noLimit": true
+      },
+      "savingType": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "channel": {
+        "value": null,
+        "source": null
+      }
+    },
+    {
+      "productId": "doc-ad95d3f72e39",
+      "recommendable": true,
+      "nameKo": {
+        "value": "정기적금",
+        "source": {
+          "file": "정기적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: 정기적금"
+        }
+      },
+      "kind": {
+        "value": "SAVINGS",
+        "source": {
+          "file": "정기적금 상품설명서.pdf",
+          "page": 3,
+          "quote": "상품유형 정기적립식"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "정기적금 상품설명서.pdf",
+          "page": 5,
+          "quote": "가입대상 제한없음"
+        },
+        "note": "'가입대상 제한없음'을 국내 거주 외국인 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": null,
+        "source": null
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 1,
+        "source": {
+          "file": "정기적금 상품설명서.pdf",
+          "page": 3,
+          "quote": "1개월 이상 60개월 이하(월단위)"
+        }
+      },
+      "termMonthsMax": {
+        "value": 60,
+        "source": {
+          "file": "정기적금 상품설명서.pdf",
+          "page": 3,
+          "quote": "1개월 이상 60개월 이하(월단위)"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": 10000,
+        "source": {
+          "file": "정기적금 상품설명서.pdf",
+          "page": 5,
+          "quote": "최저가입금액 1만원 이상"
+        }
+      },
+      "monthlyMaxKrw": {
+        "value": null,
+        "source": {
+          "file": "정기적금 상품설명서.pdf",
+          "page": 5,
+          "quote": "최고가입금액 제한없음"
+        },
+        "noLimit": true
+      },
+      "depositMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "savingType": {
+        "value": "정액",
+        "source": {
+          "file": "정기적금 상품설명서.pdf",
+          "page": 3,
+          "quote": "상품유형 정기적립식"
+        }
+      },
+      "channel": {
+        "value": null,
+        "source": null
+      }
+    },
+    {
+      "productId": "doc-faba8062abff",
+      "recommendable": true,
+      "nameKo": {
+        "value": "청년 처음적금",
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: 청년 처음적금"
+        }
+      },
+      "kind": {
+        "value": "SAVINGS",
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "실명의 개인 및 개인사업자 (1인1계좌)"
+        },
+        "note": "'실명의 개인'을 국내 거주 외국인(외국인등록 실명) 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": 18,
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "만 18세 이상 만 39세 이하"
+        }
+      },
+      "ageMax": {
+        "value": 39,
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "만 18세 이상 만 39세 이하"
+        }
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 12,
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 12개월"
+        }
+      },
+      "termMonthsMax": {
+        "value": 12,
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 12개월"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": 1000,
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "최소 1천원 이상 월 30만원 이하"
+        }
+      },
+      "monthlyMaxKrw": {
+        "value": 300000,
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "최소 1천원 이상 월 30만원 이하"
+        }
+      },
+      "depositMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "savingType": {
+        "value": "자유",
+        "source": {
+          "file": "청년 처음적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "channel": {
+        "value": null,
+        "source": null
+      }
+    },
+    {
+      "productId": "doc-a5851b226169",
+      "recommendable": true,
+      "nameKo": {
+        "value": "한 달부터 적금",
+        "source": {
+          "file": "한 달부터 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품명: 한 달부터 적금"
+        }
+      },
+      "kind": {
+        "value": "SAVINGS",
+        "source": {
+          "file": "한 달부터 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        }
+      },
+      "foreignerEligible": {
+        "value": "inferred",
+        "source": {
+          "file": "한 달부터 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "가입대상 실명의 개인 및 개인사업자"
+        },
+        "note": "'실명의 개인'을 국내 거주 외국인(외국인등록 실명) 포함으로 해석"
+      },
+      "visaTypes": {
+        "value": null,
+        "source": null
+      },
+      "ageMin": {
+        "value": null,
+        "source": null
+      },
+      "ageMax": {
+        "value": null,
+        "source": null
+      },
+      "termOptions": {
+        "value": null,
+        "source": null
+      },
+      "termMonthsMin": {
+        "value": 1,
+        "source": {
+          "file": "한 달부터 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 1개월 이상 12개월 이하"
+        }
+      },
+      "termMonthsMax": {
+        "value": 12,
+        "source": {
+          "file": "한 달부터 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "계약기간 1개월 이상 12개월 이하"
+        }
+      },
+      "monthlyMinKrw": {
+        "value": null,
+        "source": null
+      },
+      "monthlyMaxKrw": {
+        "value": null,
+        "source": null
+      },
+      "depositMinKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "depositMaxKrw": {
+        "value": null,
+        "source": null,
+        "note": "해당 없음(상품 종류)"
+      },
+      "savingType": {
+        "value": "자유",
+        "source": {
+          "file": "한 달부터 적금 상품설명서.pdf",
+          "page": 1,
+          "quote": "상품유형 자유적립식"
+        },
+        "note": "월 단위 한도 없음. 매주 1천원 이상 주 10만원 이내 또는 매일 1천원 이상 일 2만원 이내"
+      },
+      "channel": {
+        "value": null,
+        "source": null
+      }
+    }
+  ]
+}
