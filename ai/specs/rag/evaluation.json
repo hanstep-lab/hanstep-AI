@@ -1,0 +1,1515 @@
+{
+  "version": "visa-rag-eval-v1",
+  "note": "질문 초안. 정답(gold)은 사람이 원문을 읽고 채운다. 문서에 답이 없으면 kind를 unanswerable로 바꾸거나 질문을 고친다.",
+  "cases": [
+    {
+      "id": "ko-01",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "E-7-4로 바꾸려면 점수가 총 몇 점 넘어야 해요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 2,
+          "page_number": null,
+          "evidence": "시 추천권 박탈 및 향후 5년간 추천 불허 ④ 점수제 총점 300점에서 가점 포함 최소 200점 이상자[기본항목의 평균소득과 한국어능력이 각각 최소 점수(50점) 이상인 자에 한함] : 붙임 점수표 참고"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "2. 31.) | ■ 전환요건 점수 : 300점 만점(가점 제외) 중 200점 이상(가점 포함) 득점 제외대상 | ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 0,
+          "page_number": null,
+          "evidence": "비자 전환 허용 * 법무부는 한국어능력, 나이, 소득 등을 점수화하여 300점 만점에 200점 이상 득점자에게 전환 허용, 다만 한국어능력 요건 충족은 한시 유예(‘24.11.27.~’26.12.31.) □"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "시 추천권 박탈 및 향후 5년간 추천 불허 ④ 점수제 총점 300점에서 가점 포함 최소 200점 이상자[기본항목의 평균소득과 한국어능력이 각각 최소 점수(50점) 이상인 자에 한함]: 별첨 점수표 참고"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "2. 31.) | ■ 전환요건 점수 : 300점 만점(가점 제외) 중 200점 이상(가점 포함) 득점 제외대상 | ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 3,
+          "page_number": 3,
+          "evidence": "④ 기본항목의 Ⓐ평균소득 및 Ⓑ한국어능력 각각 최소점(50점) 이상자로 300점 만점에 200점 이상 득점자 ⁍ (특례) 한국어 외 점수 요건을 충족(총점 150점 이상)할 경우 최 초 연 장(2년)시까지 한"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 4,
+          "page_number": 3,
+          "evidence": "■ 전환요건 점수 : 300점 만점(가점 제외) 중 200점 이상(가점 포함) 득점 제외대상 ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "6. 12. 31.) ■ 전환요건 점수 : 300점 만점(가점제외) 중 200점 이상(가점포함) 득점 제외대상 | ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "력이 각각 최소 점수(소득 50점, 한국어 50점) 이상인 사람으로서, 총점(기본항목+가점항목)이 200점 이상 ( ) ⓶(한국어 능력 한시적 유예 대상자) 점수제 총점 300점 만점에서 기본항목의 최근 2년 연간 평균"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 3,
+          "page_number": 3,
+          "evidence": "시 추천권 박탈 및 향후 5년간 추천 불허 ④ 점수제 총점 300점에서 가점 포함 최소 200점 이상자[기본항목의 평균소득과 한국어능력이 각각 최소 점수(50점) 이상인 자에 한함] : 붙 임1 점 수"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 19,
+          "page_number": 12,
+          "evidence": "④ 기본항목의 Ⓐ평균소득 및 Ⓑ한국어능력 각각 최소점(50점) 이상자로 300점 만점에 200점 이상 득점자 ⁍ (특례) 한국어외점수요건을충족(총점 150점이상)할경우 최초연장(2년)시까지한국어 능력 보완할것"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 20,
+          "page_number": 12,
+          "evidence": "■ 전환요건 점수 : 300점 만점(가점 제외) 중 200점 이상(가점 포함) 득점 제외대상 ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 24,
+          "page_number": 14,
+          "evidence": "이 각각 최소 점수(소득 50점, 한국어 50점) 이상인 사람으로서 , 총점(기본항목+가점항목)이 200점 이상 ( ) ② (한국어 능력 한시적 유예 대상자) 점수제 총점 300점 만점에서 기본항목의 최근 2년 연간 평"
+        }
+      ],
+      "answer": "가점 포함 200점 이상(300점 만점 기준)"
+    },
+    {
+      "id": "ko-02",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "연봉이 3천만 원 조금 안 되는데 소득 점수는 몇 점 받아요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "Ⓐ 평균소득 (최근 2년 연간 평균소득) : 최대 120점 구 분 | 2,500 ~ 3,000만 | 3,000~ 3,500만 | 3,500~ 4,000만 | 4,000~ 4,500만 | 4,500~ 5,"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "Ⓐ 평균소득 (최근 2년 연간 평균소득) : 최대 120점 구 분 | 2,500 ~ 3,000만 | 3,000~ 3,500만 | 3,500~ 4,000만 | 4,000~ 4,500만 | 4,500~ 5,"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 4,
+          "page_number": 3,
+          "evidence": "33세 34세 ~ 40세 41세 ~ 배 점 40 60 30 10 구 분 2,500 ~3,000만 3,000~3,500만 3,500~4,000만 4,000~4,500만 4,500~5,000만 5,000만~"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "> Ⓐ 평균소득 (최근 2년 연간 평균소득) : 최대 120점 구 분 2,500 ~ 3,000만 3,000~ 3,500만 3,500~ 4,000만 4,000~ 4,500만 4,500~ 5,000만 5,0"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 20,
+          "page_number": 12,
+          "evidence": "33세 34세 ~ 40세 41세 ~ 배 점 40 60 30 10 구 분 2,500 ~3,000만 3,000~3,500만 3,500~4,000만 4,000~4,500만 4,500~5,000만 5,000만~"
+        }
+      ],
+      "answer": "최근 2년 평균소득 2,500만~3,000만 원 구간은 50점"
+    },
+    {
+      "id": "ko-03",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "한국어 점수가 부족해도 일단 신청할 수 있는 방법이 있나요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "점(50점) 이상자로 300점 만점에 200점 이상 득점자 ⁍ (특례) 한국어 외 점수 요건을 충족(총점 150점 이상)할 경우 최초 연장(2년)시까지 한국어 능력 보완할 것을 조건으로 한시적 유예(.∼ ’"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 1,
+          "page_number": null,
+          "evidence": "점에 가점 포함 200점 이상 득점자 * 한국어능력 외 점수 요건 충족(150점 이상 득점) 시 최초 2년간 한국어능력 요건 충족 한시 유예(‘24.11.27 ~ ’26.12.31.) 3 | |"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "점(50점) 이상자로 300점 만점에 200점 이상 득점자 ⁍ (특례) 한국어 외 점수 요건을 충족(총점 150점 이상)할 경우 최초 연장(2년)시까지 한국어 능력 보완할 것을 조건으로 한시적 유예(.∼ ’"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 0,
+          "page_number": 1,
+          "evidence": "’25년 중 연소득이 높은 2개년 소득금액으로 대체 가능 ** (특례) 한국어 외 점수 요건을 충족(총점 150점 이상)할 경우 최초 연장(2년)시까지 한국어 능력 보완할 것을 조건으로 한시적 유예(~ ‘2"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 3,
+          "page_number": 3,
+          "evidence": "점(50점) 이상자로 300점 만점에 200점 이상 득점자 ⁍ (특례) 한국어 외 점수 요건을 충족(총점 150점 이상)할 경우 최 초 연 장(2년)시까지 한국어 능력 보완할 것을 조건으로 한시적 유예(.∼"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 1,
+          "page_number": null,
+          "evidence": "이상자로 300점 만점에 가점 포함 200점 이상 득점자 - (특례) 한국어 외 점수 요건을 충족할 경우 최초 연장(2년)시까지 한국어 능력 보완할 것을 조건으로 한시적 유예(∼ ’26. 12. 31.)"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "점(50점) 이상자로 300점 만점에 200점 이상 득점자 ⁍ (특례) 한국어 외 점수 요건을 충족(총점 150점 이상)할 경우 최초 연장(2년)시까지 한국어 능력 보완할 것을 조건으로 한시적 유예(.∼ ’"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 19,
+          "page_number": 12,
+          "evidence": "점(50점) 이상자로 300점 만점에 200점 이상 득점자 ⁍ (특례) 한국어외점수요건을충족(총점 150점이상)할경우 최초연장(2년)시까지한국어 능력 보완할것을조건으로한시적유예(.∼ ’26. 12."
+        }
+      ],
+      "answer": "한국어 외 점수로 총점 150점 이상이면 최초 연장(2년) 때까지 한국어 요건 유예(~2026-12-31)"
+    },
+    {
+      "id": "ko-04",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "같은 회사에서 3년 넘게 일했으면 가산점이 있어요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "10 | | | < 가점 > | 추천 | | | ③ 현근무처 3년 이상 근속 | ④ 인구감소지역 및 읍·면지역 3년 이상 근무 | ⑤ 자격증 또는 국내 학위 | ⑥ 국내 운전면허증 ①"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "10 | | | < 가점 > | 추천 | | | ③ 현근무처 3년 이상 근속 | ④ 인구감소지역 및 읍·면지역 3년 이상 근무 | ⑤ 자격증 또는 국내 학위 | ⑥ 국내 운전면허증 ①"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 5,
+          "page_number": 3,
+          "evidence": "< 가점 > 추천 ③ 현근무처 3년 이상 근속 ④ 인구감소지역 및 읍·면지역 3년 이 상 근 무 ⑤ 자격증 또는 국내 학위 ⑥ 국내 운전면허증 ① ② 고"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "41세 ~ 배 점 40 60 30 10 < 가점 > 추천 ③ 현근무처 3년 이상 근속 ④ 인구감소지역 및 읍·면지역 3년 이상 근무 ⑤ 자격증 또는 국내 학위 ⑥ 국내 운전면허증 ① ② 고용"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "점 서류 (해당 시) | - (현 근무처, 인구감소지역 및 읍면지역 등 3년 이상 근속) → 외국인 근로자 경력증명서 - (관련 분야 시) 기사‧산업기사‧기능사 이상 국내 자격증 - 국내 대학"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "방자치단체 추천 | | ③ 고용기업 추천 | | ④ 현재 근무처 3년 이상 근속 | | ⑤ 인구감소지역 또는 읍면 지역 3년 이상 근무 | | ⑥ 기능사 이상 자격증·국내대학 학위"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 21,
+          "page_number": 12,
+          "evidence": "< 가점 > 추천 ③ 현근무처 3년 이상 근속 ④ 인구감소지역 및 읍·면지역 3년 이 상 근 무 ⑤ 자격증 또는 국내 학위 ⑥ 국내 운전면허증 ① ② 고"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 24,
+          "page_number": 14,
+          "evidence": "앙부처 추천 ② 광역지방자치단체 추천 ③ 고용기업 추천 ④ 현재 근무처 3년 이상 근속 ⑤ 인 구 감 소 지 역 또 는 읍 면 지역 3년 이상 근무 ⑥ 기능사 이상 자격증·국내대학 학위 ⑦ 국내"
+        }
+      ],
+      "answer": "현 근무처 3년 이상 근속 시 가점"
+    },
+    {
+      "id": "ko-05",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "시골 지역 공장에서 일하면 점수를 더 주나요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "추천 | | | ③ 현근무처 3년 이상 근속 | ④ 인구감소지역 및 읍·면지역 3년 이상 근무 | ⑤ 자격증 또는 국내 학위 | ⑥ 국내 운전면허증 ① | | ② 고용 기업체 | | | | 중"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "추천 | | | ③ 현근무처 3년 이상 근속 | ④ 인구감소지역 및 읍·면지역 3년 이상 근무 | ⑤ 자격증 또는 국내 학위 | ⑥ 국내 운전면허증 ① | | ② 고용 기업체 | | | | 중"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 5,
+          "page_number": 3,
+          "evidence": "< 가점 > 추천 ③ 현근무처 3년 이상 근속 ④ 인구감소지역 및 읍·면지역 3년 이 상 근 무 ⑤ 자격증 또는 국내 학위 ⑥ 국내 운전면허증 ① ② 고용 기업체 중앙 부처 광역 지자체 30 30 50"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "10 < 가점 > 추천 ③ 현근무처 3년 이상 근속 ④ 인구감소지역 및 읍·면지역 3년 이상 근무 ⑤ 자격증 또는 국내 학위 ⑥ 국내 운전면허증 ① ② 고용 기업체 중앙 부처 광역 지자체 30 30 50"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "| ④ 현재 근무처 3년 이상 근속 | | ⑤ 인구감소지역 또는 읍면 지역 3년 이상 근무 | | ⑥ 기능사 이상 자격증·국내대학 학위 | | ⑦ 국내 운전면허증 소지 | | 소 계 |"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 16,
+          "page_number": 10,
+          "evidence": "근무경력 간 합산하여 총 6년 근무로 가점 영역에서 ‘인구감소지역 및 읍면지역 3년이상 근무’에 해당하여 총 20점 한 번만 부여할 수 있습니다. 각각 20점씩 총 40점 부여를 의미하는 것이 아닙니"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 21,
+          "page_number": 12,
+          "evidence": "< 가점 > 추천 ③ 현근무처 3년 이상 근속 ④ 인구감소지역 및 읍·면지역 3년 이 상 근 무 ⑤ 자격증 또는 국내 학위 ⑥ 국내 운전면허증 ① ② 고용 기업체 중앙 부처 광역 지자체 30 30 50"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 24,
+          "page_number": 14,
+          "evidence": "추천 ④ 현재 근무처 3년 이상 근속 ⑤ 인 구 감 소 지 역 또 는 읍 면 지역 3년 이상 근무 ⑥ 기능사 이상 자격증·국내대학 학위 ⑦ 국내 운전면허증 소지 소 계 감 점 항 목 ① 벌금 100만원 미"
+        }
+      ],
+      "answer": "인구감소지역 및 읍·면 지역에서 3년 이상 근무 시 가점"
+    },
+    {
+      "id": "ko-06",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "회사 사장님 추천서는 꼭 있어야 하나요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 2,
+          "page_number": null,
+          "evidence": "종사자는 연봉 요건을 2,500만원 이상으로 완화하여 적용) ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자 <고용기업 추천 제도> ○ (개요) 해당 외국인이 현재 1년 이상 근무 중인 기업의 대표가 추천"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 3,
+          "page_number": null,
+          "evidence": "- (추천) 추천은 중앙부처, 광역지자체*, 고용기업 추천으로 구분, 고용기업 추천은 기본 요건(필수)이며, 중앙부처 추천과 광역지자체 추천은 선택사항으로 서로 중복되면 하나만 인정하되, 중앙부처 추천 우선 반"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자 ④ 기본항목의 Ⓐ평균소득 및 Ⓑ한국어능력 각각 최소점(50점) 이상자로 300점 만점에 200점"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 1,
+          "page_number": null,
+          "evidence": "2,500만원) 이상으로 향후 2년 이상 E-7-4 고용계약 ▸ 현재 1년 이상 근무 중인 기업의 추천을 받은자 ▸ 기본항목의 Ⓐ평균소득 및 Ⓑ한국어능력 각각 최소점(50점) 이상자로 300점 만점에 가점 포함"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "종사자는 연봉 요건을 2,500만원 이상으로 완화하여 적용) ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "- (추천) 추천은 중앙부처, 광역지자체*, 고용기업 추천으로 구분, 고용기업 추천은 기본 요건(필수)이며, 중앙부처 추천과 광역지자체 추천은 선택사항으로 서로 중복되면 하나만 인정하되, 중앙부처 추천 우선 반"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자 ④ 기본항목의 Ⓐ평균소득 및 Ⓑ한국어능력 각각 최소점(50점) 이상자로 300점 만점에 200점"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 0,
+          "page_number": 1,
+          "evidence": "봉 2,500만원 이상으로 향후 2년 이상 E-7-4 고용계약 ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자 ④ 기본항목의 Ⓐ평균소득(최근 2년 연간 평균소득* 2,400만원 이상) 및 Ⓑ한국어 능력 각각"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 3,
+          "page_number": 3,
+          "evidence": "농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자 ④ 기본항목의 Ⓐ평균소득 및 Ⓑ한국어능력 각각 최소점(50점) 이상자로 300점 만점에 200점"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 1,
+          "page_number": null,
+          "evidence": "농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자 ④ 기본항목의 Ⓐ평균소득(2,500만원 이상)* 및 Ⓑ한국어능력(2급 이상) 각각 최소점(50점"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자 ④ 기본항목의 Ⓐ평균소득 및 Ⓑ한국어능력 각각 최소점(50점) 이상자로 300점 만점에 200점"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "00만원) 이상으로 향후 2년 이상 E-7-4 고용계약 ( ) ③ 현재 1년 이상 근무 중인 기업의 추천을 받았음( )"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 0,
+          "page_number": 1,
+          "evidence": "3 2 2 1 3 □ 쿼터 유형별 설명 ○ 기업 추천 개인트랙 : 현재 1년 이상 근무 중인 기업의 추천을 받은 자로써 중앙부처·지자체 추천 없이 전환요건 점수 이상이면 신청 가능 ※ 직전 근무처 휴‧폐업, 폭언"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 3,
+          "page_number": 3,
+          "evidence": "종사자는 연봉 요건을 2,500만원 이상으로 완화하여 적용) ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자 <고용기업 추천 제도> ○ (개요) 해당 외국인이 현재 1년 이상 근무 중인 기업의 대표가 추천"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 5,
+          "page_number": 4,
+          "evidence": "- (추천) 추천은 중앙부처, 광역지자체*, 고용기업 추천으로 구분, 고용기업 추천은 기본 요건(필수)이며, 중앙부처 추천과 광역지자체 추천은 선택사항으로 서로 중복되면 하나만 인정 * 17개 광역지자체에 한하"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 13,
+          "page_number": 9,
+          "evidence": "으로 4대보험 사업장 가입자 명부를 제출해야 합니다. 5-1. ‘ 현재 1년 이상 근무중인 기업의 추천을 받은 자에서 ’‘1년 이상’의 의미는? <K씨는 ’20년 A업체에서 6개월 근무 후 B업체로 근무처 변경"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 19,
+          "page_number": 12,
+          "evidence": "농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③ 현재 1년 이상 근무 중인 기업의 추천을 받은 자 ④ 기본항목의 Ⓐ평균소득 및 Ⓑ한국어능력 각각 최소점(50점) 이상자로 300점 만점에 200점"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 24,
+          "page_number": 14,
+          "evidence": "00만원) 이상으로 향후 2년 이상 E-7-4 고용계약 ( ) ③ 현재 1년 이상 근무 중인 기업의 추천을 받았음( ) 점수 요건 ① 점수제 총점 300점 만점에서 기본항목의 최근 2년 연간 평균소득과 한국어 능"
+        }
+      ],
+      "answer": "필수. 현재 1년 이상 근무 중인 기업의 추천이 기본 요건"
+    },
+    {
+      "id": "ko-07",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "고용노동부 추천이랑 도청 추천을 둘 다 받으면 점수가 합쳐지나요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 3,
+          "page_number": null,
+          "evidence": "요건(필수)이며, 중앙부처 추천과 광역지자체 추천은 선택사항으로 서로 중복되면 하나만 인정하되, 중앙부처 추천 우선 반영 예정(중복 추천 시 해당 지자체에 통보해 대체 추천 안내 예정) * 17개"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "| 10 ①~⑥ 간 중복 가능(단, ①의 중앙부처나 광역지자체 추천이 중복되면 하나만 인정) | | | | | | | | | < 감 점 > | 감점 항목 | 1회 | 2회 | 3회"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "요건(필수)이며, 중앙부처 추천과 광역지자체 추천은 선택사항으로 서로 중복되면 하나만 인정하되, 중앙부처 추천 우선 반영 예정(중복 추천 시 해당 지자체에 통보해 대체 추천 안내 예정) * 17개"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "| 10 ①~⑥ 간 중복 가능(단, ①의 중앙부처나 광역지자체 추천이 중복되면 하나만 인정) | | | | | | | | | < 감 점 > | 감점 항목 | 1회 | 2회 | 3회"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 5,
+          "page_number": 3,
+          "evidence": "20 10 ①~⑥ 간 중복 가능(단, ①의 중앙부처나 광역지자체 추천이 중복되면 하나만 인정) < 감점 > 감점 항목 1회 2회 3회(이상) ① 벌금 100만원 미만의 형을 받은 자(최대20점) 5"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "20 10 ①~⑥ 간 중복 가능(단, ①의 중앙부처나 광역지자체 추천이 중복되면 하나만 인정) < 감점 > 감점 항목 1회 2회 3회(이상) ① 벌금 100만원 미만의 형을 받은 자(최대20점) 5"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 5,
+          "page_number": 4,
+          "evidence": "요건(필수)이며, 중앙부처 추천과 광역지자체 추천은 선택사항으로 서로 중복되면 하나만 인정 * 17개 광역지자체에 한하며, 기초지자체는 광역지자체를 통해 추천 - (현 근무처 근속) E-7-4 신청"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 21,
+          "page_number": 12,
+          "evidence": "20 10 ①~⑥ 간 중복 가능(단, ①의 중앙부처나 광역지자체 추천이 중복되면 하나만 인정) < 감점 > 감점 항목 1회 2회 3회(이상) ① 벌금 100만원 미만의 형을 받은 자(최대20점) 5"
+        }
+      ],
+      "answer": "합쳐지지 않음. 중앙부처·광역지자체 추천이 겹치면 하나만 인정"
+    },
+    {
+      "id": "ko-08",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "예전에 벌금 낸 적이 있으면 신청이 안 되나요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 4,
+          "page_number": null,
+          "evidence": "라도 해당하면 불가(①, ③, ④는 최근 10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "만점(가점 제외) 중 200점 이상(가점 포함) 득점 제외대상 | ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "| < 감 점 > | 감점 항목 | 1회 | 2회 | 3회(이상) ① 벌금 100만원 미만의 형을 받은 자(최대20점) | 5 | 10 | 20 ② 체납으로 체류허가 제한을 받은 사실이 있는 자(최대15"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "라도 해당하면 불가(①, ③, ④는 최근 10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 8,
+          "page_number": null,
+          "evidence": "라도 해당하면 불가(①, ③, ④는 최근 10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "만점(가점 제외) 중 200점 이상(가점 포함) 득점 제외대상 | ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "| < 감 점 > | 감점 항목 | 1회 | 2회 | 3회(이상) ① 벌금 100만원 미만의 형을 받은 자(최대20점) | 5 | 10 | 20 ② 체납으로 체류허가 제한을 받은 사실이 있는 자(최대15"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 4,
+          "page_number": 3,
+          "evidence": "0점 만점(가점 제외) 중 200점 이상(가점 포함) 득점 제외대상 ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 5,
+          "page_number": 3,
+          "evidence": "복되면 하나만 인정) < 감점 > 감점 항목 1회 2회 3회(이상) ① 벌금 100만원 미만의 형을 받은 자(최대20점) 5 10 20 ② 체 납 으 로 체 류 허 가 제 한 을 받 은 사 실 이 있 는"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 2,
+          "page_number": null,
+          "evidence": "라도 해당하면 불가(①, ③, ④는 최근 10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "0점 만점(가점제외) 중 200점 이상(가점포함) 득점 제외대상 | ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "복되면 하나만 인정) < 감점 > 감점 항목 1회 2회 3회(이상) ① 벌금 100만원 미만의 형을 받은 자(최대20점) 5 10 20 ② 체납으로 체류허가 제한을 받은 사실이 있는 자(최대15점) 5 1"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "⑦ 국내 운전면허증 소지 | | 소 계 | | 감점항목 | ① 벌금 100만원 미만의 형을 받은 이력 | | ② 조세체납으로 체류허가 제한을 받은 이력 | | ③출입국관리법 3회 이하 위반"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 6,
+          "page_number": 5,
+          "evidence": "하나라도 해당하면 불가(①,③,④는 최근 10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 20,
+          "page_number": 12,
+          "evidence": "0점 만점(가점 제외) 중 200점 이상(가점 포함) 득점 제외대상 ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 21,
+          "page_number": 12,
+          "evidence": "복되면 하나만 인정) < 감점 > 감점 항목 1회 2회 3회(이상) ① 벌금 100만원 미만의 형을 받은 자(최대20점) 5 10 20 ② 체 납 으 로 체 류 허 가 제 한 을 받 은 사 실 이 있 는"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 24,
+          "page_number": 14,
+          "evidence": "자격증·국내대학 학위 ⑦ 국내 운전면허증 소지 소 계 감 점 항 목 ① 벌금 100만원 미만의 형을 받은 이력 ② 조세체납으로 체류허가 제한을 받은 이력 ③ 출입국관리법 3회 이하 위반 이력 총 점 작성일"
+        }
+      ],
+      "answer": "벌금 100만 원 이상은 신청 불가(제외), 100만 원 미만은 횟수별 감점"
+    },
+    {
+      "id": "ko-09",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "한국에 4년이 안 됐는데 지방에서 일하면 신청할 수 있다고 들었어요. 맞나요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "외국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비수도권에서 3년 이상 체류 중인 자가 광역지자체 추천을 받은 경우 대상자 요건 해당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "외국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비수도권에서 3년 이상 체류 중인 자가 광역지자체 추천을 받은 경우 대상자 요건 해당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 0,
+          "page_number": 1,
+          "evidence": "외국인으로 현재 근무처에서 정상 근로 중인 자 * (특례) 비수도권에서 3년 이상 체류중인 자가 광역지자체 추천을 받은 경우 대상자 요건 해당 ② 현재 근무처에서 연봉 2,500만원 이상으로 향후 2년 이상 E-7-4"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 3,
+          "page_number": 3,
+          "evidence": "국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비 수 도 권 3년 이 상 체 류 중 인 자 가 광 역 지 자 체 추 천 을 받 은 경 우 대 상 자 요 건 해 당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "외국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비수도권에서 3년 이상 체류 중인 자가 광역지자체 추천을 받은 경우 대상자 요건 해당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 2,
+          "page_number": 2,
+          "evidence": "외국인등록을 하고 합법적으로 근무 중일 것 ⁍ (특례) 비수도권*에서 3년 이상 체류 중인 자가 광역지자체 추천을 받은 경우 대상자 요건 해당 * 서울‧경기‧인천 제외한 전 지역"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 19,
+          "page_number": 12,
+          "evidence": "외국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비수도권에서3년이상체류 중인자가 광역지자체추천을받은경우대상자 요건해당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약"
+        }
+      ],
+      "answer": "비수도권에서 3년 이상 체류 중이고 광역지자체 추천을 받으면 대상자 요건 해당(특례)"
+    },
+    {
+      "id": "ko-10",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "guide",
+      "query": "하이코리아에서 E-7-4 전환은 어떤 순서로 신청해요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 2,
+          "document_version": "E74-ONLINE-MANUAL-2026-v1",
+          "chunk_index": 0,
+          "page_number": 1,
+          "evidence": "K-point E74 숙련기능인력 혁신적 확대 방안 하이코리아 전자민원 신청 방법 ❶ 로그인 1) www.hikorea.go.kr 접속 2) 홈화면 우측 상단의 ‘로그인’ 클릭 출생연도 5"
+        },
+        {
+          "policy_document_id": 2,
+          "document_version": "E74-ONLINE-MANUAL-2026-v1",
+          "chunk_index": 1,
+          "page_number": 2,
+          "evidence": "화면의 민원신청 신청하기 클릭 ☜ ❸ 민원선택 1) 민원선택 목록 중 ‘등록외국인의 체류자격변경’ 허가 체크 2) 맨 하단의 ‘행정공동이용 등의 여부 확인’ 체크 3) 다음 클릭 ☜ ☜"
+        },
+        {
+          "policy_document_id": 2,
+          "document_version": "E74-ONLINE-MANUAL-2026-v1",
+          "chunk_index": 2,
+          "page_number": 3,
+          "evidence": "❹ 민원선택-직업변경신고 선택 -선택 항목없이 바로 다음 단계로 진행 (체류자격변경 시 직업·소득 변경 신고는 의무적 신고사항) ❺"
+        },
+        {
+          "policy_document_id": 2,
+          "document_version": "E74-ONLINE-MANUAL-2026-v1",
+          "chunk_index": 3,
+          "page_number": 4,
+          "evidence": "❻ 민원작성 1) *(별표시)는 필수 입력 2) 첨부파일의 파일명은 각각 다르게 해야 업로드 가능 3) 2MB(2,04"
+        },
+        {
+          "policy_document_id": 2,
+          "document_version": "E74-ONLINE-MANUAL-2026-v1",
+          "chunk_index": 4,
+          "page_number": 5,
+          "evidence": "❼ 직업변경신고 입력 1) 직업 항목의 직업란 선택 클릭 후 2) 신청 외국인 직업을 선택 3) 상세 직업란에 신청 외국인"
+        }
+      ],
+      "answer": "하이코리아 로그인 → 민원신청 → '등록외국인의 체류자격변경' 선택 → 직업변경신고 → 민원작성 → 신청 완료"
+    },
+    {
+      "id": "ko-11",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "recommendation",
+      "query": "농장에서 일하는 사람은 농식품부 추천을 어떻게 받아요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 0,
+          "page_number": 1,
+          "evidence": "으로 한시적 유예(~ ‘26. 12. 31.) ◈ (부처추천 신청방법) 도농인력중개플랫폼(www.agriwork.kr)에서 온라인으로 신청 * ‘26년 농축산분야 고용추천 쿼터 : 900명 대상"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 1,
+          "page_number": 2,
+          "evidence": "주거환경 개선 - 기숙사 시설표와 시각자료 제공 농업인 신청 방법 ❍ “도농인력중개플랫폼(www.agriwork.kr)”에서고용추천신청 고용추천 신청 서류 준비 고용추천 신청·승인 비자전환 신청"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 2,
+          "page_number": 2,
+          "evidence": "업경영체 등록확인서 ⦁정부시책 참여 증빙서류 등 ▶ <고용주/근로자> ⦁도농인력중개플랫폼 (www. agriwork.kr) [숙련기능인력 (E-7-4) 고용추천신청] 클릭 ⦁관련 서류 등 첨부하여"
+        }
+      ],
+      "answer": "도농인력중개플랫폼(agriwork.kr)에서 고용추천 신청"
+    },
+    {
+      "id": "ko-12",
+      "language": "ko",
+      "kind": "answerable",
+      "area": "recommendation",
+      "query": "경기도 추천은 언제까지 어디에 신청해야 해요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "needs_review",
+      "blocked_reason": "needs_review: 5번 문서 chunk 2·3을 보고 gold를 더할지, 질문을 줄일지 정하기 전",
+      "gold": [
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 3,
+          "page_number": null,
+          "evidence": ".(일) ~ ’26. 12. 31.(목), 연중 상시 접수 ○ (방법) 시군 담당부서(붙임1)에 신청서 제출, 시군에서는 자료 취합 후 道에 공문으로 추천 ※ 추천신청서는 붙임 참조 ○ 기타"
+        }
+      ],
+      "answer": "2026-03-01~12-31 상시 접수, 시군 담당부서에 신청서 제출"
+    },
+    {
+      "id": "en-01",
+      "language": "en",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "What is the minimum salary in the employment contract to switch to E-7-4?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 2,
+          "page_number": null,
+          "evidence": "무처에서 외국인등록을 하고 합법적으로 근무 중일 것 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약 - E-7-4로 자격변경이 되면 신청 당시 근무처에서 2년 이상 계"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "자가 광역지자체 추천을 받은 경우 대상자 요건 해당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약(농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "무처에서 외국인등록을 하고 합법적으로 근무 중일 것 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약 - E-7-4로 자격변경이 되면 신청 당시 근무처에서 2년 이상 계"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "자가 광역지자체 추천을 받은 경우 대상자 요건 해당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약(농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 3,
+          "page_number": 3,
+          "evidence": "추 천 을 받 은 경 우 대 상 자 요 건 해 당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약 (농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 1,
+          "page_number": null,
+          "evidence": "등록외국인으로 현재 근무처에서 정상 근로 중인 자 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약(농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "자가 광역지자체 추천을 받은 경우 대상자 요건 해당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약(농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 14,
+          "page_number": null,
+          "evidence": "7. 임금 | 1) 월 통상임금 ( )원, ※(E-7-4 전환 요건) 연봉 2,600만원 이상 되어야 함 - 기본급[(월, 시간, 일, 주)급] ( )원 - 고정적 수당: ( 수당 : 원), ( 수당:"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 3,
+          "page_number": 3,
+          "evidence": "② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약 - E-7-4로 자격변경이 되면 신청 당시 근무처에서 2년 이상 계"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 10,
+          "page_number": 7,
+          "evidence": "단, K-point E74 전환 조건인 ①향후 2년간 근무 예정 및 ②연봉 2,600만원 이상 수령 조건은 명시되어야 합니다. 2-1. 임금요건 중‘연봉 2,600 만원 이상’의 의미는 무엇인가요 ?"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 19,
+          "page_number": 12,
+          "evidence": "체류 중인자가 광역지자체추천을받은경우대상자 요건해당 ② 현재 근무처에서 연봉 2,600만원 이상으로 향후 2년 이상 E-7-4 고용계약(농․축산업, 어업․내항상선 종사자는 연봉 2,500만원 이상) ③"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 32,
+          "page_number": 21,
+          "evidence": "쪽) 7. 임금 1) 월 통상임금 ( )원, ※(E-7-4 전환 요건) 연봉 2,600만원 이상 되어야 함 - 기본급[(월, 시간, 일, 주)급] ( )원 - 고정적 수당: ( 수당 : 원), ( 수당:"
+        }
+      ],
+      "answer": "연봉 2,600만 원 이상, 향후 2년 이상 E-7-4 고용계약(농축산·어업 등은 완화)"
+    },
+    {
+      "id": "en-02",
+      "language": "en",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "How many points do I get for TOPIK level 3?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "Ⓑ 한국어능력 : 최대 120점 구 분 | 2급/2단계/41~60점 | 3급/3단계/61~80점 | 4급/4단계/81점 이상 배 점 | 50 | 80 | 120 ☞ TOPIK(2급·3급·4급 이상), 사"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "Ⓑ 한국어능력 : 최대 120점 구 분 | 2급/2단계/41~60점 | 3급/3단계/61~80점 | 4급/4단계/81점 이상 배 점 | 50 | 80 | 120 ☞ TOPIK(2급·3급·4급 이상), 사"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 4,
+          "page_number": 3,
+          "evidence": "이상 Ⓑ 한국어능력 : 최대 120점 구 분 2급/2단계/41~60점 3급/3단계/61~80점 4급/4단계/81점 이상 배 점 50 80 120 ☞ TOPIK(2급·3급·4급 이상), 사회통합프로그램"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "이상 Ⓑ 한국어능력 : 최대 120점 구 분 2급/2단계/41~60점 3급/3단계/61~80점 4급/4단계/81점 이상 배 점 50 80 120 ☞ TOPIK(2급·3급·4급이상), 사회통합프로그램 이"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 20,
+          "page_number": 12,
+          "evidence": "이상 Ⓑ 한국어능력 : 최대 120점 구 분 2급/2단계/41~60점 3급/3단계/61~80점 4급/4단계/81점 이상 배 점 50 80 120 ☞ TOPIK(2급·3급·4급 이상), 사회통합프로그램"
+        }
+      ],
+      "answer": "TOPIK 3급은 80점"
+    },
+    {
+      "id": "en-03",
+      "language": "en",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "I'm 31 years old. How many points is that for age?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "81점 이상) Ⓒ 나이 : 최대 60점 구 분 | 19세 ~ 26세 | 27세 ~ 33세 | 34세 ~ 40세 | 41세 ~ 배 점 | 40 | 60 | 30 | 10 | | | < 가점 >"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "81점 이상) Ⓒ 나이 : 최대 60점 구 분 | 19세 ~ 26세 | 27세 ~ 33세 | 34세 ~ 40세 | 41세 ~ 배 점 | 40 | 60 | 30 | 10 | | | < 가점 >"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 4,
+          "page_number": 3,
+          "evidence": "80점·81점 이상) Ⓒ 나이 : 최대 60점 구 분 19세 ~ 26세 27세 ~ 33세 34세 ~ 40세 41세 ~ 배 점 40 60 30 10 구 분 2,500 ~3,000만 3,000~3,5"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "~80점·81점이상) Ⓒ 나이 : 최대 60점 구 분 19세 ~ 26세 27세 ~ 33세 34세 ~ 40세 41세 ~ 배 점 40 60 30 10 < 가점 > 추천 ③ 현근무처 3년 이상 근속 ④"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 20,
+          "page_number": 12,
+          "evidence": "80점·81점 이상) Ⓒ 나이 : 최대 60점 구 분 19세 ~ 26세 27세 ~ 33세 34세 ~ 40세 41세 ~ 배 점 40 60 30 10 구 분 2,500 ~3,000만 3,000~3,5"
+        }
+      ],
+      "answer": "27~33세는 60점"
+    },
+    {
+      "id": "en-04",
+      "language": "en",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "Can I apply if I still owe taxes?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 4,
+          "page_number": null,
+          "evidence": "10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상자 ⑤ 대한민국의 이익이나 공공의 안전 등을"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "포함) 득점 제외대상 | ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상인 자 ⑤ 대한민국의 이익이나 공공의 안전"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상자"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 8,
+          "page_number": null,
+          "evidence": "10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상자 ⑤ 대한민국의 이익이나 공공의 안전 등을"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "포함) 득점 제외대상 | ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상인 자 ⑤ 대한민국의 이익이나 공공의 안전"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 4,
+          "page_number": 3,
+          "evidence": "가점 포함) 득점 제외대상 ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상인 자 ⑤ 대한민국의 이익이나 공공의 안전"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 2,
+          "page_number": null,
+          "evidence": "10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상자 ⑤ 대한민국의 이익이나 공공의 안전 등을"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "점포함) 득점 제외대상 | ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상인 자 ⑤ 대한민국의 이익이나 공공의 안전"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 6,
+          "page_number": 5,
+          "evidence": "10년 이내 사항만 해당) ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상자 ⑤ 대한민국의 이익이나 공공의 안전 등을"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 20,
+          "page_number": 12,
+          "evidence": "가점 포함) 득점 제외대상 ① 벌금 100만원 이상의 형을 받은 자 ② 조세 체납자(완납 시 신청 가능) ③ 출입국관리법 4회 이상 위반자 ④ 불법체류 경력 3개월 이상인 자 ⑤ 대한민국의 이익이나 공공의 안전"
+        }
+      ],
+      "answer": "조세 체납자는 신청 불가, 완납하면 신청 가능"
+    },
+    {
+      "id": "en-05",
+      "language": "en",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "How long do I need to have stayed in Korea on E-9 before applying?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 2,
+          "page_number": null,
+          "evidence": ": 아래 요건 모두 충족(①~④) ① 최근 10년간 E-9, E-10, H-2 자격으로 4년 이상 체류한 現 등록외국인으로 현재 근무처에서 정상 근로 중인 자 - 신청 당시 현재 근무처에서 외국인등록을 하고 합"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "(①+②+③+④) | ① 최근 10년간 해당 자격(E-9, E-10, H-2)으로 4년 이상 체류한 현재 국내 체류 등록외국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비수도권에서 3년 이상 체"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 1,
+          "page_number": null,
+          "evidence": "▸ 최근 10년간 해당 자격(E-9, H-2)으로 4년 이상 체류한 現 국내 체류 등록 외국인으로 현재 근무처에서 정상 근로 중인 자 ▸ 현재 근무처에서 연봉 2,600만원"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": ": 아래 요건 모두 충족(①~④) ① 최근 10년간 E-9, E-10, H-2 자격으로 4년 이상 체류한 現 등록외국인으로 현재 근무처에서 정상 근로 중인 자 - 신청 당시 현재 근무처에서 외국인등록을 하고 합"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "(①+②+③+④) | ① 최근 10년간 해당 자격(E-9, E-10, H-2)으로 4년 이상 체류한 현재 국내 체류 등록외국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비수도권에서 3년 이상 체"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 0,
+          "page_number": 1,
+          "evidence": ", ③, ④ 모두 충족 ① 최근 10년간 해당 자격(E-9, E-10, H-2)으로 4년 이상 체류한 현재 국내 체류 등록외국인으로 현재 근무처에서 정상 근로 중인 자 * (특례) 비수도권에서 3년 이상 체"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 3,
+          "page_number": 3,
+          "evidence": "건 (①+②+③ +④) ① 최근 10년간 해당 자격(E-9, E-10, H-2)으로 4년 이상 체류한 현재 국내 체류 등록외국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비 수 도 권 3년 이 상"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 1,
+          "page_number": null,
+          "evidence": "74 기본요건 > | ① 최근 10년간 해당 자격(E-9, E-10, H-2)으로 4년 이상 체류한 현재 국내 체류 등록외국인으로 현재 근무처에서 정상 근로 중인 자 ② 현재 근무처에서 연봉 2,600만원"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 5,
+          "page_number": null,
+          "evidence": "(①+②+③+④) | ① 최근 10년간 해당 자격(E-9, E-10, H-2)으로 4년 이상 체류한 현재 국내 체류 등록외국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비수도권에서 3년 이상 체"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 9,
+          "page_number": null,
+          "evidence": "적 | 기본 요건 | ① 최근 10년간 해당 자격(E-9, E-10, H-2)으로 4년 이상 체류한 現 등록외국인으로 현재 근무처에서 정상 근로 중 ( ) ② 현재 근무처에서 연봉 2,600만원(농․축산업"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 2,
+          "page_number": 2,
+          "evidence": ": 아래 요건 모두 충족(①~④) ① 최근 10년간 E-9, E-10, H-2 자격으로 4년 이상 체류한 現 등록외국인으로 현재 근무처에서 정상 근로 중인 자 - 신청 당시 현재 근무처에서 외국인등록을 하고 합"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 19,
+          "page_number": 12,
+          "evidence": "요건 (①+②+③+④) ① 최근 10년간 해당 자격(E-9, E-10, H-2)으로 4년 이상 체류한 현재 국내 체류 등록 외국인으로 현재 근무처에서 정상 근로 중인 자 ⁍ (특례) 비수도권에서3년이상체류"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 24,
+          "page_number": 14,
+          "evidence": "사명 국 적 기본 요건 ① 최근 10년간 해당 자격(E-9, E-10, H-2)으로 4년 이상 체류한 現 등록외국인으로 현재 근무처에서 정상 근로 중 ( ) ② 현재 근무처에서 연봉 2,600만원(농․축산업"
+        }
+      ],
+      "answer": "최근 10년간 E-9·E-10·H-2 자격으로 4년 이상 체류"
+    },
+    {
+      "id": "en-06",
+      "language": "en",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "Does a Korean driver's license give extra points?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 3,
+          "page_number": null,
+          "evidence": "학위) 국내대학에서 수학하고 전문학사 이상의 학위를 소지하면 해당 - (국내 운전면허증) 국내 경찰청 발급 운전면허증 중 제2종 보통면허 이상만 인정"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 4,
+          "page_number": null,
+          "evidence": "학위) 국내대학에서 수학하고 전문학사 이상의 학위를 소지하면 해당 - (국내 운전면허증) 국내 경찰청 발급 운전면허증 중 제2종 보통면허 이상만 인정 ㉡ (감점 항목) 최대 50점 이내에서 감"
+        },
+        {
+          "policy_document_id": 1,
+          "document_version": "E74-CENTRAL-GUIDE-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "역 및 읍·면지역 3년 이상 근무 | ⑤ 자격증 또는 국내 학위 | ⑥ 국내 운전면허증 ① | | ② 고용 기업체 | | | | 중앙 부처 | 광역 지자체 | | | | |"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "학위) 국내대학에서 수학하고 전문학사 이상의 학위를 소지하면 해당 - (국내 운전면허증) 국내 경찰청 발급 운전면허증 중 제2종 보통면허 이상만 인정 ㉡ (감점 항목) 최대 50점 이내에서 감"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "역 및 읍·면지역 3년 이상 근무 | ⑤ 자격증 또는 국내 학위 | ⑥ 국내 운전면허증 ① | | ② 고용 기업체 | | | | 중앙 부처 | 광역 지자체 | | | | |"
+        },
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 5,
+          "page_number": 3,
+          "evidence": "소지역 및 읍·면지역 3년 이 상 근 무 ⑤ 자격증 또는 국내 학위 ⑥ 국내 운전면허증 ① ② 고용 기업체 중앙 부처 광역 지자체 30 30 50 20 20 20 10 ①~⑥ 간 중복 가능(단"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 2,
+          "page_number": null,
+          "evidence": "기사‧산업기사‧기능사 중 하나 이상의 국내 자격증*, 국내대학 학위, 국내 운전면허증 소지 * 신청일 현재 근무중인 분야 관련 국내 자격증 ○ (감점 항목) 최대 50점 이내에서 감점 적용("
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 6,
+          "page_number": null,
+          "evidence": "구감소지역 및 읍·면지역 3년 이상 근무 ⑤ 자격증 또는 국내 학위 ⑥ 국내 운전면허증 ① ② 고용 기업체 중앙 부처 광역 지자체 30 30 50 20 20 20 10 ①~⑥ 간 중복 가능(단"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "사‧산업기사‧기능사 이상 국내 자격증 - 국내 대학 학위 졸업증명서 - 국내 운전면허증 붙임4 | | 광역지자체 가점 신청서(필수제출) (주의) 신청서 제출로 지자체 가점 추천이 확정되는 것"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 10,
+          "page_number": null,
+          "evidence": "상 근무 | | ⑥ 기능사 이상 자격증·국내대학 학위 | | ⑦ 국내 운전면허증 소지 | | 소 계 | | 감점항목 | ① 벌금 100만원 미만의 형을 받은 이력 | | ②"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 6,
+          "page_number": 5,
+          "evidence": "- (국내 운전면허증 ) 국내 경찰청 발급 운전면허증 중 제2종 보통면허 이상만 인정 ㉡ (감점 항목) 최대 50점 이내에서"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 21,
+          "page_number": 12,
+          "evidence": "소지역 및 읍·면지역 3년 이 상 근 무 ⑤ 자격증 또는 국내 학위 ⑥ 국내 운전면허증 ① ② 고용 기업체 중앙 부처 광역 지자체 30 30 50 20 20 20 10 ①~⑥ 간 중복 가능(단"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 23,
+          "page_number": 13,
+          "evidence": "인 본인) 국내 학위증 사본(가점 해당자만 제출) 3. (외국인 본인) 국내 운전면허증사본(가점 해당자만 제출) 4. (현재 근무처) 뿌리기업 확인서(뿌리기업만 해당) 5. (현재 근무처) 원"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 24,
+          "page_number": 14,
+          "evidence": "읍 면 지역 3년 이상 근무 ⑥ 기능사 이상 자격증·국내대학 학위 ⑦ 국내 운전면허증 소지 소 계 감 점 항 목 ① 벌금 100만원 미만의 형을 받은 이력 ② 조세체납으로 체류허가 제한을 받"
+        }
+      ],
+      "answer": "국내 운전면허증(2종 보통 이상) 소지 시 가점"
+    },
+    {
+      "id": "en-07",
+      "language": "en",
+      "kind": "answerable",
+      "area": "selection",
+      "query": "Which documents prove my income for the E-7-4 points?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 4,
+          "document_version": "E74-MAFRA-2026-163",
+          "chunk_index": 2,
+          "page_number": 2,
+          "evidence": "인 등록증 사본(앞, 뒤) ⦁외국인 근로자 경력증명서 (산업인력공단) ⦁소득금액증명원(세무서) ⦁한국어능력시험 또는 사회통합 프로그램 증빙 <고용주> ⦁서약서 ⦁외국인근로자에 대한 농업인 안전"
+        },
+        {
+          "policy_document_id": 5,
+          "document_version": "E74-GG-2026-5708-rev1",
+          "chunk_index": 7,
+          "page_number": null,
+          "evidence": "연번 | 구 분 | 제출 서류 4 | 소득요건 | - 세무서 발행 소득금액증명원(최근 2년간 평균소득 확인용) 5 | 한국어요건 (택1) | - 한국어능력시험(TOPIK) 2급 이상 성적"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 11,
+          "page_number": 8,
+          "evidence": "3-1. 평균 소득 입증서류로 국세청 발급 소득금액증명원만 인정하는지? ⇒ 원칙적으로 국세청 발급 소득금액증명원만 인정합니다. 다만, 종합소득세 신고가 완료되는 5"
+        },
+        {
+          "policy_document_id": 6,
+          "document_version": "E74-SELECTION-2026-20260601",
+          "chunk_index": 22,
+          "page_number": 13,
+          "evidence": "-4 계약서 제출(붙임9 견본 참고) 5. (외국인 본인) 세무서 발행 소득금액증명원(최근 2년간 평균소득 확인용) 6. (외국인 본인) 한국어능력시험(TOPIK) 점수표 (한국어능력 입증을"
+        }
+      ],
+      "answer": "세무서 발행 소득금액증명원(최근 2년)"
+    },
+    {
+      "id": "en-08",
+      "language": "en",
+      "kind": "answerable",
+      "area": "recommendation",
+      "query": "How does my company apply for a Ministry of Employment and Labor recommendation for me?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": [
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 1,
+          "page_number": null,
+          "evidence": "9.(월) ~ ‘26. 12. 25.(금) □ (접수처 및 제출서류) 사업장 관할 지방고용노동관서에 ①신청서[붙임1], ②추천자 신분증 사본, ③외국인등록증·여권 사본, ④표준근로계약서 사본 제출 * 직접"
+        },
+        {
+          "policy_document_id": 3,
+          "document_version": "E74-MOEL-RECOMMEND-2026-v1",
+          "chunk_index": 2,
+          "page_number": null,
+          "evidence": "□ (문의) 사업장 관할 지방 고용노동관서 외국인업무 담당자 □ (선정 절차) 신청 사업장에 선정 결과 통보(1~2주 이내, 필요시 추천서 발급) →"
+        }
+      ],
+      "answer": "사업장 관할 지방고용노동관서에 신청서 등을 제출"
+    },
+    {
+      "id": "ko-n1",
+      "language": "ko",
+      "kind": "unanswerable",
+      "area": "out_of_scope",
+      "query": "유학생 D-2 비자로 아르바이트는 일주일에 몇 시간까지 할 수 있어요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": []
+    },
+    {
+      "id": "ko-n2",
+      "language": "ko",
+      "kind": "unanswerable",
+      "area": "out_of_scope",
+      "query": "결혼이민 F-6 비자 신청할 때 필요한 서류가 뭐예요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": []
+    },
+    {
+      "id": "ko-n3",
+      "language": "ko",
+      "kind": "unanswerable",
+      "area": "out_of_scope",
+      "query": "외국인도 건강보험 피부양자로 부모님을 올릴 수 있나요?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": []
+    },
+    {
+      "id": "en-n1",
+      "language": "en",
+      "kind": "unanswerable",
+      "area": "out_of_scope",
+      "query": "How do I extend a D-4 language student visa?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": []
+    },
+    {
+      "id": "en-n2",
+      "language": "en",
+      "kind": "unanswerable",
+      "area": "out_of_scope",
+      "query": "What is the interest rate of the Shinhan SOL Global savings account?",
+      "visa_types": [
+        "E-7-4"
+      ],
+      "status": "ready",
+      "gold": []
+    }
+  ],
+  "labeling": {
+    "confirmed_at": "2026-11-12",
+    "method": "Claude가 검색 순위를 보지 않고 적재 원문(문서 1~7번, 129청크)에서 답을 찾아 초안 작성 → 사람이 질문별 답 25개를 공식 문서와 대조해 확인",
+    "chunk_rule": "확인된 답 문장이 그대로 들어 있는 청크(공백·가운뎃점 차이 무시)를 모두 gold로 선정. 문서 1~6번만(7번 RETIRED 제외)",
+    "unanswerable": "원문 검색으로 답이 없음을 확인(D-2 시간제, F-6 신청서류, 건강보험 피부양자, D-4 연장, 적금 금리)"
+  }
+}
