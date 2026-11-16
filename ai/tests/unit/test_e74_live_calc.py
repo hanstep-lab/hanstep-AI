@@ -67,8 +67,8 @@ def test_ai_api_sends_editor_profile_and_parses_engine_result() -> None:
     assert seen["path"] == CALCULATE_PATH and seen["token"] == TOKEN
     assert seen["body"]["asOfDate"] == "2026-11-12" and seen["body"]["scenario"] is None
     assert seen["body"]["profile"]["visaProfile"]["visaTypeCode"] == "E-9"
-    # 필리핀 테스트 사용자(P05): 고용기업 추천서 미제출
-    assert result.status.value == "NEEDS_EVIDENCE"
+    # 필리핀 테스트 사용자(P05): 체류 시작 2022-12-05라 기준일에 체류 47/48개월(요건 미충족)
+    assert result.status.value == "INELIGIBLE"
     assert (result.score.total, result.potential_score.total) == (235, 285)
 
 
