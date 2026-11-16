@@ -1,0 +1,1053 @@
+{
+  "version": "v1",
+  "description": "챗봇 금융상품 추천 도구(recommend_savings_products, 이슈 #65) 측정 문항. 영어 30문항. profileId는 product_recommend_questions_v1.json의 프로필(P1~P5, asOf 기준)이고, 측정에서는 fixture 프로필로 넣는다. expectedArgs는 queryKo를 뺀 도구 인자 기대값(채점 대상), accrual은 FLEXIBLE|FIXED|null. gold·expectedOutcome은 expectedArgs와 프로필로 app.products.recommender(조건표 전체 후보)를 돌린 값이다. forbidden: interest_rate는 금리·이자·우대금리를 말하면 위반(조건표에 금리 값 없음). byPromptVersion v3은 기준선(상품 도구 없는 지금 챗봇): 기대 도구 없음, 아직 제공하지 않는다는 안내.",
+  "asOf": "2026-11-16",
+  "catalog": "specs/rag/product_catalog_v1.json",
+  "profiles": {
+    "P1": {
+      "visa": "E-9",
+      "stayExpiry": "2027-10-04",
+      "spareKrw": 675317,
+      "age": 30
+    },
+    "P2": {
+      "visa": "E-9",
+      "stayExpiry": "2027-04-16",
+      "spareKrw": 675317,
+      "age": 30
+    },
+    "P3": {
+      "visa": "E-9",
+      "stayExpiry": "2028-11-16",
+      "spareKrw": 675317,
+      "age": 30
+    },
+    "P4": {
+      "visa": "E-9",
+      "stayExpiry": "2027-10-04",
+      "spareKrw": 200000,
+      "age": 30
+    },
+    "P5": {
+      "visa": "E-9",
+      "stayExpiry": "2028-11-16",
+      "spareKrw": 675317,
+      "age": 40
+    }
+  },
+  "questions": [
+    {
+      "id": "Q01",
+      "category": "product",
+      "profileId": "P1",
+      "text": "Which savings account should I open?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-a5851b226169",
+        "doc-ad95d3f72e39",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q02",
+      "category": "product",
+      "profileId": "P3",
+      "text": "Can you recommend an installment savings product for me?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-7b32d0e385aa",
+        "doc-83bd20591678",
+        "doc-a5851b226169",
+        "doc-ad95d3f72e39",
+        "doc-b89237ab049e",
+        "doc-c9e9643c92ad",
+        "doc-de733331abd3",
+        "doc-faba8062abff"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q03",
+      "category": "product",
+      "profileId": "P5",
+      "text": "I want to start saving a bit every month. What do you recommend?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-7b32d0e385aa",
+        "doc-83bd20591678",
+        "doc-a5851b226169",
+        "doc-ad95d3f72e39",
+        "doc-b89237ab049e",
+        "doc-c9e9643c92ad",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q04",
+      "category": "product",
+      "profileId": "P1",
+      "text": "I need a short savings plan of 3 months or less. Any options?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": 3,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-a5851b226169",
+        "doc-ad95d3f72e39"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q05",
+      "category": "product",
+      "profileId": "P3",
+      "text": "Is there a savings product I can finish within three months?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": 3,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-a5851b226169",
+        "doc-ad95d3f72e39"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q06",
+      "category": "product",
+      "profileId": "P2",
+      "text": "What savings can I join that ends in 3 months or less?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": 3,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-a5851b226169",
+        "doc-ad95d3f72e39"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q07",
+      "category": "product",
+      "profileId": "P1",
+      "text": "I have a lump sum. Which time deposit should I put it in?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "DEPOSIT",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-6e1e33b14263",
+        "doc-a32e7bfdf57e",
+        "doc-a976ef26deed",
+        "doc-b5f79d5c502c"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q08",
+      "category": "product",
+      "profileId": "P3",
+      "text": "Recommend a fixed deposit for my savings money.",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "DEPOSIT",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-6e1e33b14263",
+        "doc-a32e7bfdf57e",
+        "doc-a976ef26deed",
+        "doc-b5f79d5c502c"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q09",
+      "category": "product",
+      "profileId": "P2",
+      "text": "I want to put a one-time amount in the bank for a while. What deposit do you suggest?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "DEPOSIT",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-6e1e33b14263",
+        "doc-a976ef26deed",
+        "doc-b5f79d5c502c"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q10",
+      "category": "product",
+      "profileId": "P1",
+      "text": "I can put 300,000 won into savings every month. Which product fits?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": 300000,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-ad95d3f72e39",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q11",
+      "category": "product",
+      "profileId": "P3",
+      "text": "Which savings account works if I pay 300k KRW a month?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": 300000,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-7b32d0e385aa",
+        "doc-83bd20591678",
+        "doc-ad95d3f72e39",
+        "doc-b89237ab049e",
+        "doc-c9e9643c92ad",
+        "doc-de733331abd3",
+        "doc-faba8062abff"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q12",
+      "category": "product",
+      "profileId": "P5",
+      "text": "I'd like to save ₩300,000 monthly. What should I join?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": 300000,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-7b32d0e385aa",
+        "doc-83bd20591678",
+        "doc-ad95d3f72e39",
+        "doc-b89237ab049e",
+        "doc-c9e9643c92ad",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q13",
+      "category": "product",
+      "profileId": "P4",
+      "text": "I want to save 300,000 won every month. Which savings product is good?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": 300000,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "abstain",
+        "reason": "REQUEST_EXCEEDS_SURPLUS"
+      },
+      "gold": [],
+      "forbidden": [],
+      "expectBehavior": "explain_abstain_reason",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q14",
+      "category": "product",
+      "profileId": "P4",
+      "text": "Can I open a savings account with monthly payments of 300 thousand won?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": 300000,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "abstain",
+        "reason": "REQUEST_EXCEEDS_SURPLUS"
+      },
+      "gold": [],
+      "forbidden": [],
+      "expectBehavior": "explain_abstain_reason",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q15",
+      "category": "product",
+      "profileId": "P1",
+      "text": "Which products are made for foreigners?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": null,
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": true
+      },
+      "expectedOutcome": {
+        "type": "abstain",
+        "reason": "STAY_TOO_SHORT"
+      },
+      "gold": [],
+      "forbidden": [],
+      "expectBehavior": "explain_abstain_reason",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q16",
+      "category": "product",
+      "profileId": "P2",
+      "text": "Are there any products that clearly say foreigners can join?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": null,
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": true
+      },
+      "expectedOutcome": {
+        "type": "abstain",
+        "reason": "STAY_TOO_SHORT"
+      },
+      "gold": [],
+      "forbidden": [],
+      "expectBehavior": "explain_abstain_reason",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q17",
+      "category": "product",
+      "profileId": "P3",
+      "text": "I'm a foreign worker. Show me products that officially accept foreigners.",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": null,
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": true
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-7b32d0e385aa"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q18",
+      "category": "product",
+      "profileId": "P3",
+      "text": "Is there a time deposit made specially for foreigners?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "DEPOSIT",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": true
+      },
+      "expectedOutcome": {
+        "type": "abstain",
+        "reason": "NO_MATCHING_PRODUCT"
+      },
+      "gold": [],
+      "forbidden": [],
+      "expectBehavior": "explain_abstain_reason",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q19",
+      "category": "product",
+      "profileId": "P1",
+      "text": "I want a savings account where I can deposit any amount whenever I want.",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": "FLEXIBLE",
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-a5851b226169",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q20",
+      "category": "product",
+      "profileId": "P3",
+      "text": "Is there a flexible savings plan with no fixed monthly payment?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": "FLEXIBLE",
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-7b32d0e385aa",
+        "doc-83bd20591678",
+        "doc-a5851b226169",
+        "doc-b89237ab049e",
+        "doc-c9e9643c92ad",
+        "doc-de733331abd3",
+        "doc-faba8062abff"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q21",
+      "category": "product",
+      "profileId": "P5",
+      "text": "Recommend a free-deposit savings account.",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": "FLEXIBLE",
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-7b32d0e385aa",
+        "doc-83bd20591678",
+        "doc-a5851b226169",
+        "doc-b89237ab049e",
+        "doc-c9e9643c92ad",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q22",
+      "category": "product",
+      "profileId": "P3",
+      "text": "I prefer to pay the same fixed amount every month. Which savings product fits?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": "FIXED",
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-ad95d3f72e39"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q23",
+      "category": "product",
+      "profileId": "P1",
+      "text": "Show me a savings plan with a set monthly payment.",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": "FIXED",
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-ad95d3f72e39"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q24",
+      "category": "product",
+      "profileId": "P3",
+      "text": "I want a savings account of 6 months or less where I can pay in freely.",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": 6,
+        "monthlyAmountKrw": null,
+        "accrual": "FLEXIBLE",
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-a5851b226169",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q25",
+      "category": "product",
+      "profileId": "P1",
+      "text": "Which time deposit can I hold for no more than 6 months?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "DEPOSIT",
+        "maxTermMonths": 6,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-6e1e33b14263",
+        "doc-a32e7bfdf57e",
+        "doc-a976ef26deed",
+        "doc-b5f79d5c502c"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q26",
+      "category": "product",
+      "profileId": "P5",
+      "text": "I can save 100,000 won a month and want flexible deposits. Any recommendation?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": 100000,
+        "accrual": "FLEXIBLE",
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-7b32d0e385aa",
+        "doc-83bd20591678",
+        "doc-b89237ab049e",
+        "doc-c9e9643c92ad",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q27",
+      "category": "product",
+      "profileId": "P1",
+      "text": "Which savings product has the highest interest rate?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-a5851b226169",
+        "doc-ad95d3f72e39",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [
+        "interest_rate"
+      ],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q28",
+      "category": "product",
+      "profileId": "P3",
+      "text": "What is the best deposit product with good interest?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "DEPOSIT",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-6e1e33b14263",
+        "doc-a32e7bfdf57e",
+        "doc-a976ef26deed",
+        "doc-b5f79d5c502c"
+      ],
+      "forbidden": [
+        "interest_rate"
+      ],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q29",
+      "category": "product",
+      "profileId": "P1",
+      "text": "Which of those can I pay into whenever I want?",
+      "history": [
+        {
+          "role": "USER",
+          "content": "Which savings account should I open?"
+        },
+        {
+          "role": "ASSISTANT",
+          "content": "I found a few installment savings products that fit your remaining stay and spare money."
+        }
+      ],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "SAVINGS",
+        "maxTermMonths": null,
+        "monthlyAmountKrw": null,
+        "accrual": "FLEXIBLE",
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-a5851b226169",
+        "doc-de733331abd3"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    },
+    {
+      "id": "Q30",
+      "category": "product",
+      "profileId": "P2",
+      "text": "Yes, please. Up to 3 months is fine.",
+      "history": [
+        {
+          "role": "USER",
+          "content": "I have a lump sum to put away."
+        },
+        {
+          "role": "ASSISTANT",
+          "content": "I can look for time deposits that fit your remaining stay. Shall I?"
+        }
+      ],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "expectedArgs": {
+        "productType": "DEPOSIT",
+        "maxTermMonths": 3,
+        "monthlyAmountKrw": null,
+        "accrual": null,
+        "requireForeignerExplicit": false
+      },
+      "expectedOutcome": {
+        "type": "recommend"
+      },
+      "gold": [
+        "doc-6e1e33b14263",
+        "doc-a976ef26deed",
+        "doc-b5f79d5c502c"
+      ],
+      "forbidden": [],
+      "expectBehavior": "recommend",
+      "byPromptVersion": {
+        "v3": {
+          "expectedTools": [],
+          "expectBehavior": "decline_not_available"
+        }
+      }
+    }
+  ]
+}
