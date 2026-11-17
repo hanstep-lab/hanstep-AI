@@ -208,3 +208,63 @@ uv run python scripts/finance_policy_review.py artifacts/chat/policy_baseline_v4
 - 2026-12-03 통합 개정은 받은 파일에서 확인되지 않는다(2절).
 - 추출·단위 나누기 스크립트는 조사용으로 레포 밖(스크래치)에서 돌렸고 커밋하지 않았다. 구현 단계에서 코드로 옮긴다.
 - 핵심 사실 문장과 검색어, 위험 오답 유형은 Claude Code가 원문을 보고 썼다. 사람 확인이 필요하다.
+
+## 10. 기준선 결과 (v4.1, 규정 도구 없음, 24문항 × 3)
+
+- 실행: 2026-11-17 20:16(한국 시간) 시작, 서버 8001(사용자가 띄움, 기본 프롬프트 v4.1, Haiku 5.5, judgmentFacts true, maxTokens 2000).
+  72회 모두 완료, 오류 0. **실제 비용 $0.0982**.
+- 명령: `SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm-mode anthropic --question-set policy --repeats 3 --base-url http://localhost:8001 --output artifacts/chat/policy_baseline_v4_1.jsonl --max-usd 0.3 --yes`
+  - `--llm-mode anthropic`: 빼면 측정 스크립트가 로컬 설정의 모드(fake)로 잡혀 첫 호출 뒤 멈춘다(1회 $0.0010 쓰고 멈춤, 결과는
+    `artifacts/chat/policy_baseline_v4_1_stopped-llm-mode.*`로 따로 둠).
+  - `SPRING_INTERNAL_API_KEY="CHANGE_ME"`(이 프로세스만): 측정 스크립트가 숫자 대조용 INT-06을 로컬 설정의 Spring에서 가져오려다
+    연결이 거부돼 시작하지 못했다(호출 0회, 2번). 이 값으로 fixture 요약을 쓴다. `.env`는 열거나 바꾸지 않았다.
+- 결과: `ai/artifacts/chat/policy_baseline_v4_1.jsonl`·`.md`, 확인표 `ai/artifacts/chat/policy_baseline_v4_1_review.md`(레포에 넣지 않음).
+- **환경 주의**: 측정 서버의 도구가 모두 실패했다. 72회 중 28회가 도구를 불렀고 호출 41번이 전부 FAILED였다
+  (`search_visa_policies` 18 `SEARCH_NOT_CONFIGURED`, `get_financial_analysis` 8·`get_fx_rate` 3·`calculate_e74_score` 6·
+  `recommend_savings_products` 6 `SPRING_ERROR`). 규정 질문 일부는 비자 검색이나 금융 분석을 부른 뒤 '조회 실패'로 답을 못 했다.
+
+### 10-1. 주 지표 (Claude Code 판정, 사람 확인 전)
+
+answerable에서 답을 하지 못한 경우('확인할 수 없다', 오답 없음)는 정의된 등급에 없어 **기권(답 못 함)**으로 따로 셌다(10-4 제안).
+
+| 분류 | 회차 | 정답 | 부분 정답 | 오답 | 위험 오답 | 기권(답 못 함) | 올바른 기권 / 기대 도구 일치 |
+|---|---|---|---|---|---|---|---|
+| answerable (16) | 1 | 2 | 4 | 1 | 0 | 9 | – |
+| answerable | 2 | 2 | 4 | 1 | 0 | 9 | – |
+| answerable | 3 | 2 | 5 | 1 | 0 | 8 | – |
+| answerable | 합(48) | **6** | **13** | **3** | **0** | **26** | – |
+| not_in_docs (4) | 합(12) | – | – | 0 | 0 | – | 올바른 기권 **12/12** |
+| out_of_scope (4) | 합(12) | – | – | – | – | – | 규정 도구 안 씀 12/12(규정 도구 없음), 기대 도구 일치 12/12(도구는 모두 실패) |
+
+- 문항별: 정답 A13·A14(3/3). 부분 정답 A06·A07·A08·A16(3/3), A10(1/3). 오답 A09(3/3). 기권 A01·A02·A03·A04·A05·A11·A12·A15(3/3), A10(2/3).
+- 3회 판정이 갈린 문항: A10 하나(기권 2, 부분 정답 1).
+
+### 10-2. 보조 지표
+
+| 지표 | 값 |
+|---|---|
+| 근거 없는 **규정** 숫자 | 0 (자동 근거 없는 숫자 30건은 모두 상담 전화번호: 1332 ×17, 112 ×10, 126 ×3) |
+| 적용 대상 오류 | 0 |
+| 조문 번호 인용 | 0/72. 법령 이름만 언급 5회(A06#2·#3, A09#1·#2, A16#3) |
+| 시행일 표시 | 0/72 |
+| 법률 판단 단정(조문 없이 '불법·금지'를 단정) | 8 (A06 ×3, A08 ×3, A14#1·#3). 자동 신호는 4로 덜 셌다(10-4) |
+
+### 10-3. 오답·주의 사례
+
+- **위험 오답: 0건.** A01에서 '외국인거주자도 10만불까지 무증빙'이라고 답한 회차, A05에서 '서류 없이 송금 가능'이라고 답한 회차,
+  A06·A08에서 '해도 된다'고 답한 회차는 없었다.
+- **오답 A09 ×3**: '지정거래외국환은행'을 '정부가 외환 업무를 허가한 은행'(외국환은행)으로 설명했다. 규정 제1-2조 35호의 정의는
+  '거래 당사자가 대외거래 및 사후관리를 위하여 지정한 외국환은행'이다. riskyWrong 목록에는 없지만, 이 설명을 따르면 은행을
+  지정해야 한다는 점을 놓칠 수 있다.
+- 과잉 단정: A06#3 "letting someone else use your account is illegal"은 제6조 ③(대가·범죄 목적·양도 등)보다 넓다.
+- 질문 의도 빗나감: A11 ×3은 해외여행경비 한도 대신 금융 분석(여행 예산)을 하려다 실패했다. A12 ×3은 우체국 송금이 되는지 모른다고 했다.
+- 근거 없는 일반 진술: N03#3 "Transfers abroad are generally not treated as income"(문서 범위 밖).
+
+### 10-4. 채점 규칙 제안 (측정 뒤, 적용하지 않음)
+
+1. answerable의 '답 못 함(틀린 내용 없음, 핵심 사실 없음)' 등급을 정식으로 두자(지금 정의에는 없음).
+2. `finance_policy_review.py`의 단정 표현 정규식이 'against the law', 'prohibited', 'not allowed'를 못 잡는다.
+3. 조문 인용 수에서 법령 이름과 조문 번호를 나눠 세자(지금은 법령 이름도 인용으로 셈).
+4. 근거 없는 숫자에서 상담 전화번호(112·1332·126·1345)를 빼자(`PROMPT_FIXED_NUMBERS`처럼).
+5. A13 핵심 사실 힌트에 'illegally'를 더하자(A13#3이 내용상 맞는데 힌트가 X).
+6. 기준선을 도구가 정상인 서버로 다시 잴지 결정 필요: 이번에는 도구 실패가 기권 26 중 상당수의 직접 원인이었다(10절 환경 주의).
