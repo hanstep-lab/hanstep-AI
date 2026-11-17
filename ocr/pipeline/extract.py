@@ -22,9 +22,17 @@ COUNTRY_CODES = {
 }
 
 REG_NO = re.compile(r"(\d{6})\s*[-–—~]?\s*(\d)(\d{6})")
-VISA = re.compile(r"([A-Z])\s*[-–—]\s*(\d{1,2})(?:\s*[-–—]\s*(\d))?")
+# 세부 코드는 두 자리까지 (F-1-13, F-2-99). 뒤에 숫자·하이픈이 더 붙으면 잘라 쓰지 않는다
+VISA = re.compile(r"([A-Z])\s*[-–—]\s*(\d{1,2})(?:\s*[-–—]\s*(\d{1,2}))?(?![-–—\d])")
 UPPER_LINE = re.compile(r"^[A-Z][A-Z .,'-]+$")
 LABELS = {"KOR", "RESIDENCECARD", "REGISTRATIONNO", "NAME", "NARNE", "STATUS"}
+
+# 필드별 라벨. 다른 필드 라벨을 만나면 탐색을 멈추는 데 쓴다
+NAME_KEYWORDS = ["성명", "Name", "Narne"]
+COUNTRY_KEYWORDS = ["국가", "Country"]
+STATUS_KEYWORDS = ["체류자격", "Status"]
+ISSUE_KEYWORDS = ["발급", "Issue"]
+NAME_LABEL = re.compile("|".join(NAME_KEYWORDS))
 
 
 def _field(name, value=None, confidence=None):
@@ -39,27 +47,39 @@ def _find_anchor(lines, keywords):
     return None
 
 
-def _next_upper_line(lines, start, look=3):
+def _is_value_line(text):
+    return bool(UPPER_LINE.match(text)) and text.replace(" ", "") not in LABELS
+
+
+def _next_upper_line(lines, start, stop, look=3):
+    """start 다음 줄부터 영문 대문자 줄을 찾는다. 다른 필드 라벨(stop)을 만나면 멈춘다"""
     for text, score in lines[start + 1:start + 1 + look]:
         t = text.strip()
-        if UPPER_LINE.match(t) and t.replace(" ", "") not in LABELS:
+        if any(k in t for k in stop):
+            break  # 다음 필드로 넘어갔으면 그 값을 가져오지 않는다
+        if _is_value_line(t):
             return t, score
     return None, None
 
 
 def _name_en(lines):
-    i = _find_anchor(lines, ["성명", "Name", "Narne"])
+    i = _find_anchor(lines, NAME_KEYWORDS)
     if i is None:
         return _field("NAME_EN")
-    text, score = _next_upper_line(lines, i)
+    # 라벨과 이름이 한 줄로 읽힌 경우 ("성명 Name SAMPLE PERSON")
+    text, score = lines[i]
+    rest = NAME_LABEL.sub("", text).strip()
+    if _is_value_line(rest):
+        return _field("NAME_EN", rest, score)
+    text, score = _next_upper_line(lines, i, COUNTRY_KEYWORDS + STATUS_KEYWORDS + ISSUE_KEYWORDS)
     return _field("NAME_EN", text, score)
 
 
 def _nationality(lines):
-    i = _find_anchor(lines, ["국가", "Country"])
+    i = _find_anchor(lines, COUNTRY_KEYWORDS)
     if i is None:
         return _field("NATIONALITY")
-    text, score = _next_upper_line(lines, i)
+    text, score = _next_upper_line(lines, i, STATUS_KEYWORDS + ISSUE_KEYWORDS)
     if text is None:
         return _field("NATIONALITY")
     code = COUNTRY_CODES.get(re.sub(r"\s+", " ", text))
