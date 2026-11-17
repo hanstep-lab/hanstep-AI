@@ -170,6 +170,31 @@ def request_from_args(args: Mapping[str, Any]) -> dict[str, Any]:
     return {"conditions": {name: v for name, v in pairs if v is not None}}
 
 
+FOREIGNER_EXPLICIT = "requireForeignerExplicit"
+
+
+def failed_condition(
+    product: Product,
+    profile: Profile,
+    args: Mapping[str, Any],
+    as_of: date,
+    ignore: frozenset[str] = frozenset(),
+) -> str | None:
+    """상품을 빼는 첫 조건 이름(CONDITIONS 순서, 마지막이 외국인 명시 요청). 통과하면 None.
+
+    위반, 요청 조건 판정 불가, (요청 시) 외국인 명시 아님이 상품을 뺀다. ignore 조건은 보지 않는다.
+    화면 추천 API(#84)는 이 이름으로 제외 상품을 센다.
+    """
+    checks = check_product(product, profile, request_from_args(args), as_of)
+    for name in CONDITIONS:
+        verdict = None if name in ignore else checks.get(name)
+        if verdict == VIOLATION or (verdict == UNKNOWN and name in REQUEST_CONDITIONS):
+            return name
+    if args.get(FOREIGNER_EXPLICIT) and value(product, "foreignerEligible") != "explicit":
+        return FOREIGNER_EXPLICIT
+    return None
+
+
 def passes(
     product: Product,
     profile: Profile,
@@ -178,15 +203,7 @@ def passes(
     ignore: frozenset[str] = frozenset(),
 ) -> bool:
     """위반 없음 + 요청 조건 판정 불가 없음 + (요청 시) 외국인 명시. ignore 조건은 보지 않는다."""
-    checks = check_product(product, profile, request_from_args(args), as_of)
-    checks = {name: verdict for name, verdict in checks.items() if name not in ignore}
-    if VIOLATION in checks.values():
-        return False
-    if any(checks.get(name) == UNKNOWN for name in REQUEST_CONDITIONS):
-        return False
-    if args.get("requireForeignerExplicit") and value(product, "foreignerEligible") != "explicit":
-        return False
-    return True
+    return failed_condition(product, profile, args, as_of, ignore) is None
 
 
 def abstain_reason(

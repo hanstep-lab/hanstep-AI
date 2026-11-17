@@ -125,8 +125,8 @@ TOOL_SCHEMA_V4_1["input_schema"]["properties"]["accrual"]["description"] = (
 TOOL_SCHEMAS_BY_PROMPT: dict[str, dict[str, Any]] = {"v4": TOOL_SCHEMA, "v4.1": TOOL_SCHEMA_V4_1}
 
 
-class RecommendInput(BaseModel):
-    """recommend_savings_products 인자(LLM이 채움)."""
+class RecommendConditions(BaseModel):
+    """추천 조건(채팅 도구 인자와 화면 추천 API의 conditions가 같은 이름·범위를 쓴다)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -135,7 +135,6 @@ class RecommendInput(BaseModel):
     monthlyAmountKrw: int | None = Field(default=None, ge=1, le=MAX_MONTHLY_AMOUNT)  # noqa: N815
     accrual: Literal["FLEXIBLE", "FIXED"] | None = None
     requireForeignerExplicit: bool = False  # noqa: N815
-    queryKo: str | None = Field(default=None, max_length=100)  # noqa: N815
 
     def conditions(self) -> dict[str, Any]:
         """채점·결과에 쓰는 조건(검색어 제외, 넘긴 것만)."""
@@ -152,6 +151,12 @@ class RecommendInput(BaseModel):
             "accrual": ACCRUAL_TO_CATALOG.get(self.accrual or ""),
             "requireForeignerExplicit": self.requireForeignerExplicit,
         }
+
+
+class RecommendInput(RecommendConditions):
+    """recommend_savings_products 인자(LLM이 채움): 조건 + 순서 B 검색어."""
+
+    queryKo: str | None = Field(default=None, max_length=100)  # noqa: N815
 
 
 class ProductProfile(BaseModel):
@@ -442,16 +447,22 @@ class ProductTool:
         )
 
     async def _order(self, query: str | None, catalog_order: list[str]) -> tuple[list[str], str]:
-        """순서 B(검색) 또는 A(조건표 순서)와 그 이름."""
-        if self._ranker is None:
-            return catalog_order, "catalog"
-        if not query or not query.strip():
-            return catalog_order, "catalog_no_query"
-        try:
-            ranked = await asyncio.wait_for(
-                asyncio.to_thread(self._ranker.rank, query.strip()), self._timeout
-            )
-        except Exception as exc:  # search is only for order: fall back to the catalog order
-            logger.warning("product search failed: %s", type(exc).__name__)
-            return catalog_order, "catalog_search_failed"
-        return search_order(ranked, catalog_order), "search"
+        return await order_pool(self._ranker, query, catalog_order, self._timeout)
+
+
+async def order_pool(
+    ranker: ProductRanker | None, query: str | None, catalog_order: list[str], search_seconds: float
+) -> tuple[list[str], str]:
+    """순서 B(검색) 또는 A(조건표 순서)와 그 이름. 채팅 도구와 화면 추천 API(#84)가 함께 쓴다."""
+    if ranker is None:
+        return catalog_order, "catalog"
+    if not query or not query.strip():
+        return catalog_order, "catalog_no_query"
+    try:
+        ranked = await asyncio.wait_for(
+            asyncio.to_thread(ranker.rank, query.strip()), search_seconds
+        )
+    except Exception as exc:  # search is only for order: fall back to the catalog order
+        logger.warning("product search failed: %s", type(exc).__name__)
+        return catalog_order, "catalog_search_failed"
+    return search_order(ranked, catalog_order), "search"
