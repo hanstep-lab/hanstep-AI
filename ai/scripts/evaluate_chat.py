@@ -1013,6 +1013,15 @@ def product_tool_result(metrics: dict[str, Any] | None) -> dict[str, Any] | None
     return None
 
 
+def policy_tool_results(metrics: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """agent.metrics의 금융 정책 검색 도구 측정 값(호출마다, #88). 결과 본문은 근거 숫자다."""
+    return [
+        dict(tool)
+        for tool in (metrics or {}).get("tools") or []
+        if tool.get("toolName") == "search_finance_policy"
+    ]
+
+
 def row_gold(row: dict[str, Any]) -> list[str]:
     """행의 통과 집합. 질문 세트에 gold가 없으면(hold-out) 기대 인자·프로필로 계산한다."""
     if row.get("gold") is not None:
@@ -1054,6 +1063,10 @@ def score(row: dict[str, Any]) -> None:
     if product_tool and product_tool.get("content"):
         # 상품 도구가 LLM에 준 값(기간·금액 범위·여유자금·남은 체류 개월)도 근거다.
         tool_results.append(product_tool["content"])
+    for policy_tool in row.get("policyTools") or []:
+        # 금융 정책 검색 결과(조문 원문)도 근거다(#88, v4.2).
+        if policy_tool.get("content"):
+            tool_results.append(policy_tool["content"])
     check = check_answer(answer, tool_results, [*row["contextTexts"], *prompt_fixed_numbers(row)])
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
@@ -1550,6 +1563,14 @@ def main(
         help="product question file (same schema as product_questions_v1.json, may be outside "
         "the repo, e.g. the hold-out); implies --question-set product",
     )
+    parser.add_argument(
+        "--policy-questions",
+        type=Path,
+        default=None,
+        help="finance policy question file (same schema as finance_policy_questions_v1.json, may "
+        "be outside the repo, e.g. the hold-out; the file is read, never printed); implies "
+        "--question-set policy",
+    )
     parser.add_argument("--max-usd", type=float, default=1.0)
     parser.add_argument("--rescore", type=Path, default=None, help="re-score a saved JSONL")
     parser.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
@@ -1586,9 +1607,13 @@ def main(
         print("BLOCKED: AI_INTERNAL_API_TOKEN is not configured")
         return EXIT_BLOCKED
     product_external = args.product_questions is not None
-    if product_external and args.remit_questions is not None:
-        parser.error("--product-questions and --remit-questions cannot be used together")
-    external = args.remit_questions is not None or product_external
+    policy_external = args.policy_questions is not None
+    given = [args.remit_questions, args.product_questions, args.policy_questions]
+    if sum(path is not None for path in given) > 1:
+        parser.error(
+            "--remit-questions, --product-questions and --policy-questions cannot be combined"
+        )
+    external = args.remit_questions is not None or product_external or policy_external
     remit = args.question_set == "remit" or args.remit_questions is not None
     if remit and args.subset:
         parser.error("--subset works with --question-set eval only")
@@ -1597,6 +1622,8 @@ def main(
         if args.remit_questions is not None
         else args.product_questions
         if product_external
+        else args.policy_questions
+        if policy_external
         else QUESTION_SETS[args.question_set]
     )
     try:
@@ -1782,6 +1809,7 @@ def main(
                 "expectedOutcome": question_outcome(spec, question),
                 **product_fields(spec, question),
                 "productTool": product_tool_result(metrics),
+                "policyTools": policy_tool_results(metrics),
                 # Listed for a person to grade: judgment questions and humanGraded ones only
                 # (other calculation questions keep their conclusion in the spec, not here).
                 "expectedConclusion": (

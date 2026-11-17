@@ -187,3 +187,53 @@ def test_expected_tools_by_prompt_version() -> None:
         assert EVAL.expected_tools(by_id[qid], "v4.1") == []
         assert EVAL.expected_tools(by_id[qid], "v4.2") == ["search_finance_policy"]
     assert EVAL.expected_tools(by_id["O02"], "v4.2") == ["recommend_savings_products"]
+
+
+def test_policy_search_results_count_as_number_sources() -> None:
+    # v4.2: 답변이 검색 결과의 '미화5만불'을 인용하면 근거 있는 숫자다(#88).
+    metrics = {
+        "tools": [
+            {"toolName": "search_finance_policy", "query": "한도", "content": {"results": [
+                {"document": "외국환거래규정", "ref": "제4-4조", "effectiveFrom": "2026-11-02",
+                 "quote": "연간미화5만불범위내에서"}]}},
+            {"toolName": "recommend_savings_products", "content": {}},
+        ]
+    }  # fmt: skip
+    policy = EVAL.policy_tool_results(metrics)
+    assert [t["toolName"] for t in policy] == ["search_finance_policy"]
+    row: dict[str, Any] = {
+        "answer": "Under the regulation you can send up to USD 50,000 a year.",
+        "toolResult": {},
+        "contextTexts": ["How much can I send?"],
+        "judgmentFacts": False,
+        "expectedTools": ["search_finance_policy"],
+        "tools": [{"toolName": "search_finance_policy"}],
+        "policyTools": policy,
+    }
+    EVAL.score(row)
+    assert row["numberCheck"]["unsupported"] == []
+    row["policyTools"] = []
+    EVAL.score(row)
+    assert row["numberCheck"]["unsupported"] == ["50,000"]
+
+
+def test_external_policy_questions_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # hold-out처럼 레포 밖 파일: 경로로만 받고 내용은 출력하지 않는다.
+    qset = _qset()
+    secret = "HOLDOUT-ONLY question text"
+    hold = {**qset, "questions": [{**qset["questions"][0], "id": "H01", "text": secret}]}
+    path = tmp_path / "holdout.json"
+    path.write_text(json.dumps(hold, ensure_ascii=False), encoding="utf-8")
+    settings = _settings()
+    output = tmp_path / "hold.jsonl"
+    argv = ["--base-url", "http://testserver", "--policy-questions", str(path)]
+    argv += ["--output", str(output)]
+    code = EVAL.main(argv, client=_client(settings), settings=settings, confirm=lambda _: "n")
+    assert code == 0
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["questionSet"]["external"] is True
+    assert [r["questionId"] for r in REVIEW.load_rows(output)] == ["H01"]
+    assert secret not in capsys.readouterr().out
+    both = [*argv, "--product-questions", str(path)]
+    with pytest.raises(SystemExit):
+        EVAL.main(both, client=_client(settings), settings=settings, confirm=lambda _: "n")

@@ -84,6 +84,7 @@ def test_results_have_document_ref_date_and_quote_only() -> None:
         "query": "외국인거주자 송금 한도",
         "mode": "hybrid",
         "chunkIds": [HIT.chunk_id, GUIDE.chunk_id],
+        "content": content,  # 측정 스크립트가 근거 숫자로 쓴다
     }
 
 

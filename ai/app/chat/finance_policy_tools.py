@@ -105,5 +105,11 @@ class FinancePolicyTool:
         content: dict[str, Any] = {"results": [h.as_result() for h in hits]}
         if not hits:
             content["note"] = "No matching rule in the documents."
-        measurement = {"query": query, "mode": mode, "chunkIds": [h.chunk_id for h in hits]}
+        # 측정 전용: 검색어·방식·청크와 LLM에 준 결과(측정 스크립트가 근거 숫자로 쓴다).
+        measurement = {
+            "query": query,
+            "mode": mode,
+            "chunkIds": [h.chunk_id for h in hits],
+            "content": content,
+        }
         return outcome("SUCCEEDED", content, measurement=measurement)
