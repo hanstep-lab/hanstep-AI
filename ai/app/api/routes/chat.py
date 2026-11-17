@@ -222,7 +222,7 @@ async def chat_stream(
                 timeout=settings.chat_tool_timeout_seconds,
             )
         )
-    # 상품 추천 도구는 v4에서만 붙는다. 순서 B(검색)는 상품설명서 검색이 준비됐을 때만.
+    # 상품 추천 도구는 v4·v4.1에서만 붙는다. 순서 B(검색)는 상품설명서 검색이 준비됐을 때만.
     if setup.config.prompt_version in PRODUCT_PROMPT_VERSIONS:
         tools.append(
             ProductTool(

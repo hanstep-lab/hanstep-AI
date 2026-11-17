@@ -113,6 +113,7 @@ class Settings(BaseSettings):
     # Defaults (model, judgment facts): judgment facts comparison, 2026-11-12.
     # Prompt v2: v1.1 vs v2 regression run, 2026-11-15 (specs/chat/variants_prompt_v2.json).
     # Prompt v3: 송금 재질의 회귀 #44, 환율 문장 rateText #46(A안)
+    # Prompt v4.1: 상품 추천 도구 평가 #65(specs/chat/product_tool_v1_results.md 7·8절), 전환 #81
     chat_model: str = "claude-haiku-5-5"
     # model_default sends no thinking parameter (both 5.5 models then think adaptively).
     chat_thinking: ChatThinking = "model_default"
@@ -126,9 +127,9 @@ class Settings(BaseSettings):
     # Add code-computed judgment facts (judgmentFacts) to the finance tool result.
     chat_judgment_facts: bool = True
     # System prompt version (app/chat/prompts): v1 | v1.1 | v2 | v3 | v3.1 | v3.2 | v4 | v4.1.
-    # 비자 도구는 v2~v4, 송금 조회 도구는 v3.x·v4, 상품 추천 도구는 v4에서만 붙는다
+    # 비자 도구는 v2~v4.1, 송금 조회 도구는 v3.x·v4·v4.1, 상품 추천 도구는 v4·v4.1에서만 붙는다
     # (app/api/routes/chat.py).
-    chat_prompt_version: ChatPromptVersion = "v3"
+    chat_prompt_version: ChatPromptVersion = "v4.1"
     # Measurement only: honour the per-request X-Chat-Config header (and X-Chat-Product-Profile
     # for the product tool's fixture profile).
     chat_allow_config_override: bool = False
