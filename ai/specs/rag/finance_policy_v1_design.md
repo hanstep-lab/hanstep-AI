@@ -547,12 +547,14 @@ SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm
 - **측정 스크립트에만 있으면** 숫자 대조용 INT-06 요약만 fixture로 바뀌고 서버 도구에는 영향이 없다. 다만 서버는 8081의 실제
   값으로 답하므로 숫자 대조가 어긋날 수 있다. 그래서 이번에는 측정 스크립트도 8081을 쓰게 한다(16-1).
 
-## 17. 기준선(v4.1)·after(v4.2)·회귀 결과 (채점 확정 반영 2026-11-18, A02v#2·#3 유보)
+## 17. 기준선(v4.1)·after(v4.2)·회귀 결과 (채점 확정 반영 2026-11-18)
 
 측정: claude-haiku-5-5, thinking=model_default, maxTokens 2000, 로컬 AI 서버 8001, 비자 정책 데이터는 16-1절 조건.
 기준선 v4.1 46문항 × 3회(2026-11-17T16:38Z 시작, $0.1701), after v4.2 46 × 3(17:10Z, $0.3191),
 회귀 v4.2 49 × 3(17:24Z, $0.2710). 등급은 11-1절 규칙 1~5와 A15 위험 오답 기준으로 Claude Code가 매긴 초안에
-**사용자 확정(2026-11-18)**을 반영했다: 위험 오답 7, A03v#3 오답(비위험), A09#3·A09v#1 적용 대상 오류(오답), 경계 사례는 초안대로.
+**사용자 확정(2026-11-18)**을 반영했다: 위험 오답 7, A03v#3 오답(비위험), A09#3·A09v#1 적용 대상 오류(오답), 경계 사례는 초안대로,
+A02v#2·#3 오답(비위험: 핵심 사실 제4-4조 ① 3호 누락 + 거주자 조항 제4-3조 ③ 인용, 단정은 안 함). 같은 기준을 기준선에 적용했으나
+기준선에는 거주자 조항을 인용한 답이 없어(규정 도구 없음) 바뀐 등급이 없다.
 회차별 표·메모: `ai/artifacts/chat/policy_v4_1_vs_v4_2_grading_draft.md`,
 `--grades` 형식 초안: `ai/artifacts/chat/policy_{baseline_v4_1,after_v4_2}_grades_draft.json`(커밋하지 않음).
 
@@ -562,11 +564,11 @@ SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm
 |---|---|---|
 | 답변 정답률(answerable 96회) | 11/96 (11.5%) | 62/96 (64.6%) (초안 64에서 A09#3·A09v#1 오답 처리) |
 | ㄴ 원문 48 / 변형 48 | 6 / 5 | 32 / 30 |
-| 부분 · 오답 · 기권(answerable) | 28 · 4 · 53 | 19 · 10 · 5 |
+| 부분 · 오답 · 기권(answerable) | 28 · 4 · 53 | 17 · 12 · 5 |
 | not_in_docs 올바른 기권(24회) | 21 (오답 3: N08 SWIFT 코드 제시) | 23 (오답 1: N04#3) |
 | out_of_scope ok(18회) | 18 | 18 |
 | 위험 오답 | 0 (참고: A15#1 부분, 아래 17-3) | 7 |
-| 적용 대상 오류(거주자 조항을 사용자에게) | 0 | 2 (A09#3, A09v#1, 제4-3조 ③, 오답) + 유보 2 (A02v#2·#3) |
+| 적용 대상 오류(거주자 조항을 사용자에게) | 0 | 2 (A09#3, A09v#1, 제4-3조 ③을 사용자에게 적용, 오답). 참고: A02v#2·#3은 같은 조항을 인용했으나 단정하지 않아 핵심 사실 누락 오답으로 셈 |
 | 근거 없는 규정 숫자(사람 분류, 17-2) | 0 | 0 |
 | 도구 선택 일치 | 80% (110/138) | 88% (122/138) |
 | 지연 전체 중앙값 · p95 | 3,776 · 5,931 ms | 4,546 · 8,008 ms |
@@ -578,16 +580,17 @@ SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm
 | 유형 | 기준선 v4.1 | after v4.2 |
 |---|---|---|
 | answerable 원문(48) | 정답 6 · 부분 13 · 오답 3 · 기권 26 | 정답 32 · 부분 9 · 오답 5 · 기권 2 |
-| answerable 변형(48) | 정답 5 · 부분 15 · 오답 1 · 기권 27 | 정답 30 · 부분 10 · 오답 5 · 기권 3 |
+| answerable 변형(48) | 정답 5 · 부분 15 · 오답 1 · 기권 27 | 정답 30 · 부분 8 · 오답 7 · 기권 3 |
 | not_in_docs(24) | 올바른 기권 21 · 오답 3 | 올바른 기권 23 · 오답 1 |
 | out_of_scope(18) | ok 18 | ok 18 |
 
 - 기준선 오답 4: A09 ×3·A09v#3(지정거래외국환은행을 '정부가 인가한 외국환은행' 또는 '은행이 정한 규칙'으로 설명).
-- after 오답 10(answerable): 위험 오답 6(A01#1, A01v#2·#3, A02#1, A03#3, A15v#1 — 제4-4조 ④ **수령** 규정을 **송금**으로 옮김),
+- after 오답 12(answerable): 위험 오답 6(A01#1, A01v#2·#3, A02#1, A03#3, A15v#1 — 제4-4조 ④ **수령** 규정을 **송금**으로 옮김),
   A03v#3(비위험, 제4-4조 ① 3호를 '추가 증빙 없이'로 설명 — 원문은 취득경위입증서류 필요),
   A09#3·A09v#1(적용 대상 오류, 거주자 조항 제4-3조 ③을 사용자에게 적용),
+  A02v#2·#3(비위험, 제4-4조 ① 3호 누락 + 제4-3조 ③ 인용, 적용 여부는 유보),
   A12#1('급여는 지정거래외국환은행으로만', ③ 3호 체신관서 경로와 모순). not_in_docs N04#3도 같은 ④ 오독(위험 오답).
-- after 부분 19의 주된 빠짐: A03·A03v 주소·거소(법 제3조), A06 범죄 이용 대여(제6조 ③ 3호), A02 지정 은행 경유 의무·카드사 경로,
+- after 부분 17의 주된 빠짐: A03·A03v 주소·거소(법 제3조), A06 범죄 이용 대여(제6조 ③ 3호), A02 지정 은행 경유 의무·카드사 경로,
   A05v 14일, A13·A13v는 제6조 ③을 '돈을 받아 보관·전달'로 설명(원문은 접근매체).
 - after 기권 5: A12 ×2·A12v ×3 — '문서에 우체국 없음'으로 답함(검색이 제4-4조 ③ 3호 '체신관서'를 못 찾음, 2단계 A12 실패와 같은 원인).
 - 가이드북(금감원) 발행처를 'Shinhan guide'로 쓴 회차: A01#1, A01v#3, A07#1(도구 결과 제목에 발행처가 없음). 등급에는 반영하지 않음.
@@ -628,11 +631,11 @@ SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm
 - 적용 대상 오류(오답 확정): A09#3 "Some overseas payments also require you to name one such bank in advance (Article 4-3, paragraph 3)",
   A09v#1 "The Foreign Exchange Transaction Regulation, Article 4-3 …, requires you to designate a transaction foreign exchange bank for
   certain outgoing payments" — 제4-3조는 거주자(외국인거주자 제외) 조항이고 ③은 ① 9호(해외이주비) 지급의 은행 지정이다.
-- **유보(재판단 대기)**: A02v#2 "Article 4-3(3) … says a person making certain overseas payments must designate a transacting foreign
+- **오답(비위험) 확정**: A02v#2 "Article 4-3(3) … says a person making certain overseas payments must designate a transacting foreign
   exchange bank. The excerpt I found does not say which payments that covers, so I can't confirm it applies to your salary transfers.",
   A02v#3 "Article 4-3(3) … requires a person making certain payments to designate one foreign exchange bank for those transactions. …
   The documents I found do not clearly say whether a monthly salary transfer falls under that article". 같은 거주자 조항을 인용했으나
-  사용자에게 적용된다고 단정하지 않았다(현재 등급 부분).
+  사용자에게 적용된다고 단정하지 않았다. 핵심 사실(제4-4조 ① 3호) 누락 + 거주자 조항 인용으로 오답, 단정이 없어 위험은 아님.
 
 ### 17-4. after 도구 선택 불일치 (16/138, 모두 not_in_docs)
 
@@ -664,7 +667,7 @@ SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm
 - **hold-out v4.1 요약이 v4.2 확정 전 구현 쪽 채팅에 노출됨**: 그 요약은 분석·튜닝에 쓰지 않았다(사용자 기록).
 - **hold-out(레포 밖 20문항)은 키 이름만 맞춘 복사본**이며 도구 일치 지표는 쓰지 않는다. 결과 문서에는 집계만 적는다.
 - **k=8 선택 근거**: 미리 정한 1문항 동점 규칙상 5와 동점이지만 주 지표(답변 정답·위험 오답) 때문에 8을 골랐다(15절·16절).
-- 채점은 Claude Code 초안에 사용자 확정(2026-11-18)을 반영했다(A02v#2·#3은 유보). 11-1절 규칙은 측정 뒤 바꾸지 않았다.
+- 채점은 Claude Code 초안에 사용자 확정(2026-11-18)을 반영했다(A02v#2·#3 포함). 11-1절 규칙은 측정 뒤 바꾸지 않았다.
 
 ## 18. 스펙 가드 비교 (측정 전 고정, 2026-11-18)
 
@@ -680,7 +683,8 @@ after v4.2의 위험 오답 7은 모두 제4-4조 ④(수령) → 송금 오독�
 
 1. 위험 오답 0
 2. 적용 대상 오류 0
-3. 답변 정답이 64에서 3 이상 줄지 않음(62 이상). 64는 지시 당시 초안 값이며, 확정 반영 v4.2 값은 62다(17-1).
+3. 답변 정답이 v4.2 확정 정답 62에서 3 이상 줄지 않음 = **60 이상**.
+   (기록: 처음 지시는 '64에서 3 이상 감소 없음'이었으나 64는 초안 값이다. 초안 64 → 확정 62로, ①② 측정 전 2026-11-18에 갱신했다.)
 4. 더 단순한 안(① 프롬프트 한 줄 < ② 라벨 코드·데이터)
 
 - 채점은 17절과 같은 규칙(11-1절 1~5, 위험 오답·적용 대상 오류는 17-3절 확정 기준)으로 한다.
@@ -694,3 +698,16 @@ after v4.2의 위험 오답 7은 모두 제4-4조 ④(수령) → 송금 오독�
   question; if either does not match, do not use that rule for the answer." v4.2까지의 문구·해시는 그대로, 기본값은 v4.1 그대로.
 - 도구 구성은 v4.2와 같다(비자·송금·상품·금융 정책 검색). 평가 세트 기대 도구는 v4.2 값을 그대로 쓴다(`PROMPT_BASE`).
 - count_tokens(claude-haiku-5-5, 46문항): 1차 입력 평균 7,670(v4.2 7,594), 검색 결과 예시를 받은 1·2차 합 평균 21,940(v4.2 21,788).
+
+### 18-2. ② 도구 결과 라벨 구현 (측정 전)
+
+- 라벨 표: `ai/specs/rag/finance_policy_labels_v1.json`(2026-11-18 사용자 확정, 64개 라벨). 18절 표에서 바뀐 점:
+  제4-4조 ① 3호 단서는 direction send + note "문언은 '수령'이지만 지급 조항(①)의 단서로 해석"(도구 결과에도 note를 낸다),
+  가이드북 발행처는 판권면 기준 '금융감독원', 고용법 '법률 제21065호'는 정상(2025-10-01 타법개정으로 외국환거래법과 같은 번호).
+- 붙이는 방식(`app/finance_policy/labels.py`): 조각이 걸친 항을 모두 찾아(항 중간에서 시작하면 앞 항부터) 그 항의 라벨을 목록으로 붙인다.
+  짧은 단위를 합친 조각은 단위마다 찾는다. 결과 한 건에 `issuer`(문서 발행처)와 `labels`([{ref, direction, appliesTo, note?}])를 더한다.
+  가이드북·보도자료는 항 라벨 없이 발행처만. 실제 말뭉치 83조각 중 항을 못 찾은 조각 0.
+- 켜고 끄기: 설정 `FINANCE_POLICY_LABELS`(기본 false). 프롬프트는 v4.2 그대로. 끄면 도구 결과가 v4.2 after와 바이트 단위로 같다
+  (테스트: v4.2 코드로 만든 검색 결과 예시와 문자열 비교).
+- 측정 기록: evaluate_chat의 조건에는 프롬프트(v4.2)만 남으므로 ② run은 파일 이름(`policy_guard_labels_v4_2`)과 도구 결과의 `labels`로 구분한다.
+- count_tokens(claude-haiku-5-5): A01 검색 결과 예시(k=8)가 6,520 → 7,903토큰(+1,383).
