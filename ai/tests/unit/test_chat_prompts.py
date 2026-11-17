@@ -209,15 +209,16 @@ def test_setting_picks_the_system_message() -> None:
 # 버전별 완성된 프롬프트(en)의 SHA-256. 채팅 기록(chat_messages.prompt_version)과 측정 결과가
 # 가리키는 글을 고정한다. system_v1_1.md·visa_rules.md·remittance_rules.md는 여러 버전이 같이 쓰므로
 # 고치면 기본값(v3)을 포함한 여러 버전이 같은 이름으로 함께 바뀐다.
+# 2026-11-17(#77): visa_rules.md 비자 규칙 답변 줄을 바꿔 v2~v4.1 값을 갱신(버전 이름은 그대로).
 PROMPT_SHA256 = {
     "v1": "50f9632829d5f74b8764db7b7aea75527b5b05813e0b0eb5be3dc5e31be6ef48",
     "v1.1": "97b95203c491a97bd64cf0ea32f543f68a304085b3c18abf30b72e5b4d02c0c2",
-    "v2": "6376736a071df227659abe25b3eade6ff9c0511052e6e67f9ced4809d7bf6c34",
-    "v3": "81694ab609924880683ca239749d2068d355c35e0f13e42f0dcdbf9664f79a65",
-    "v3.1": "80c7f20adb3219077541d060898ccc87572b79fbc47772775d5c4d901da86ec9",
-    "v3.2": "e62f7dbb84c4eebfc244dfa294c722f6a8f615088c89e061f8d53a30ed36a8c7",
-    "v4": "fc0e4ef7e61eef927cd1485d3a6e6a1e0c38c770ea0d8cdc068a5c10f632ee32",
-    "v4.1": "396e508c6213de778325464d2c5c847890c836817552dbbb8531545299c1d4e5",
+    "v2": "bc39840ab6db98d9efc9f51856b43a407119d22bcb3219d22e388d2120078bf5",
+    "v3": "7a360208fab98a5f5ecf6f62826431b900ea4e034666de61cf269f968b2ddddb",
+    "v3.1": "76c21360647fcb3b869c0e17e0cab7ca1ee4de428c7fd94a31a3f5d577820982",
+    "v3.2": "9322f8a645503b3864670c67b14e30546a3b105c37f5d5e691af8931aac24414",
+    "v4": "792f0948e5025c2331cf30f7a4d97c92adeeeef150af4f511fffdabc9169fcc9",
+    "v4.1": "f151a9c575dcc2d6f65638711080ae134bf3f4d6d0a14708081c10e8eb5fa09c",
 }
 
 
