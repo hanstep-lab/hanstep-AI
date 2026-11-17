@@ -48,15 +48,16 @@ AI 쪽에서 정한 계약이며(2026-11-16 태건 승인), 구현은 BE가 한�
 | 404 `USER_NOT_FOUND`, 그 밖의 오류 | 도구 `FAILED`, LLM에는 `data unavailable` |
 | 시간 초과 | 도구 `TIMEOUT`, LLM에는 `data unavailable` |
 
-## 3. 출처(`agent.sources`) — 제안, BE 확인 필요
+## 3. 출처(`agent.sources`) — 확정(BE #102: PRODUCT_DOCUMENT는 id null·chunkRef=상품 id, 메시지 목록에서도 id null)
 
 추천한 상품마다 상품설명서 하나를 출처로 보낸다. 상품 문서 id는 조건표의 `productId`(문자열, 예: `doc-7b32d0e385aa`)라서
-지금 `sources[].id`(숫자) 칸에 넣을 수 없다. 제안:
+`sources[].id`(숫자) 칸에 넣을 수 없다. 형식:
 
 ```json
 {"type": "PRODUCT_DOCUMENT", "id": null, "chunkRef": "doc-7b32d0e385aa", "pageLabel": "p.1"}
 ```
 
 - `chunkRef`에 문서 id 문자열, `pageLabel`에 근거 인용의 쪽(조건표 `source.page`)을 넣는다.
-- Spring이 `PRODUCT_DOCUMENT`를 받아 저장·표시할 수 있어야 한다. 숫자 id가 필요하면 BE의 상품 문서 테이블 id로 바꾸고 이 절을 고친다.
+- Spring은 `PRODUCT_DOCUMENT`를 `source_id = NULL`, `chunk_ref` = 상품 id로 저장하고 `chat.sources`·메시지 목록에 `id: null`로 준다.
+  `chunkRef`가 없거나 비어 있으면 그 출처는 건너뛴다. 그 밖의 타입은 지금처럼 숫자 `id`가 있어야 한다.
 - `agent.tool_call.resultRef`는 상품 추천에서 `null`이다(저장되는 분석 결과가 없음).
