@@ -1,0 +1,81 @@
+{
+  "version": "finance-policy-corpus-v1",
+  "description": "금융 정책 RAG(이슈 #88) 문서 목록과 적재 범위. 저장 방식 B(별도 도메인, 메모리 색인). 값은 문서에 적힌 것만(설계 문서 3절). 법령은 현행 조문만 색인하고 시행 예정 판은 뺀다. items가 있으면 그 호만 남긴다. 가이드북·보도자료는 PDF 쪽 범위.",
+  "documents": [
+    {
+      "key": "REG",
+      "file": "외국환거래규정_2026-110.pdf",
+      "format": "pdf_rule",
+      "sourceType": "ADMIN_RULE",
+      "title": "외국환거래규정",
+      "number": "재정경제부고시 제2026-110호",
+      "effectiveFrom": "2026-11-02",
+      "articles": ["제1-2조", "제2-31조", "제4-1조", "제4-2조", "제4-3조", "제4-4조", "제4-5조", "제4-6조", "제4-7조", "제4-8조"],
+      "items": {"제1-2조": "35"},
+      "notes": {"제2-31조": "2026-12-03 이후 개정 가능성, 재확인 필요"}
+    },
+    {
+      "key": "FETA",
+      "file": "외국환거래법_21065_시행20260102.hwp",
+      "format": "hwpml_law",
+      "sourceType": "LAW",
+      "title": "외국환거래법",
+      "number": "법률 제21065호",
+      "effectiveFrom": "2026-01-02",
+      "articles": ["제3조"]
+    },
+    {
+      "key": "FETA_DEC",
+      "file": "외국환거래법시행령_36280_시행20260428.hwp",
+      "format": "hwpml_law",
+      "sourceType": "LAW",
+      "title": "외국환거래법 시행령",
+      "number": "대통령령 제36280호",
+      "effectiveFrom": "2026-04-28",
+      "articles": ["제10조"]
+    },
+    {
+      "key": "EFTA",
+      "file": "전자금융거래법_22048_시행20261002.hwp",
+      "format": "hwpml_law",
+      "sourceType": "LAW",
+      "title": "전자금융거래법",
+      "number": "법률 제22048호",
+      "effectiveFrom": "2026-10-02",
+      "articles": ["제2조", "제6조", "제49조"],
+      "items": {"제2조": "10"}
+    },
+    {
+      "key": "EPS",
+      "file": "외국인고용법_21065_시행20251001.hwp",
+      "format": "hwpml_law",
+      "sourceType": "LAW",
+      "title": "외국인근로자의 고용 등에 관한 법률",
+      "number": "법률 제21065호",
+      "effectiveFrom": "2025-10-01",
+      "articles": ["제13조"]
+    },
+    {
+      "key": "GUIDE",
+      "file": "금감원_외국인금융생활가이드북_영어.pdf",
+      "format": "pdf_guide",
+      "sourceType": "GUIDE",
+      "title": "외국인을 위한 금융생활 가이드북(영어)",
+      "number": null,
+      "issuedOn": "2022-07",
+      "pages": [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 141, 152, 153, 154],
+      "headingPattern": "^\\s*(?:\\(\\d+\\)\\s+\\S|\\d\\.\\s+[A-Z가-힣])"
+    },
+    {
+      "key": "PRESS",
+      "file": "금감원_통장매매예방_보도자료_20261026.pdf",
+      "format": "pdf_guide",
+      "sourceType": "GUIDE",
+      "title": "금융감독원 보도자료(통장매매 예방)",
+      "number": null,
+      "issuedOn": "2026-10-26",
+      "pages": [1, 2, 3, 4],
+      "headingPattern": "^\\s*(?:[ⅠⅡⅢ]\\.|\\d\\s+\\S)"
+    }
+  ]
+}
