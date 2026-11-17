@@ -18,6 +18,10 @@ COPY pipeline/ pipeline/
 # 빌드할 때 모델을 이미지에 넣어 둔다 (실행 시 다운로드 없음)
 RUN python -W ignore -c "from pipeline.engine import load; load()"
 
-# Worker 코드와 실행 명령은 지수님이 추가
-# COPY worker/ worker/
-# CMD ["python", "-m", "worker"]
+# Worker(오지수). 모델 층 뒤에 두어 Worker 의존성·코드를 바꿔도 paddle 설치와 모델 다운로드를
+# 다시 하지 않는다. pip check로 엔진 의존성과 충돌이 없는지 빌드 때 확인한다.
+COPY requirements-worker.txt .
+RUN pip install --no-cache-dir -r requirements-worker.txt && pip check
+
+COPY worker/ worker/
+CMD ["python", "-m", "worker"]

@@ -1,1 +1,9 @@
 **/__pycache__
+# 빌드 컨텍스트에 비밀값·로컬 환경·측정 원자료를 보내지 않는다(Dockerfile은 필요한 파일만 COPY한다)
+.env
+.venv/
+measurements/
+tests/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
