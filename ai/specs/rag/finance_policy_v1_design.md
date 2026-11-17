@@ -546,3 +546,143 @@ SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm
   E-7-4는 `SPRING_NOT_CONFIGURED`, 비자 검색은 승인 확인 게이트웨이가 `UnconfiguredPolicyGateway`라 fail-closed로 실패한다.
 - **측정 스크립트에만 있으면** 숫자 대조용 INT-06 요약만 fixture로 바뀌고 서버 도구에는 영향이 없다. 다만 서버는 8081의 실제
   값으로 답하므로 숫자 대조가 어긋날 수 있다. 그래서 이번에는 측정 스크립트도 8081을 쓰게 한다(16-1).
+
+## 17. 기준선(v4.1)·after(v4.2)·회귀 결과 (채점 확정 반영 2026-11-18, A02v#2·#3 유보)
+
+측정: claude-haiku-5-5, thinking=model_default, maxTokens 2000, 로컬 AI 서버 8001, 비자 정책 데이터는 16-1절 조건.
+기준선 v4.1 46문항 × 3회(2026-11-17T16:38Z 시작, $0.1701), after v4.2 46 × 3(17:10Z, $0.3191),
+회귀 v4.2 49 × 3(17:24Z, $0.2710). 등급은 11-1절 규칙 1~5와 A15 위험 오답 기준으로 Claude Code가 매긴 초안에
+**사용자 확정(2026-11-18)**을 반영했다: 위험 오답 7, A03v#3 오답(비위험), A09#3·A09v#1 적용 대상 오류(오답), 경계 사례는 초안대로.
+회차별 표·메모: `ai/artifacts/chat/policy_v4_1_vs_v4_2_grading_draft.md`,
+`--grades` 형식 초안: `ai/artifacts/chat/policy_{baseline_v4_1,after_v4_2}_grades_draft.json`(커밋하지 않음).
+
+### 17-1. 기준선 vs after (확정 반영)
+
+| 지표 | 기준선 v4.1 | after v4.2 |
+|---|---|---|
+| 답변 정답률(answerable 96회) | 11/96 (11.5%) | 62/96 (64.6%) (초안 64에서 A09#3·A09v#1 오답 처리) |
+| ㄴ 원문 48 / 변형 48 | 6 / 5 | 32 / 30 |
+| 부분 · 오답 · 기권(answerable) | 28 · 4 · 53 | 19 · 10 · 5 |
+| not_in_docs 올바른 기권(24회) | 21 (오답 3: N08 SWIFT 코드 제시) | 23 (오답 1: N04#3) |
+| out_of_scope ok(18회) | 18 | 18 |
+| 위험 오답 | 0 (참고: A15#1 부분, 아래 17-3) | 7 |
+| 적용 대상 오류(거주자 조항을 사용자에게) | 0 | 2 (A09#3, A09v#1, 제4-3조 ③, 오답) + 유보 2 (A02v#2·#3) |
+| 근거 없는 규정 숫자(사람 분류, 17-2) | 0 | 0 |
+| 도구 선택 일치 | 80% (110/138) | 88% (122/138) |
+| 지연 전체 중앙값 · p95 | 3,776 · 5,931 ms | 4,546 · 8,008 ms |
+| 첫 글자 중앙값 · p95 | 3,089 · 5,073 ms | 3,698 · 7,122 ms |
+| 호출당 비용(평균 입력·출력 토큰) | $0.00123 (9,329 · 600) | $0.00231 (19,224 · 780) |
+
+유형별 등급 수(46문항 × 3회 = 138):
+
+| 유형 | 기준선 v4.1 | after v4.2 |
+|---|---|---|
+| answerable 원문(48) | 정답 6 · 부분 13 · 오답 3 · 기권 26 | 정답 32 · 부분 9 · 오답 5 · 기권 2 |
+| answerable 변형(48) | 정답 5 · 부분 15 · 오답 1 · 기권 27 | 정답 30 · 부분 10 · 오답 5 · 기권 3 |
+| not_in_docs(24) | 올바른 기권 21 · 오답 3 | 올바른 기권 23 · 오답 1 |
+| out_of_scope(18) | ok 18 | ok 18 |
+
+- 기준선 오답 4: A09 ×3·A09v#3(지정거래외국환은행을 '정부가 인가한 외국환은행' 또는 '은행이 정한 규칙'으로 설명).
+- after 오답 10(answerable): 위험 오답 6(A01#1, A01v#2·#3, A02#1, A03#3, A15v#1 — 제4-4조 ④ **수령** 규정을 **송금**으로 옮김),
+  A03v#3(비위험, 제4-4조 ① 3호를 '추가 증빙 없이'로 설명 — 원문은 취득경위입증서류 필요),
+  A09#3·A09v#1(적용 대상 오류, 거주자 조항 제4-3조 ③을 사용자에게 적용),
+  A12#1('급여는 지정거래외국환은행으로만', ③ 3호 체신관서 경로와 모순). not_in_docs N04#3도 같은 ④ 오독(위험 오답).
+- after 부분 19의 주된 빠짐: A03·A03v 주소·거소(법 제3조), A06 범죄 이용 대여(제6조 ③ 3호), A02 지정 은행 경유 의무·카드사 경로,
+  A05v 14일, A13·A13v는 제6조 ③을 '돈을 받아 보관·전달'로 설명(원문은 접근매체).
+- after 기권 5: A12 ×2·A12v ×3 — '문서에 우체국 없음'으로 답함(검색이 제4-4조 ③ 3호 '체신관서'를 못 찾음, 2단계 A12 실패와 같은 원인).
+- 가이드북(금감원) 발행처를 'Shinhan guide'로 쓴 회차: A01#1, A01v#3, A07#1(도구 결과 제목에 발행처가 없음). 등급에는 반영하지 않음.
+
+### 17-2. 근거 없는 숫자 분류 (채점기 수정 없음, 사람 분류)
+
+| 분류 | 기준선 v4.1 (35답변 / 45개) | after v4.2 (23답변 / 23개) |
+|---|---|---|
+| 상담 전화번호 | 43개(34답변): 112·1332·126·1345, 1350(고용노동부 2건) | 4개: 126 ×3(N03), 112 ×1(A13v#1) |
+| 문서·도구 값의 표기 차이 | 2개(A11v#1 22%·30% = 금융 분석 520,000·700,000 / 2,350,000 반올림) | 19개: '30 million' = 전자금융거래법 제49조 ④ '3천만원'(A06·A06v·A08·A08v·A16·A16v 각 3, A13#3) |
+| 실제로 근거 없는 숫자 | 0 | 0 |
+
+- 숫자 검사가 잡지 않은 문서 밖 값: 기준선 A10v#1 전화번호 '1577-8585', N08 ×3 SWIFT 코드(숫자 아님). after 없음.
+- 같은 '30 million'이 회차에 따라 supported/unsupported로 갈림(A13#1·#2, A13v는 supported) — 한국어 단위 표기('3천만원') 대조 한계(17-5).
+- 틀린 적용은 근거 없는 숫자가 아니라 오답으로 셌다(17-1의 제4-4조 ④ 5천불 오독).
+
+### 17-3. 위험 오답 (2026-11-18 사용자 확정)
+
+원인: 제4-4조 ④는 '증빙 없이 **수령**(받는 돈)' 규정인데 **송금**(보내는 돈)으로 옮겼다.
+
+| 문항#회차 | 판정 | 답변 인용 |
+|---|---|---|
+| A01#1 | 위험 오답 | "Article 4-4 … lets a foreign resident send up to USD 5,000 per transaction without supporting documents." |
+| A01v#2 | 위험 오답 | "Article 4-4, paragraph 4 … non-residents and foreign residents can send up to 5,000 dollars per transaction without supporting documents." |
+| A01v#3 | 위험 오답 | "Article 4-4(4) … allows sending without supporting documents only for a single payment of up to 5,000 dollars." |
+| A02#1 | 위험 오답 | "Under Article 4-4(4), a single transaction of up to US$5,000 can be sent without supporting documents." |
+| A03#3 | 위험 오답 | "both foreign residents and non-residents can send up to US$5,000 per transaction without supporting documents" |
+| A15v#1 | 위험 오답 | "Under Article 4-4(4) …, transfers of up to USD 5,000 per transaction do not need supporting documents." |
+| N04#3 | 위험 오답 | "Article 4-4(4) … a foreigner resident in Korea can send up to USD 5,000 per transaction without submitting supporting documents." |
+| A03v#3 | 오답(비위험, 서류 요건 누락) | "Article 4-4(1)3 … allows payment through a designated foreign exchange bank without extra proof." |
+
+- 정한 위험 오답 유형(외국인거주자에게 거주자 한도 적용, 무증빙 10만불, 소액송금 앱은 지정은행·한도와 상관없다)은
+  기준선·after 모두 0회. after A01·A01v 6회 중 5회는 제4-3조(10만불)가 외국인거주자를 제외한다고 명시했고,
+  A01v#2도 '외국인 근로자에게는 허용되지 않는다'고 답했다.
+- 참고(부분으로 매김): 기준선 A15#1 "using one generally does not require your designated bank" — 근거 없이 지정은행 불필요 쪽으로
+  답했으나 한도가 없다고는 하지 않음. after A13#1·#3, A13v#1·#2 — 제6조 ③을 '돈을 받아 보관·전달하는 행위'로 설명(원문은 접근매체).
+- 경계 사례(위 두 건)는 초안대로 부분으로 확정.
+- 적용 대상 오류(오답 확정): A09#3 "Some overseas payments also require you to name one such bank in advance (Article 4-3, paragraph 3)",
+  A09v#1 "The Foreign Exchange Transaction Regulation, Article 4-3 …, requires you to designate a transaction foreign exchange bank for
+  certain outgoing payments" — 제4-3조는 거주자(외국인거주자 제외) 조항이고 ③은 ① 9호(해외이주비) 지급의 은행 지정이다.
+- **유보(재판단 대기)**: A02v#2 "Article 4-3(3) … says a person making certain overseas payments must designate a transacting foreign
+  exchange bank. The excerpt I found does not say which payments that covers, so I can't confirm it applies to your salary transfers.",
+  A02v#3 "Article 4-3(3) … requires a person making certain payments to designate one foreign exchange bank for those transactions. …
+  The documents I found do not clearly say whether a monthly salary transfer falls under that article". 같은 거주자 조항을 인용했으나
+  사용자에게 적용된다고 단정하지 않았다(현재 등급 부분).
+
+### 17-4. after 도구 선택 불일치 (16/138, 모두 not_in_docs)
+
+| 문항 | 회차 | 실제 | 이유(답변으로 본 판단) | 등급 |
+|---|---|---|---|---|
+| N01 | 1·2·3 | 도구 없음 | 수수료는 규정 문서 밖이라고 바로 답함 | 올바른 기권 |
+| N03 | 1·2·3 | 도구 없음 | 세금은 문서 밖, 126 안내 | 올바른 기권 |
+| N06 | 1·2·3 | 도구 없음 | 상대 은행 수수료는 문서 밖 | 올바른 기권 |
+| N05 | 1·3 | 도구 없음 | 앱별 수수료 비교 불가(#2는 검색 후 은행연합회 공시 안내) | 올바른 기권 |
+| N08 | 1·3 | 도구 없음 | SWIFT 코드 없음(#2는 검색 후 같은 답) | 올바른 기권 |
+| N02 | 1·2·3 | get_fx_rate | 참고 환율 도구가 있어 그 값을 '견적 아님'으로 안내 | 올바른 기권 |
+
+- 검색 없이 답한 13회도 모두 문서 밖이라고 바르게 안내했다. 불일치는 평가 세트가 not_in_docs에 검색을 기대값으로 둔 데서 나온다.
+  기대값 변경(예: not_in_docs는 검색 또는 도구 없음 허용, N02는 get_fx_rate 허용)은 **제안만** 하고 바꾸지 않았다.
+- 기준선 불일치 28회: 비자 검색 11(A01v·A02·A03·A05·A05v·A15), 금융 분석 12(A02·A05v·A11·A11v·A16·A16v), get_fx_rate 5(N01·N02).
+
+### 17-5. 49문항 회귀 (v4.2)
+
+- 도구 선택 일치 100%, 근거 없는 숫자 1/96(H02 'about 30%' = 금융 분석 29.8% 반올림, 표기 차이), 지연 전체 중앙값 2,994 · p95 5,276 ms.
+- 판단형 결론(기존 결론 정답 기준, 초안): **기존 J01~J10 30/30**(기준 29/30 이상 충족).
+  평가 세트 안 hold-out 문항(X01~X06·X09, 21회) **20/21** — X03#2는 "확실히 말할 수 없다"로 결론을 내지 않음(틀린 결론은 아님).
+  X04 ×3은 평균 변동 지출 대신 신고 지출 450,000으로 합계 1,670,000을 내 결론(부족)은 맞음.
+- 계산 참조값: 기존 27/27 포함, 평가 세트 hold-out 15개 중 포함 3·값 없음 12(값 없음은 X07·X08·X11·X12, 판단형 아님).
+
+### 17-6. 공개 항목
+
+- **O01 E-7-4**: 기준선·after·회귀 모든 회차에서 `calculate_e74_score` → `SPRING_HTTP_502`(2회 재시도). 모든 측정에 같은 조건이다.
+- **숫자 검사의 한국어 단위 표기 한계**: '3천만원'과 '30 million'을 회차에 따라 다르게 대조한다. 근거 없는 숫자는 사람 분류(17-2)로 보정했고 채점기는 고치지 않았다.
+- **hold-out v4.1 요약이 v4.2 확정 전 구현 쪽 채팅에 노출됨**: 그 요약은 분석·튜닝에 쓰지 않았다(사용자 기록).
+- **hold-out(레포 밖 20문항)은 키 이름만 맞춘 복사본**이며 도구 일치 지표는 쓰지 않는다. 결과 문서에는 집계만 적는다.
+- **k=8 선택 근거**: 미리 정한 1문항 동점 규칙상 5와 동점이지만 주 지표(답변 정답·위험 오답) 때문에 8을 골랐다(15절·16절).
+- 채점은 Claude Code 초안에 사용자 확정(2026-11-18)을 반영했다(A02v#2·#3은 유보). 11-1절 규칙은 측정 뒤 바꾸지 않았다.
+
+## 18. 스펙 가드 비교 (측정 전 고정, 2026-11-18)
+
+after v4.2의 위험 오답 7은 모두 제4-4조 ④(수령) → 송금 오독이고, 적용 대상 오류 2는 거주자 조항(제4-3조 ③)을 사용자에게 적용했다.
+이를 막는 두 안을 같은 조건(16-1절, 46문항 × 3회)에서 비교한다.
+
+| 안 | 내용 | 바뀌는 것 |
+|---|---|---|
+| ① 프롬프트 v4.3a | v4.2 + 규칙 한 줄: '수령=받는 돈, 지급=보내는 돈, 적용 대상 확인 후 인용' | 시스템 프롬프트만(도구·검색 그대로) |
+| ② 도구 결과 라벨 | 프롬프트 v4.2 그대로 + 검색 결과에 코드가 붙인 항 단위 라벨(direction: send/receive, appliesTo, 발행처) | 도구 결과만. 라벨 표는 사람이 조문과 대조해 확인한 뒤 구현 |
+
+**고르는 기준(측정 전 고정, 순서대로 적용):**
+
+1. 위험 오답 0
+2. 적용 대상 오류 0
+3. 답변 정답이 64에서 3 이상 줄지 않음(62 이상). 64는 지시 당시 초안 값이며, 확정 반영 v4.2 값은 62다(17-1).
+4. 더 단순한 안(① 프롬프트 한 줄 < ② 라벨 코드·데이터)
+
+- 채점은 17절과 같은 규칙(11-1절 1~5, 위험 오답·적용 대상 오류는 17-3절 확정 기준)으로 한다.
+- 두 안 모두 기준 1·2를 못 넘으면 고르지 않고 결과만 보고한다.
+- **범위 밖(후보로만 기록)**: A12 체신관서 검색 실패(after A12·A12v 6회 중 오답 1·기권 5). 동의어(우체국↔체신관서)는 15절 후보와 같다.
