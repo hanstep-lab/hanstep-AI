@@ -35,6 +35,7 @@ from app.rag.evaluation import (
     latency_summary,
     run_cases,
     select_gateway,
+    split_ready,
 )
 from app.rag.retrieval import SearchService, SearchUnavailableError
 
@@ -48,12 +49,7 @@ def main() -> int:
 
     spec = json.loads(args.cases.read_text(encoding="utf-8"))
     cases = spec.get("cases", [])
-    ready = [c for c in cases if c.get("status") == "ready"]
-    blocked = [
-        {"id": c.get("id"), "reason": c.get("blocked_reason", c.get("status"))}
-        for c in cases
-        if c.get("status") != "ready"
-    ]
+    ready, blocked = split_ready(cases)
     settings = get_settings()
     base = {"cases_total": len(cases), "ready": len(ready), "blocked": blocked}
     if not ready:
