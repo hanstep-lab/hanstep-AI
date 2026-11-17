@@ -1,0 +1,727 @@
+{
+  "version": "finance-policy-questions-v1",
+  "description": "금융 정책 RAG(해외송금 규정, 이슈 #88) 평가 세트. 영어 24문항(answerable 16, not_in_docs 4, out_of_scope 4). 페르소나: E-9 필리핀 근로자 Reyes(2022년 입국, 재직 중). gold는 문서·조문(또는 가이드북·보도자료 PDF 쪽), keyFacts는 정답 핵심 사실과 그 근거 원문 인용(추출 텍스트에서 공백 무시하고 확인). queryKo·queryEn은 검색 비교용 검색어. riskyWrong은 사용자가 따르면 규정 위반이 될 수 있는 오답 유형(위험 오답). 가이드북·보도자료의 쪽은 PDF 쪽 번호. answerHint는 영어 답변에서 핵심 사실을 찾는 자동 채점 보조 정규식(맞아도 정답 판정이 아님, 사람 확인). expectedTools는 v4.1 기준선(규정 도구 없음)의 기대 도구: 규정 질문은 없음, out_of_scope는 그 주제의 기존 도구.",
+  "persona": {
+    "name": "Reyes",
+    "visa": "E-9",
+    "nationality": "Philippines",
+    "entered": 2022,
+    "employed": true
+  },
+  "documents": {
+    "REG": {
+      "title": "외국환거래규정",
+      "number": "재정경제부고시 제2026-110호",
+      "sourceType": "ADMIN_RULE"
+    },
+    "FETA": {
+      "title": "외국환거래법",
+      "number": "법률 제21065호",
+      "sourceType": "LAW"
+    },
+    "FETA_DEC": {
+      "title": "외국환거래법 시행령",
+      "number": "대통령령 제36280호",
+      "sourceType": "LAW"
+    },
+    "EFTA": {
+      "title": "전자금융거래법",
+      "number": "법률 제22048호",
+      "sourceType": "LAW"
+    },
+    "EPS": {
+      "title": "외국인근로자의 고용 등에 관한 법률",
+      "number": "법률 제21065호",
+      "sourceType": "LAW"
+    },
+    "GUIDE": {
+      "title": "외국인을 위한 금융생활 가이드북(영어)",
+      "number": null,
+      "sourceType": "GUIDE"
+    },
+    "PRESS": {
+      "title": "금융감독원 보도자료(통장매매 예방)",
+      "number": null,
+      "sourceType": "GUIDE"
+    }
+  },
+  "grading": {
+    "primary": "답변 정답률: correct(핵심 사실 모두 포함, 틀린 내용 없음) / partial / wrong(틀린 사실 하나라도 포함) / correct_abstain(not_in_docs에서 문서에 없다고 안내). wrong 중 riskyWrong에 해당하면 risky_wrong으로 따로 센다.",
+    "secondary": [
+      "근거 없는 규정 숫자 수",
+      "적용 대상 오류 수(거주자 규정을 외국인거주자에게 적용 등)",
+      "조문 인용 수",
+      "시행일 표시 여부",
+      "법률 판단을 단정한 수"
+    ]
+  },
+  "questions": [
+    {
+      "id": "A01",
+      "category": "answerable",
+      "text": "Can I send up to USD 100,000 a year without documents?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제4-3조",
+          "ref": "제4-3조 ①"
+        },
+        {
+          "doc": "REG",
+          "unit": "제4-4조",
+          "ref": "제4-4조 ①·②"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "증빙서류 없이 연간 미화 10만불까지 지급하는 제4-3조 ①은 거주자 규정이고 외국인거주자는 제외된다",
+          "doc": "REG",
+          "unit": "제4-3조",
+          "quote": "거주자(외국인거주자는제외한다)는",
+          "answerHint": "not\\s+(?:apply|for)|exclud|does\\s+not\\s+cover|residents?\\s+other\\s+than"
+        },
+        {
+          "fact": "외국인거주자는 취득경위입증서류를 내고 외국환은행장의 확인을 받아 지급한다",
+          "doc": "REG",
+          "unit": "제4-4조",
+          "quote": "취득경위입증서류",
+          "answerHint": "proof|source\\s+of\\s+(?:the\\s+)?funds|how\\s+(?:you\\s+)?(?:got|earned|acquired)"
+        },
+        {
+          "fact": "그 사유가 없으면 연간 미화 5만불 범위에서 지정거래외국환은행 또는 신용카드사를 통해 지급할 수 있다",
+          "doc": "REG",
+          "unit": "제4-4조",
+          "quote": "연간미화5만불",
+          "answerHint": "50,000|50k|fifty\\s+thousand"
+        }
+      ],
+      "queryKo": "외국인거주자 증빙서류 없이 연간 미화 10만불 해외송금",
+      "queryEn": "foreign resident send USD 100,000 a year abroad without documents",
+      "riskyWrong": [
+        "외국인거주자도 증빙 없이 연간 미화 10만불까지 보낼 수 있다고 답함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A02",
+      "category": "answerable",
+      "text": "Do I still need a designated bank to send my salary home?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제4-4조",
+          "ref": "제4-4조 ① 3호"
+        },
+        {
+          "doc": "REG",
+          "unit": "제4-2조",
+          "ref": "제4-2조 ⑤"
+        },
+        {
+          "doc": "REG",
+          "unit": "제1-2조",
+          "ref": "제1-2조 35호"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "국내 근무로 받은 보수 범위의 지급은 지정거래외국환은행을 통해 한다",
+          "doc": "REG",
+          "unit": "제4-4조",
+          "quote": "국내에서의고용,근무에따라취득한국내보수",
+          "answerHint": "designated"
+        },
+        {
+          "fact": "거래외국환은행을 지정했으면 그 은행을 통해 지급해야 한다",
+          "doc": "REG",
+          "unit": "제4-2조",
+          "quote": "당해외국환은행을통하여지급등",
+          "answerHint": "same\\s+bank|that\\s+bank|through\\s+(?:the|your)\\s+designated"
+        }
+      ],
+      "queryKo": "급여 해외송금 지정거래외국환은행 필요 여부",
+      "queryEn": "do I need a designated foreign exchange bank to send salary abroad",
+      "riskyWrong": [
+        "지정거래외국환은행 없이 아무 은행으로나 급여를 보내도 된다고 답함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A03",
+      "category": "answerable",
+      "text": "Am I a resident or non-resident for remittance rules?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "FETA",
+          "unit": "제3조",
+          "ref": "외국환거래법 제3조 ① 14호·15호, ②"
+        },
+        {
+          "doc": "FETA_DEC",
+          "unit": "제10조",
+          "ref": "시행령 제10조 ① 4호"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "거주자는 대한민국에 주소 또는 거소를 둔 개인 등이다",
+          "doc": "FETA",
+          "unit": "제3조",
+          "quote": "대한민국에 주소 또는 거소를 둔 개인",
+          "answerHint": "address|residence|domicile"
+        },
+        {
+          "fact": "6개월 이상 국내에 체재하고 있는 외국인은 거주자로 본다",
+          "doc": "FETA_DEC",
+          "unit": "제10조",
+          "quote": "6개월 이상 국내에서 체재하고 있는 자",
+          "answerHint": "six\\s+months|6\\s+months"
+        }
+      ],
+      "queryKo": "외국인 근로자 거주자 비거주자 구분 6개월 체재",
+      "queryEn": "is a foreign worker in Korea a resident or non-resident under foreign exchange law",
+      "riskyWrong": [
+        "2022년부터 국내에 체재하며 일하는 외국인을 비거주자라고 단정함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A04",
+      "category": "answerable",
+      "text": "How much can I send with a fintech small-sum remittance app?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제2-31조",
+          "ref": "제2-31조 ① 2호"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "외국인거주자 대상 소액해외송금은 건당 미화 5천불이 한도다",
+          "doc": "REG",
+          "unit": "제2-31조",
+          "quote": "건당지급및수령한도는각각건당미화5천불",
+          "answerHint": "5,000|5k|five\\s+thousand"
+        },
+        {
+          "fact": "동일인당 연간 지급 한도는 미화 5만불이다",
+          "doc": "REG",
+          "unit": "제2-31조",
+          "quote": "동일인당연간지급및수령한도는각각미화5만불",
+          "answerHint": "50,000|50k|fifty\\s+thousand"
+        }
+      ],
+      "queryKo": "소액해외송금업자 외국인거주자 건당 연간 송금 한도",
+      "queryEn": "small-sum overseas remittance app limit per transaction per year foreign resident",
+      "riskyWrong": [
+        "소액송금 앱으로 연간 미화 10만불까지 보낼 수 있다고 답함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A05",
+      "category": "answerable",
+      "text": "My departure guarantee insurance will be paid when I leave Korea. Does that money have to go through my designated bank?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제4-4조",
+          "ref": "제4-4조 ① 3호 단서"
+        },
+        {
+          "doc": "EPS",
+          "unit": "제13조",
+          "ref": "외국인고용법 제13조"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "출국만기보험 수령은 지정거래외국환은행을 통하지 않아도 된다",
+          "doc": "REG",
+          "unit": "제4-4조",
+          "quote": "출국만기보험수령은지정거래외국환은행을통하지아니하여도된다",
+          "answerHint": "(?:not|n't)\\s+(?:need|have)\\s+to\\s+(?:go\\s+)?through|without\\s+(?:going\\s+through\\s+)?(?:the|your)\\s+designated|exempt|exception"
+        },
+        {
+          "fact": "출국만기보험등은 피보험자등이 출국한 때부터 14일 이내에 지급한다",
+          "doc": "EPS",
+          "unit": "제13조",
+          "quote": "출국한 때부터 14일",
+          "answerHint": "14\\s+days|fourteen\\s+days"
+        }
+      ],
+      "queryKo": "출국만기보험 수령 해외송금 지정거래외국환은행",
+      "queryEn": "departure guarantee insurance payout send abroad designated bank",
+      "riskyWrong": [
+        "출국만기보험도 반드시 지정거래외국환은행을 거쳐야 한다고 답함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A06",
+      "category": "answerable",
+      "text": "Can I lend my bank account to a friend for money?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "EFTA",
+          "unit": "제6조",
+          "ref": "전자금융거래법 제6조 ③ 2호"
+        },
+        {
+          "doc": "EFTA",
+          "unit": "제49조",
+          "ref": "제49조 ④ 2호"
+        },
+        {
+          "doc": "GUIDE",
+          "unit": "p152",
+          "ref": "가이드북 p.152"
+        },
+        {
+          "doc": "PRESS",
+          "unit": "p3",
+          "ref": "보도자료 p.3"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "대가를 받거나 약속하고 접근매체를 대여하는 행위는 금지된다",
+          "doc": "EFTA",
+          "unit": "제6조",
+          "quote": "대가를 수수(授受)ㆍ요구 또는 약속하면서 접근매체를 대여받거나 대여하는 행위",
+          "answerHint": "illegal|prohibit|not\\s+allowed|forbidden|banned"
+        },
+        {
+          "fact": "위반하면 5년 이하의 징역 또는 3천만원 이하의 벌금에 처한다",
+          "doc": "EFTA",
+          "unit": "제49조",
+          "quote": "5년 이하의 징역 또는 3천만원 이하의 벌금",
+          "answerHint": "5\\s+years|five\\s+years|30\\s+million"
+        }
+      ],
+      "queryKo": "통장 대여 대가 접근매체 처벌",
+      "queryEn": "lend my bank account to a friend for money penalty",
+      "riskyWrong": [
+        "대가를 받고 통장을 빌려줘도 된다거나 친구라면 괜찮다고 답함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A07",
+      "category": "answerable",
+      "text": "What documents do I need to send my salary to my family in the Philippines?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제4-4조",
+          "ref": "제4-4조 ① 본문·3호"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "비거주자·외국인거주자는 자금의 취득경위를 입증하는 서류를 내고 외국환은행장의 확인을 받아야 지급할 수 있다",
+          "doc": "REG",
+          "unit": "제4-4조",
+          "quote": "취득경위입증서류",
+          "answerHint": "proof|source\\s+of\\s+(?:the\\s+)?funds|payslip|pay\\s+slip|salary\\s+statement|employment\\s+certificate"
+        },
+        {
+          "fact": "국내 고용·근무로 취득한 보수 범위에서 지정거래외국환은행을 통해 지급한다",
+          "doc": "REG",
+          "unit": "제4-4조",
+          "quote": "지정거래외국환은행을통해지급하는경우",
+          "answerHint": "designated"
+        }
+      ],
+      "queryKo": "외국인거주자 급여 해외송금 취득경위입증서류",
+      "queryEn": "documents needed to send salary abroad foreign worker proof of income",
+      "riskyWrong": [],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A08",
+      "category": "answerable",
+      "text": "Someone wants to buy my bank account and check card. Is that allowed?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "EFTA",
+          "unit": "제6조",
+          "ref": "전자금융거래법 제6조 ③ 1호"
+        },
+        {
+          "doc": "EFTA",
+          "unit": "제49조",
+          "ref": "제49조 ④ 1호"
+        },
+        {
+          "doc": "GUIDE",
+          "unit": "p152",
+          "ref": "가이드북 p.152"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "접근매체를 양도하거나 양수하는 행위는 금지된다",
+          "doc": "EFTA",
+          "unit": "제6조",
+          "quote": "접근매체를 양도하거나 양수하는 행위",
+          "answerHint": "illegal|prohibit|not\\s+allowed|forbidden|banned"
+        },
+        {
+          "fact": "위반하면 5년 이하의 징역 또는 3천만원 이하의 벌금에 처한다",
+          "doc": "EFTA",
+          "unit": "제49조",
+          "quote": "5년 이하의 징역 또는 3천만원 이하의 벌금",
+          "answerHint": "5\\s+years|five\\s+years|30\\s+million"
+        }
+      ],
+      "queryKo": "통장 체크카드 판매 양도 처벌",
+      "queryEn": "sell my bank account and check card is it legal",
+      "riskyWrong": [
+        "통장이나 체크카드를 팔아도 된다고 답함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A09",
+      "category": "answerable",
+      "text": "What is a 'designated foreign exchange bank'?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제1-2조",
+          "ref": "제1-2조 35호"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "거래 당사자가 대외거래 및 사후관리를 위하여 지정한 외국환은행이다",
+          "doc": "REG",
+          "unit": "제1-2조",
+          "quote": "대외거래및사후관리를위하여지정한외국환은행",
+          "answerHint": "design(?:ate|ated)\\s+.*(?:bank)|bank\\s+(?:you|that\\s+you)\\s+(?:choose|designate|register)"
+        }
+      ],
+      "queryKo": "지정거래외국환은행 정의",
+      "queryEn": "what is a designated foreign exchange bank",
+      "riskyWrong": [],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A10",
+      "category": "answerable",
+      "text": "My brother is sending me USD 3,000 from abroad. Do I need documents to receive it?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제4-4조",
+          "ref": "제4-4조 ④"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "비거주자·외국인거주자는 건당 5천불 이내이면 지급등의 증빙서류 없이 수령할 수 있다",
+          "doc": "REG",
+          "unit": "제4-4조",
+          "quote": "건당5천불이내인경우",
+          "answerHint": "5,000|5k|five\\s+thousand"
+        }
+      ],
+      "queryKo": "외국인거주자 해외에서 송금 받을 때 증빙서류 건당 5천불",
+      "queryEn": "receive money from abroad without documents foreign resident per transaction",
+      "riskyWrong": [],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A11",
+      "category": "answerable",
+      "text": "I'm traveling abroad on vacation. How much in travel expenses can I pay as a foreign resident?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제4-4조",
+          "ref": "제4-4조 ③ 2호"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "외국인거주자는 미화 1만불 이내의 해외여행경비를 지급할 수 있다",
+          "doc": "REG",
+          "unit": "제4-4조",
+          "quote": "외국인거주자의미화1만불이내의해외여행경비지급",
+          "answerHint": "10,000|10k|ten\\s+thousand"
+        }
+      ],
+      "queryKo": "외국인거주자 해외여행경비 지급 한도",
+      "queryEn": "foreign resident travel expenses abroad limit",
+      "riskyWrong": [],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A12",
+      "category": "answerable",
+      "text": "Can I send my salary abroad through the post office instead of a bank?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제4-4조",
+          "ref": "제4-4조 ③ 3호"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "외국인거주자는 제1항 제3호 자금의 취득경위입증서류를 내고 체신관서를 통해 지급할 수 있다",
+          "doc": "REG",
+          "unit": "제4-4조",
+          "quote": "체신관서를통하여지급",
+          "answerHint": "post\\s+office"
+        }
+      ],
+      "queryKo": "외국인거주자 우체국 체신관서 해외송금",
+      "queryEn": "send salary abroad through the post office foreign resident",
+      "riskyWrong": [],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A13",
+      "category": "answerable",
+      "text": "A part-time job ad says I only need to receive money in my account and send it on. Is that OK?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "GUIDE",
+          "unit": "p153",
+          "ref": "가이드북 p.153"
+        },
+        {
+          "doc": "PRESS",
+          "unit": "p1",
+          "ref": "보도자료 p.1"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "사기범은 아르바이트 사이트 등에서 구매대행·환전 명목으로 계좌를 받아 피해금을 다시 이체하게 한다",
+          "doc": "GUIDE",
+          "unit": "p153",
+          "quote": "They will ask you to transfer the voice phishing damages deposited into your account",
+          "answerHint": "scam|fraud|phishing"
+        },
+        {
+          "fact": "국내 거주 외국인이 통장 매매와 개인 간 외화거래로 자금세탁 등 금융범죄에 연루되는 사례가 있다",
+          "doc": "PRESS",
+          "unit": "p1",
+          "quote": "국내거주외국인이통장매매와개인간외화거래등으로인한자금세탁등금융범죄에연루되는사례",
+          "answerHint": "launder|crime|criminal"
+        }
+      ],
+      "queryKo": "아르바이트 계좌로 돈 받아 이체 보이스피싱 연루",
+      "queryEn": "part-time job receive money in my account and transfer it",
+      "riskyWrong": [
+        "아르바이트로 돈을 받아 다시 보내는 일은 문제없다고 답함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A14",
+      "category": "answerable",
+      "text": "A friend sends money home cheaply without a license. Can I use him?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "GUIDE",
+          "unit": "p109",
+          "ref": "가이드북 p.109"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "무등록 사설 브로커를 통한 송금은 '환치기'로 외국환거래법을 위반하는 불법 행위다",
+          "doc": "GUIDE",
+          "unit": "p109",
+          "quote": "which violates the Foreign Exchange Transactions Act",
+          "answerHint": "illegal|unregistered|unlicensed|hwanchigi|violat"
+        }
+      ],
+      "queryKo": "무등록 브로커 해외송금 환치기 불법",
+      "queryEn": "unlicensed broker send money abroad illegal hwanchigi",
+      "riskyWrong": [
+        "무등록 개인을 통한 송금도 괜찮다고 답함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A15",
+      "category": "answerable",
+      "text": "If I use a licensed small-sum remittance app, do I still have to use my designated bank?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "REG",
+          "unit": "제2-31조",
+          "ref": "제2-31조 ⑦"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "소액해외송금업자를 통한 지급에는 지정거래외국환은행을 통하도록 한 제4-3조 ③, 제4-4조 ① 3호·②, 제4-5조를 적용하지 않을 수 있다",
+          "doc": "REG",
+          "unit": "제2-31조",
+          "quote": "제4-4조제1항제3호및같은조제2항,제4-5조의규정은적용하지아니할수있다",
+          "answerHint": "(?:not|n't)\\s+(?:need|have)\\s+to|may\\s+not\\s+apply|does\\s+not\\s+apply|exempt|exception"
+        }
+      ],
+      "queryKo": "소액해외송금업자 지정거래외국환은행 적용 예외",
+      "queryEn": "small-sum remittance app designated bank rule exception",
+      "riskyWrong": [],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "A16",
+      "category": "answerable",
+      "text": "I already gave my bank card to someone last month. What should I do now?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [
+        {
+          "doc": "PRESS",
+          "unit": "p3",
+          "ref": "보도자료 p.3"
+        }
+      ],
+      "keyFacts": [
+        {
+          "fact": "이미 양도·대여했다면 경찰과 금융회사에 신고해야 한다",
+          "doc": "PRESS",
+          "unit": "p3",
+          "quote": "이미 양도·대여했다면 경찰과 금융회사에 신고",
+          "answerHint": "police"
+        }
+      ],
+      "queryKo": "통장 체크카드 이미 양도 대여 신고",
+      "queryEn": "already gave my bank card to someone what to do report",
+      "riskyWrong": [
+        "아무 조치가 필요 없다고 답함"
+      ],
+      "expectBehavior": "answer_with_citation"
+    },
+    {
+      "id": "N01",
+      "category": "not_in_docs",
+      "text": "What is Shinhan Bank's exact fee today for sending money to the Philippines?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [],
+      "keyFacts": [],
+      "note": "가이드북 p.131에 2022년 기준 일반 수수료 범위가 있지만 신한은행의 현재 수수료는 없다",
+      "expectBehavior": "say_not_in_documents_no_numbers"
+    },
+    {
+      "id": "N02",
+      "category": "not_in_docs",
+      "text": "What is today's exchange rate from Korean won to Philippine peso?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [],
+      "keyFacts": [],
+      "note": "현재 환율은 문서에 없다",
+      "expectBehavior": "say_not_in_documents_no_numbers"
+    },
+    {
+      "id": "N03",
+      "category": "not_in_docs",
+      "text": "Do I have to pay tax in Korea on the money I send home?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [],
+      "keyFacts": [],
+      "note": "송금액 과세 여부는 적재 범위에 없다(제4-8조는 외국환은행의 국세청 통보만 다룬다)",
+      "expectBehavior": "say_not_in_documents_no_numbers"
+    },
+    {
+      "id": "N04",
+      "category": "not_in_docs",
+      "text": "How much can my family in the Philippines receive without reporting it to the Philippine government?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [],
+      "keyFacts": [],
+      "note": "필리핀(상대국) 규정은 문서에 없다",
+      "expectBehavior": "say_not_in_documents_no_numbers"
+    },
+    {
+      "id": "O01",
+      "category": "out_of_scope",
+      "text": "What is my E-7-4 visa score?",
+      "history": [],
+      "expectedTools": [
+        "calculate_e74_score"
+      ],
+      "gold": [],
+      "keyFacts": [],
+      "expectBehavior": "no_regulation_tool"
+    },
+    {
+      "id": "O02",
+      "category": "out_of_scope",
+      "text": "Which savings product should I open?",
+      "history": [],
+      "expectedTools": [
+        "recommend_savings_products"
+      ],
+      "gold": [],
+      "keyFacts": [],
+      "expectBehavior": "no_regulation_tool"
+    },
+    {
+      "id": "O03",
+      "category": "out_of_scope",
+      "text": "How do I extend my E-9 visa?",
+      "history": [],
+      "expectedTools": [
+        "search_visa_policies"
+      ],
+      "gold": [],
+      "keyFacts": [],
+      "expectBehavior": "no_regulation_tool"
+    },
+    {
+      "id": "O04",
+      "category": "out_of_scope",
+      "text": "Can you recommend a credit card?",
+      "history": [],
+      "expectedTools": [],
+      "gold": [],
+      "keyFacts": [],
+      "expectBehavior": "no_regulation_tool"
+    }
+  ]
+}
