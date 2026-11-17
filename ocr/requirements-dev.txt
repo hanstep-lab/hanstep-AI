@@ -1,0 +1,5 @@
+# Worker 단위 테스트·검사 도구(이미지에는 넣지 않는다). paddle 없이 돈다(엔진은 가짜).
+-r requirements-worker.txt
+pytest==9.0.0
+ruff==0.14.0
+mypy==1.18.2

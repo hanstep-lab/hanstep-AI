@@ -2,6 +2,10 @@
 .env
 .env.*
 !.env.example
+ocr/.env
+
+# OCR Worker 측정 원자료(이미지·로그)
+ocr/measurements/
 
 # Python tools
 .venv/

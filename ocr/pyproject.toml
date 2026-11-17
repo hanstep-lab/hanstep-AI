@@ -1,0 +1,49 @@
+# ocr/ 검사 도구 설정만 둔다(패키지 설치는 requirements*.txt). ai/ 검사기(scripts/check_ai.py) 밖이다.
+# 실행(ocr/에서): python -m pytest / python -m ruff check . / python -m mypy
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "unit: 외부 서비스 없이 실행하는 단위 테스트",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+# Worker만 검사한다. 엔진(pipeline/, tests/test_extract.py)은 담당자 형식을 그대로 둔다.
+include = ["worker/**/*.py", "tests/test_worker*.py", "tests/worker_fakes.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["worker", "pipeline"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.10"
+files = ["worker"]
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+
+# 엔진은 타입 표시가 없고 paddleocr를 import한다(Worker는 load·recognize·MODEL_VERSION만 쓴다).
+[[tool.mypy.overrides]]
+module = ["pipeline", "pipeline.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["boto3", "boto3.*", "botocore", "botocore.*"]
+ignore_missing_imports = true
