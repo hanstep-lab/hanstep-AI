@@ -34,6 +34,7 @@ def _script() -> ModuleType:
 
 EV = _script()
 AS_OF = date(2026, 11, 16)
+RATE_FIELDS = {"baseRate", "maxRate", "feature"}
 PROFILE = {"id": "P", "visa": "E-9", "stayExpiry": "2027-10-04", "spareKrw": 675317, "age": 30}
 
 
@@ -209,7 +210,15 @@ def test_repo_catalog_and_question_set_are_consistent() -> None:
             if entry["value"] is None and not entry.get("noLimit"):
                 continue
             assert source is not None, (product["productId"], name)
-            assert len(source["quote"]) <= 30, (product["productId"], name)
+            # 금리·특징(#84)은 원문 문장·표 행을 그대로 옮겨 30자 제한이 없다.
+            if name not in RATE_FIELDS:
+                assert len(source["quote"]) <= 30, (product["productId"], name)
+    for product in products.values():
+        base = product["baseRate"]
+        assert base["value"] is not None and base["asOf"], product["productId"]
+        assert base["asOf"].replace("-", ".") in (base.get("asOfSource") or base["source"])["quote"]
+        assert product["feature"]["value"] == product["feature"]["source"]["quote"]
+    assert sum(p["maxRate"]["value"] is not None for p in products.values()) == 6
     assert {v["foreignerEligible"]["value"] for v in products.values()} <= {
         "explicit", "inferred", None,
     }  # fmt: skip
