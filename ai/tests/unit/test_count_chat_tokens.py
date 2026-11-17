@@ -76,3 +76,19 @@ def test_product_baseline_counts_v3_tools_per_question(tmp_path: Path) -> None:
     assert names[0] == "get_financial_analysis"
     assert "recommend_savings_products" not in names  # 기준선: 상품 도구 없음
     assert len(counter.calls) == 64  # 1차·2차 × 32문항
+
+
+def test_policy_baseline_counts_v4_1_tools_per_question(tmp_path: Path) -> None:
+    # 금융 정책 RAG(#88) 기준선: 기본 프롬프트 v4.1 + v4.1 도구(규정 도구 없음).
+    counter = FakeCounter()
+    output = tmp_path / "policy.md"
+    argv = ["--question-set", "policy", "--models", "claude-haiku-5-5", "--output", str(output)]
+    assert COUNT.main(argv, client=counter) == 0
+
+    report = output.read_text(encoding="utf-8")
+    assert "chat-v4.1" in report and "규정 도구 없음" in report
+    assert sum(report.count(f"| claude-haiku-5-5 | {p}") for p in "ANO") == 24
+    names = [t["name"] for t in counter.calls[0]["tools"]]
+    assert names[0] == "get_financial_analysis" and names[-1] == "recommend_savings_products"
+    assert counter.calls[0]["system"] == COUNT.system_prompt("en", "v4.1")
+    assert len(counter.calls) == 48  # 1차·2차 × 24문항
