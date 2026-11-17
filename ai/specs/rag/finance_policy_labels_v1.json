@@ -1,0 +1,575 @@
+{
+  "version": "finance-policy-labels-v1",
+  "description": "금융 정책 검색 결과에 붙이는 항 단위 라벨(이슈 #88 스펙 가드 ②). 2026-11-18 사용자 확정 표. direction은 이용자(돈을 보내거나 받는 사람) 기준: send=지급(보내는 돈), receive=수령(받는 돈), both=지급·수령, none=돈의 방향 없음(정의·의무·벌칙). paragraph ''은 항 표시 없이 시작하는 조문(호만 적재). 제4-6조·제4-7조는 전 항 삭제라 라벨이 없다. 가이드북·보도자료는 항 라벨 없이 발행처만 붙인다.",
+  "directionValues": [
+    "send",
+    "receive",
+    "both",
+    "none"
+  ],
+  "issuers": {
+    "REG": {
+      "issuer": "재정경제부",
+      "basis": "고시 번호 '재정경제부고시 제2026-110호'"
+    },
+    "FETA": {
+      "issuer": "법률",
+      "basis": "법령 번호 '법률 제21065호'"
+    },
+    "FETA_DEC": {
+      "issuer": "대통령령",
+      "basis": "법령 번호 '대통령령 제36280호'"
+    },
+    "EFTA": {
+      "issuer": "법률",
+      "basis": "법령 번호 '법률 제22048호'"
+    },
+    "EPS": {
+      "issuer": "법률",
+      "basis": "법령 번호 '법률 제21065호'(2025-10-01 타법개정으로 외국환거래법과 같은 번호, 사용자 확인)"
+    },
+    "GUIDE": {
+      "issuer": "금융감독원",
+      "basis": "가이드북 판권면(사용자 확인)"
+    },
+    "PRESS": {
+      "issuer": "금융감독원",
+      "basis": "보도자료 제목"
+    }
+  },
+  "labels": [
+    {
+      "doc": "REG",
+      "article": "제1-2조",
+      "paragraph": "",
+      "scope": "35호",
+      "direction": "none",
+      "appliesTo": "거래 당사자",
+      "summary": "지정거래외국환은행 정의"
+    },
+    {
+      "doc": "REG",
+      "article": "제2-31조",
+      "paragraph": "①",
+      "scope": "1호",
+      "direction": "both",
+      "appliesTo": "거주자(외국인거주자 제외)",
+      "summary": "소액해외송금 지급(연간누계)·수령(연 미화 10만불)"
+    },
+    {
+      "doc": "REG",
+      "article": "제2-31조",
+      "paragraph": "①",
+      "scope": "2호",
+      "direction": "both",
+      "appliesTo": "비거주자·외국인거주자",
+      "summary": "건당 미화 5천불, 연 미화 5만불(지급·수령 각각)"
+    },
+    {
+      "doc": "REG",
+      "article": "제2-31조",
+      "paragraph": "②",
+      "direction": "none",
+      "appliesTo": "소액해외송금업자",
+      "summary": "업자의 외화 매매·건별 수령·기록·통보"
+    },
+    {
+      "doc": "REG",
+      "article": "제2-31조",
+      "paragraph": "③",
+      "direction": "none",
+      "appliesTo": "소액해외송금업자",
+      "summary": "업자의 외화 매매·건별 수령·기록·통보"
+    },
+    {
+      "doc": "REG",
+      "article": "제2-31조",
+      "paragraph": "④",
+      "direction": "none",
+      "appliesTo": "소액해외송금업자",
+      "summary": "업자의 외화 매매·건별 수령·기록·통보"
+    },
+    {
+      "doc": "REG",
+      "article": "제2-31조",
+      "paragraph": "⑤",
+      "direction": "none",
+      "appliesTo": "소액해외송금업자",
+      "summary": "업자의 외화 매매·건별 수령·기록·통보"
+    },
+    {
+      "doc": "REG",
+      "article": "제2-31조",
+      "paragraph": "⑥",
+      "direction": "none",
+      "appliesTo": "소액해외송금업자",
+      "summary": "업자의 외화 매매·건별 수령·기록·통보"
+    },
+    {
+      "doc": "REG",
+      "article": "제2-31조",
+      "paragraph": "⑦",
+      "direction": "send",
+      "appliesTo": "소액해외송금업자를 통한 지급(업자 재량)",
+      "summary": "지정거래외국환은행 경유 조항(제4-3조 ③, 제4-4조 ① 3호·②, 제4-5조)을 적용하지 아니할 수 있다"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-1조",
+      "paragraph": "①",
+      "direction": "both",
+      "appliesTo": "지급등을 하는 모든 자",
+      "summary": "적용 범위, 위법 지급 금지"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-1조",
+      "paragraph": "②",
+      "direction": "both",
+      "appliesTo": "지급등을 하는 모든 자",
+      "summary": "적용 범위, 위법 지급 금지"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-2조",
+      "paragraph": "①",
+      "direction": "both",
+      "appliesTo": "지급등을 하는 모든 자",
+      "summary": "지급등의 증빙서류 제출·신고·위반 보고·전자 제출"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-2조",
+      "paragraph": "②",
+      "direction": "both",
+      "appliesTo": "지급등을 하는 모든 자",
+      "summary": "지급등의 증빙서류 제출·신고·위반 보고·전자 제출"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-2조",
+      "paragraph": "③",
+      "direction": "both",
+      "appliesTo": "지급등을 하는 모든 자",
+      "summary": "지급등의 증빙서류 제출·신고·위반 보고·전자 제출"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-2조",
+      "paragraph": "④",
+      "direction": "both",
+      "appliesTo": "지급등을 하는 모든 자",
+      "summary": "지급등의 증빙서류 제출·신고·위반 보고·전자 제출"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-2조",
+      "paragraph": "⑥",
+      "direction": "both",
+      "appliesTo": "지급등을 하는 모든 자",
+      "summary": "지급등의 증빙서류 제출·신고·위반 보고·전자 제출"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-2조",
+      "paragraph": "⑤",
+      "direction": "both",
+      "appliesTo": "거래외국환은행을 지정한 자",
+      "summary": "거래외국환은행을 지정했으면 그 은행을 통해 지급등"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-3조",
+      "paragraph": "①",
+      "scope": "1호·2호",
+      "direction": "send",
+      "appliesTo": "거주자(외국인거주자 제외)",
+      "summary": "증빙 없이 연간 미화 10만불 이내 지급, 초과 시 건당 미화 5천불 등"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-3조",
+      "paragraph": "①",
+      "scope": "3호",
+      "direction": "receive",
+      "appliesTo": "거주자(외국인거주자 제외)",
+      "summary": "건당 미화 5천불 이내 수령 등"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-3조",
+      "paragraph": "①",
+      "scope": "4~9호",
+      "direction": "both",
+      "appliesTo": "거주자(외국인거주자 제외)",
+      "summary": "정부 지급등, 사전 지급, 기업 수출입대금, 해외이주비 등(호별로 지급·수령)"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-3조",
+      "paragraph": "②",
+      "direction": "both",
+      "appliesTo": "거주자(외국인거주자 제외)",
+      "summary": "증빙서류를 내지 않아도 거래 내용 설명·확인"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-3조",
+      "paragraph": "③",
+      "direction": "send",
+      "appliesTo": "거주자(외국인거주자 제외), 해외이주비 지급자",
+      "summary": "① 9호 해외이주비 지급자는 거래외국환은행 지정"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-4조",
+      "paragraph": "①",
+      "scope": "본문·1~8호",
+      "direction": "send",
+      "appliesTo": "비거주자·외국인거주자",
+      "summary": "취득경위입증서류를 내고 외국환은행장 확인을 받아 지급"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-4조",
+      "paragraph": "①",
+      "scope": "3호",
+      "direction": "send",
+      "appliesTo": "비거주자·외국인거주자",
+      "summary": "국내 보수·소득 범위에서 지정거래외국환은행을 통해 지급"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-4조",
+      "paragraph": "①",
+      "scope": "3호 단서",
+      "direction": "send",
+      "appliesTo": "외국인근로자(출국만기보험 수령자)",
+      "summary": "출국만기보험 수령분은 지정거래외국환은행을 통하지 않아도 됨",
+      "note": "문언은 '수령'이지만 지급 조항(①)의 단서로 해석"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-4조",
+      "paragraph": "②",
+      "direction": "send",
+      "appliesTo": "비거주자·외국인거주자",
+      "summary": "① 사유가 없으면 연간 미화 5만불 이내, 지정거래외국환은행 또는 신용카드사"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-4조",
+      "paragraph": "③",
+      "scope": "1호",
+      "direction": "send",
+      "appliesTo": "비거주자·외국인거주자",
+      "summary": "매입한 외화 지급"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-4조",
+      "paragraph": "③",
+      "scope": "2호",
+      "direction": "send",
+      "appliesTo": "외국인거주자",
+      "summary": "미화 1만불 이내 해외여행경비 지급"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-4조",
+      "paragraph": "③",
+      "scope": "3호",
+      "direction": "send",
+      "appliesTo": "외국인거주자",
+      "summary": "취득경위입증서류를 내고 체신관서를 통해 지급"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-4조",
+      "paragraph": "④",
+      "direction": "receive",
+      "appliesTo": "비거주자·외국인거주자",
+      "summary": "증빙서류 없이 수령: 1호 건당 5천불 이내, 2호 외국 자금 국내 반입 수령"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-5조",
+      "paragraph": "①",
+      "direction": "send",
+      "appliesTo": "해외여행자",
+      "summary": "해외여행경비 지급(외국환은행·휴대수출, 여행업자 경유)"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-5조",
+      "paragraph": "③",
+      "direction": "send",
+      "appliesTo": "해외여행자",
+      "summary": "해외여행경비 지급(외국환은행·휴대수출, 여행업자 경유)"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-5조",
+      "paragraph": "②",
+      "direction": "send",
+      "appliesTo": "해외체재자·해외유학생",
+      "summary": "거래외국환은행 지정·체재·유학 입증서류 제출"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-5조",
+      "paragraph": "④",
+      "direction": "none",
+      "appliesTo": "여행업자·교육기관",
+      "summary": "필요외화 환전 확인"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-5조",
+      "paragraph": "⑤",
+      "direction": "none",
+      "appliesTo": "지정거래외국환은행의 장",
+      "summary": "외국인거주자에게 매각하면 여권에 금액 표시(1백만원 이하 제외)"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-5조",
+      "paragraph": "⑥",
+      "scope": "본문",
+      "direction": "send",
+      "appliesTo": "해외여행자",
+      "summary": "해외여행경비 신용카드 지급(현지 인출 포함)"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-5조",
+      "paragraph": "⑥",
+      "scope": "단서",
+      "direction": "send",
+      "appliesTo": "외국인거주자",
+      "summary": "제4-4조 ② 금액 범위에서 지정거래외국환은행을 통해 카드 지급"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-5조",
+      "paragraph": "⑦",
+      "direction": "send",
+      "appliesTo": "법인",
+      "summary": "법인 예산의 임직원 해외여행경비"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-8조",
+      "paragraph": "①",
+      "direction": "none",
+      "appliesTo": "외국환은행의 장",
+      "summary": "국세청·관세청·금융감독원 통보"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-8조",
+      "paragraph": "②",
+      "direction": "none",
+      "appliesTo": "외국환은행의 장",
+      "summary": "국세청·관세청·금융감독원 통보"
+    },
+    {
+      "doc": "REG",
+      "article": "제4-8조",
+      "paragraph": "③",
+      "direction": "none",
+      "appliesTo": "외국환은행의 장",
+      "summary": "국세청·관세청·금융감독원 통보"
+    },
+    {
+      "doc": "FETA",
+      "article": "제3조",
+      "paragraph": "①",
+      "scope": "14·15호",
+      "direction": "none",
+      "appliesTo": "정의",
+      "summary": "거주자·비거주자 정의"
+    },
+    {
+      "doc": "FETA",
+      "article": "제3조",
+      "paragraph": "②",
+      "direction": "none",
+      "appliesTo": "정의",
+      "summary": "거주자·비거주자 구분이 명백하지 않으면 대통령령"
+    },
+    {
+      "doc": "FETA_DEC",
+      "article": "제10조",
+      "paragraph": "①",
+      "scope": "4호",
+      "direction": "none",
+      "appliesTo": "외국인(거주자로 보는 자)",
+      "summary": "영업활동 종사 또는 6개월 이상 체재 외국인은 거주자"
+    },
+    {
+      "doc": "FETA_DEC",
+      "article": "제10조",
+      "paragraph": "②",
+      "scope": "6호",
+      "direction": "none",
+      "appliesTo": "외국인(비거주자로 보는 자)",
+      "summary": "외교관·공무 입국·3개월 이상 출국 체재 외국인은 비거주자"
+    },
+    {
+      "doc": "FETA_DEC",
+      "article": "제10조",
+      "paragraph": "③",
+      "direction": "none",
+      "appliesTo": "동거 가족",
+      "summary": "생계를 같이하는 동거 가족은 그 사람의 구분을 따름"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제2조",
+      "paragraph": "",
+      "scope": "10호",
+      "direction": "none",
+      "appliesTo": "정의",
+      "summary": "접근매체 정의(카드·인증서·비밀번호 등)"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제6조",
+      "paragraph": "①",
+      "direction": "none",
+      "appliesTo": "금융회사·전자금융업자",
+      "summary": "접근매체 관리·발급·반환"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제6조",
+      "paragraph": "②",
+      "direction": "none",
+      "appliesTo": "금융회사·전자금융업자",
+      "summary": "접근매체 관리·발급·반환"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제6조",
+      "paragraph": "④",
+      "direction": "none",
+      "appliesTo": "금융회사·전자금융업자",
+      "summary": "접근매체 관리·발급·반환"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제6조",
+      "paragraph": "⑤",
+      "direction": "none",
+      "appliesTo": "금융회사·전자금융업자",
+      "summary": "접근매체 관리·발급·반환"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제6조",
+      "paragraph": "③",
+      "scope": "1~5호",
+      "direction": "none",
+      "appliesTo": "누구든지",
+      "summary": "접근매체(돈이 아님) 양도·양수, 대가 대여, 범죄 이용 대여, 질권, 알선·광고 금지"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제49조",
+      "paragraph": "④",
+      "scope": "1~5호",
+      "direction": "none",
+      "appliesTo": "제6조 ③ 위반자",
+      "summary": "5년 이하의 징역 또는 3천만원 이하의 벌금"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제49조",
+      "paragraph": "①",
+      "direction": "none",
+      "appliesTo": "해당 위반자",
+      "summary": "그 밖의 벌칙"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제49조",
+      "paragraph": "②",
+      "direction": "none",
+      "appliesTo": "해당 위반자",
+      "summary": "그 밖의 벌칙"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제49조",
+      "paragraph": "③",
+      "direction": "none",
+      "appliesTo": "해당 위반자",
+      "summary": "그 밖의 벌칙"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제49조",
+      "paragraph": "⑤",
+      "direction": "none",
+      "appliesTo": "해당 위반자",
+      "summary": "그 밖의 벌칙"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제49조",
+      "paragraph": "⑥",
+      "direction": "none",
+      "appliesTo": "해당 위반자",
+      "summary": "그 밖의 벌칙"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제49조",
+      "paragraph": "⑦",
+      "direction": "none",
+      "appliesTo": "해당 위반자",
+      "summary": "그 밖의 벌칙"
+    },
+    {
+      "doc": "EFTA",
+      "article": "제49조",
+      "paragraph": "⑧",
+      "direction": "none",
+      "appliesTo": "해당 위반자",
+      "summary": "그 밖의 벌칙"
+    },
+    {
+      "doc": "EPS",
+      "article": "제13조",
+      "paragraph": "①",
+      "direction": "none",
+      "appliesTo": "사용자",
+      "summary": "사용자의 출국만기보험 가입 의무"
+    },
+    {
+      "doc": "EPS",
+      "article": "제13조",
+      "paragraph": "②",
+      "direction": "none",
+      "appliesTo": "사용자",
+      "summary": "사용자의 출국만기보험 가입 의무"
+    },
+    {
+      "doc": "EPS",
+      "article": "제13조",
+      "paragraph": "③",
+      "direction": "receive",
+      "appliesTo": "외국인근로자(피보험자등)",
+      "summary": "출국한 때부터 14일 이내 지급"
+    },
+    {
+      "doc": "EPS",
+      "article": "제13조",
+      "paragraph": "④",
+      "direction": "receive",
+      "appliesTo": "외국인근로자(피보험자등)",
+      "summary": "청구권 3년 소멸시효"
+    }
+  ]
+}

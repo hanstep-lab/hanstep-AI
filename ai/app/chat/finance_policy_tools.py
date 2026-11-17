@@ -6,6 +6,8 @@
 - 검색어는 LLM이 한국어로 쓴다(도구 설명에 명시). 한글이 없으면 검색은 dense만 쓴다.
 - 결과에는 문서 제목·번호·조문 번호(가이드북·보도자료는 쪽)·시행일(또는 발행일)·원문 인용만 준다.
 - sources는 비운다(결정 2026-11-17: 새 계약 0, 답변 본문에 조문·시행일 인용).
+- 라벨(스펙 가드 ②, FINANCE_POLICY_LABELS): 켜면 결과마다 발행처와 걸친 항의 라벨
+  (direction·appliesTo·note)을 더한다. 끄면(기본) 결과는 v4.2 after와 바이트 단위로 같다.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from typing import Any, Protocol
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.chat.tools import UNAVAILABLE, ToolOutcome
+from app.finance_policy.labels import PolicyLabels
 from app.finance_policy.search import PolicyHit
 
 SEARCH_FINANCE_POLICY = "search_finance_policy"
@@ -67,11 +70,22 @@ class FinancePolicyTool:
     """요청 하나에 묶인다. 검색기가 없으면(문서 폴더·모델 미설정) FAILED SEARCH_NOT_CONFIGURED."""
 
     def __init__(
-        self, searcher: PolicySearcher | None, *, timeout: float, k: int = RESULT_K
+        self,
+        searcher: PolicySearcher | None,
+        *,
+        timeout: float,
+        k: int = RESULT_K,
+        labels: PolicyLabels | None = None,
     ) -> None:
         self._searcher = searcher
+        self._labels = labels
         self._timeout = timeout
         self._k = k
+
+    def _result(self, hit: PolicyHit) -> dict[str, Any]:
+        if self._labels is None:
+            return hit.as_result()
+        return {**hit.as_result(), **self._labels.for_spans(hit.doc, hit.paragraphs)}
 
     @property
     def schemas(self) -> list[dict[str, Any]]:
@@ -102,7 +116,7 @@ class FinancePolicyTool:
             return outcome("TIMEOUT", UNAVAILABLE, error_code="SEARCH_TIMEOUT")
         except Exception:  # 검색 실패는 답 없이 알린다
             return outcome("FAILED", UNAVAILABLE, error_code="SEARCH_ERROR")
-        content: dict[str, Any] = {"results": [h.as_result() for h in hits]}
+        content: dict[str, Any] = {"results": [self._result(h) for h in hits]}
         if not hits:
             content["note"] = "No matching rule in the documents."
         # 측정 전용: 검색어·방식·청크와 LLM에 준 결과(측정 스크립트가 근거 숫자로 쓴다).

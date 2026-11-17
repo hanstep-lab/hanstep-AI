@@ -48,6 +48,7 @@ from app.chat.visa_tools import (
     VisaTools,
 )
 from app.core.config import Settings
+from app.finance_policy.labels import default_labels
 from app.integrations.spring_client import SpringInternalClient
 from app.rag.retrieval import SearchService
 
@@ -244,6 +245,7 @@ async def chat_stream(
             FinancePolicyTool(
                 request.app.state.rag.finance_policy_search,
                 timeout=settings.chat_tool_timeout_seconds,
+                labels=default_labels() if settings.finance_policy_labels else None,
             )
         )
     tool = ChatToolset(*tools)

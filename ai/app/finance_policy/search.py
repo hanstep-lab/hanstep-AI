@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.finance_policy.chunks import PolicyChunk, article_heads, unit_chunks
 from app.finance_policy.corpus import Corpus, load_corpus
+from app.finance_policy.labels import Span, chunk_paragraphs
 from app.rag.embeddings import Embedder
 
 if TYPE_CHECKING:
@@ -43,6 +44,9 @@ class PolicyHit:
     source_type: str
     text: str
     chunk_id: str
+    # 라벨(스펙 가드 ②)용. as_result에는 나가지 않는다(라벨 off면 결과가 v4.2 after와 같다).
+    doc: str = ""
+    paragraphs: tuple[Span, ...] = ()
 
     def as_result(self) -> dict[str, Any]:
         out: dict[str, Any] = {"document": self.document, "ref": self.ref, "quote": self.text}
@@ -71,8 +75,10 @@ class FinancePolicySearch:
         dense: Retriever,
         hybrid: Retriever,
         documents: Mapping[str, Mapping[str, Any]],
+        paragraphs: Mapping[str, tuple[Span, ...]] | None = None,
     ) -> None:
         self._chunks = list(chunks)
+        self._paragraphs = dict(paragraphs or {})
         self._dense = dense
         self._hybrid = hybrid
         self._documents = documents
@@ -109,7 +115,8 @@ class FinancePolicySearch:
         vectors, _ = cache.get_or_compute(wrapped, "none", embedder.embed_documents)
         dense = DenseRetriever(embedder, vectors)
         bm25 = BM25Index([c.text for c in chunks], 1.5, 0.75)
-        return cls(chunks, dense, HybridRetriever(dense, bm25, RRF_K, RRF_DEPTH), documents)
+        hybrid = HybridRetriever(dense, bm25, RRF_K, RRF_DEPTH)
+        return cls(chunks, dense, hybrid, documents, chunk_paragraphs(chunks, corpus.units))
 
     def search(self, query: str, k: int) -> tuple[list[PolicyHit], str]:
         """(결과, 방식). 한글이 없으면 dense만(방식 'dense_only'), 있으면 'hybrid'."""
@@ -128,6 +135,8 @@ class FinancePolicySearch:
                     source_type=doc["sourceType"],
                     text=chunk.text,
                     chunk_id=chunk.chunk_id,
+                    doc=chunk.doc,
+                    paragraphs=self._paragraphs.get(chunk.chunk_id, ()),
                 )
             )
         return hits, mode

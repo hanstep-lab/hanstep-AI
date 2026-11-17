@@ -161,3 +161,34 @@ def test_tool_attached_only_for_v4_2(monkeypatch: pytest.MonkeyPatch) -> None:
     assert SEARCH_FINANCE_POLICY in _tool_names("v4.2", monkeypatch)
     # v4.3a(스펙 가드 ①)는 v4.2와 같은 도구 구성이다.
     assert _tool_names("v4.3a", monkeypatch) == _tool_names("v4.2", monkeypatch)
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_labels_setting_switches_the_tool(enabled: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    # 스펙 가드 ②: FINANCE_POLICY_LABELS 하나로 켜고 끈다(기본 off). 프롬프트는 v4.2 그대로.
+    seen: list[Any] = []
+    real = chat_routes.FinancePolicyTool
+
+    def spy(*args: Any, **kwargs: Any) -> Any:
+        seen.append(kwargs.get("labels"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(chat_routes, "FinancePolicyTool", spy)
+    values: dict[str, Any] = {
+        "ai_internal_api_token": TOKEN,
+        "chat_fake_delta_delay_ms": 0,
+        "chat_llm_mode": "fake",
+        "chat_prompt_version": "v4.2",
+        "finance_policy_labels": enabled,
+    }
+    settings = Settings(_env_file=None, **values)  # type: ignore[call-arg]
+    app = create_app()
+    app.state.rag = AppState(
+        settings=settings, gateway=UnconfiguredPolicyGateway(), embedder=BgeM3Embedder()
+    )
+    body = {"runId": "run_" + "e" * 32, "userId": 1, "sessionId": 1, "language": "en",
+            "history": [], "message": "hi"}  # fmt: skip
+    response = TestClient(app).post(STREAM, json=body, headers={"X-Internal-Token": TOKEN})
+    assert response.status_code == 200
+    assert len(seen) == 1
+    assert (seen[0] is not None) is enabled

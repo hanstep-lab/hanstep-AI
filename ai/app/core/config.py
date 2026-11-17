@@ -142,6 +142,9 @@ class Settings(BaseSettings):
     # 비우면 search_finance_policy가 SEARCH_NOT_CONFIGURED.
     # 검색은 임베딩 모델이 로드된 뒤(LOAD_MODEL_ON_STARTUP=true) 만든다.
     finance_policy_corpus_dir: str = ""
+    # 스펙 가드 ②(#88): 금융 정책 검색 결과에 항 단위 라벨(direction·appliesTo·발행처)을 붙인다.
+    # 라벨 표는 specs/rag/finance_policy_labels_v1.json. 기본 off(결과가 v4.2 after와 같음).
+    finance_policy_labels: bool = False
 
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")
