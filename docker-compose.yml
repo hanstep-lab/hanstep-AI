@@ -57,6 +57,8 @@ services:
     # 외국인등록증 OCR Worker(ocr.request). 엔진은 ocr/pipeline(이지연), 큐 처리는 ocr/worker.
     # Python 3.10 + paddle이라 ai-server와 이미지를 나눈다. 기본으로는 뜨지 않는다.
     # 실행: docker compose --profile ocr up -d --build ocr-worker
+    # 설정은 루트 .env에서 필요한 키만 넘긴다(ocr/.env는 쓰지 않는다). 루트 .env 전체를 넣으면
+    # JWT·MySQL·R2 쓰기 키까지 컨테이너에 들어가므로 env_file을 쓰지 않는다.
     profiles: ["ocr"]
     build:
       context: ./ocr
@@ -68,13 +70,19 @@ services:
     # HTTP 서버가 없어 헬스체크는 끈다.
     healthcheck:
       disable: true
-    env_file:
-      - path: ./ocr/.env
-        required: false
     environment:
-      # 컨테이너 주소(hanstep-net). ocr/.env의 호스트 주소보다 우선한다.
+      # 컨테이너 주소(hanstep-net)
       RABBITMQ_URL: ${RABBITMQ_URL:?Set the container RabbitMQ URL (rabbitmq:5672) in .env}
       SPRING_INTERNAL_API_URL: ${SPRING_INTERNAL_API_URL:-http://host.docker.internal:8080}
+      # 아래 값이 비면 Worker가 "worker not configured"를 남기고 종료한다(OCR을 안 쓰면 비워 둬도 된다).
+      SPRING_INTERNAL_API_KEY: ${SPRING_INTERNAL_API_KEY:-}
+      INTERNAL_TOKEN_HEADER: ${INTERNAL_TOKEN_HEADER:-X-Internal-Token}
+      R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
+      R2_REGION: ${R2_REGION:-auto}
+      R2_ARC_BUCKET: ${R2_ARC_BUCKET:-hanstep-arc-private}
+      # Worker는 ARC 버킷 읽기 전용 토큰을 쓴다. Spring의 R2_OCR_*(업로드·삭제용)와 다른 키다.
+      R2_OCR_ACCESS_KEY_ID: ${R2_OCR_READ_ACCESS_KEY_ID:-}
+      R2_OCR_SECRET_ACCESS_KEY: ${R2_OCR_READ_SECRET_ACCESS_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

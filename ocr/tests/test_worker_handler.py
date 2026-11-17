@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -327,12 +328,12 @@ def test_retry_message_is_persistent_with_ms_expiration(expiration: str) -> None
 
 def test_retry_delays_setting_parses_comma_list(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RETRY_DELAYS_MS", "1000,2000")
-    assert Settings(_env_file=None).retry_delays_ms == (1000, 2000)  # type: ignore[call-arg]
+    assert Settings().retry_delays_ms == (1000, 2000)
     monkeypatch.delenv("RETRY_DELAYS_MS")
-    assert Settings(_env_file=None).retry_delays_ms == (5000, 15000, 45000)  # type: ignore[call-arg]
+    assert Settings().retry_delays_ms == (5000, 15000, 45000)
     monkeypatch.setenv("RETRY_DELAYS_MS", "5000,0")
     with pytest.raises(ValueError):
-        Settings(_env_file=None)  # type: ignore[call-arg]
+        Settings()
 
 
 def test_missing_settings_lists_unset_and_placeholder_values(
@@ -349,7 +350,7 @@ def test_missing_settings_lists_unset_and_placeholder_values(
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("RABBITMQ_URL", "amqp://hanstep:CHANGE_ME_RABBIT_PASSWORD@rabbitmq:5672/")
-    assert Settings(_env_file=None).missing() == [  # type: ignore[call-arg]
+    assert Settings().missing() == [
         "RABBITMQ_URL",
         "SPRING_INTERNAL_API_URL/SPRING_INTERNAL_API_KEY",
         "R2_ENDPOINT_URL/R2_OCR_ACCESS_KEY_ID/R2_OCR_SECRET_ACCESS_KEY/R2_ARC_BUCKET",
@@ -362,7 +363,7 @@ def test_missing_settings_lists_unset_and_placeholder_values(
     monkeypatch.setenv("R2_OCR_ACCESS_KEY_ID", "id")
     monkeypatch.setenv("R2_OCR_SECRET_ACCESS_KEY", "secret")
     monkeypatch.setenv("R2_ARC_BUCKET", "hanstep-arc-private")
-    assert Settings(_env_file=None).missing() == []  # type: ignore[call-arg]
+    assert Settings().missing() == []
 
 
 def test_r2_endpoint_with_bucket_path_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -370,7 +371,16 @@ def test_r2_endpoint_with_bucket_path_is_rejected(monkeypatch: pytest.MonkeyPatc
         "R2_ENDPOINT_URL", "https://acct.r2.cloudflarestorage.com/hanstep-arc-private"
     )
     with pytest.raises(ValueError):
-        Settings(_env_file=None)  # type: ignore[call-arg]
+        Settings()
+
+
+def test_settings_do_not_read_env_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """ocr/.env를 두지 않는다. 작업 폴더에 .env가 있어도 읽지 않고 환경 변수만 본다."""
+    monkeypatch.delenv("RABBITMQ_URL", raising=False)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("RABBITMQ_URL=amqp://u:p@rabbitmq:5672/\n", encoding="utf-8")
+
+    assert "RABBITMQ_URL" in Settings().missing()
 
 
 # ---------- 큐 선언(BE와 같은 인자) ----------

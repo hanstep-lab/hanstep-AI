@@ -1,21 +1,18 @@
-"""Worker 설정. 프로세스 환경 변수와 ``ocr/.env``에서 읽는다.
+"""Worker 설정. 프로세스 환경 변수에서만 읽는다(``ocr/.env``는 두지 않는다).
 
-compose에서는 ``environment``(RABBITMQ_URL, SPRING_INTERNAL_API_URL의 컨테이너 주소)가
-``ocr/.env``보다 우선한다. R2 키는 ARC 버킷 읽기 전용 키(R2_OCR_*)만 쓴다.
+compose는 루트 ``.env``에서 필요한 키만 ``environment``로 넘긴다. R2 키(R2_OCR_*)에는 루트
+``.env``의 ARC 버킷 읽기 전용 토큰(R2_OCR_READ_*)이 들어온다.
 """
 
 from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse
 
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
-
-OCR_ROOT = Path(__file__).resolve().parents[1]
 
 PLACEHOLDER_MARKERS = ("your-", "CHANGE_ME", "example.", "username:password")
 
@@ -28,9 +25,7 @@ def is_placeholder(value: str | None) -> bool:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=OCR_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(extra="ignore")
 
     log_level: str = "INFO"
 
