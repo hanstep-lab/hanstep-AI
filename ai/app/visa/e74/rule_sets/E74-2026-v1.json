@@ -4,8 +4,8 @@
   "effectiveTo": "2027-01-01",
   "requiredTotalScore": 200,
   "sourcePolicyVersion": "E74-SELECTION-2026-20260601",
-  "approvalStatus": "DRAFT",
-  "note": "2026년 숙련기능인력(E-7-4) 선발 계획 개선본(2026-06-01)의 붙임1 점수표와 본문 요건. 해석이 합의되지 않은 항목은 reviewNote(정의서 열린 질문 번호). 팀 확인 전이라 DRAFT.",
+  "approvalStatus": "APPROVED",
+  "note": "2026년 숙련기능인력(E-7-4) 선발 계획 개선본(2026-06-01)의 붙임1 점수표와 본문 요건. 2026-11-17 팀이 원문과 대조해 APPROVED. Q1(농어업 특례 2,400만원 이상 2,500만원 미만)은 해당 업종에만 50점 인정으로 정리.",
   "rules": [
     {
       "ruleCode": "INCOME_25_30",
@@ -114,7 +114,6 @@
       "industryType": "AGRI_FISHERY",
       "sourcePage": "p3, p12",
       "description": "농·축산업, 어업·내항상선 종사자 평균소득 2,400만원 이상 2,500만원 미만",
-      "reviewNote": "Q1: 점수표는 2,500만원부터이고 특례는 최소 기준만 2,400만원으로 명시. 50점 인정 여부 미합의",
       "documents": [
         "세무서 발행 소득금액증명원(최근 2년)"
       ]

@@ -26,6 +26,7 @@ from app.visa.roadmap.text import (
     numbers_in,
     strip_disclaimers,
 )
+from tests.unit._e74_builders import draft_rules_2026
 from tests.unit._e74_cases import profile_json
 
 pytestmark = pytest.mark.unit
@@ -58,7 +59,7 @@ def test_p04_matches_the_screen_numbers() -> None:
     assert (d["goalVisaCode"], d["ruleVersion"], d["ruleStatus"]) == (
         "E-7-4",
         "E74-2026-v1",
-        "DRAFT",
+        "APPROVED",
     )
     assert d["stay"] == {
         "visaTypeCode": "E-9",
@@ -91,7 +92,7 @@ def test_p04_matches_the_screen_numbers() -> None:
     # 고용기업 추천(필수)이 남아 있어 그 날짜에 바로 신청할 수 있다고 쓰지 않는다.
     assert apply["description"].startswith("위 필수 단계를 모두 마친 뒤")
     assert d["projectedScore"] == {"afterRequiredSteps": 260, "afterAllSteps": 300}
-    assert d["warnings"] == ["DRAFT_RULES", "RULES_EXPIRE"]
+    assert d["warnings"] == ["RULES_EXPIRE"]
     assert d["text"]["source"] == "TEMPLATE" and d["isMock"] is True
 
 
@@ -140,7 +141,15 @@ def test_unknown_prior_stay_means_no_date_and_a_question() -> None:
 def test_stay_ending_before_the_application_date_is_warned() -> None:
     d = _dump(_roadmap(_request(expires="2026-12-01")))
     assert d["stay"]["applicableFrom"] == "2026-12-05"
-    assert d["warnings"] == ["DRAFT_RULES", "STAY_EXPIRES_FIRST"]
+    assert d["warnings"] == ["STAY_EXPIRES_FIRST"]
+
+
+def test_draft_rules_are_warned() -> None:
+    # 승인 전 규칙(E74-2026-v1을 DRAFT로 바꾼 복사본)으로 만들면 DRAFT_RULES를 맨 앞에 붙인다.
+    body = RoadmapRequest.model_validate(_request())
+    d = _dump(build_roadmap(body, include_draft=True, rule_sets=[draft_rules_2026()]))
+    assert d["ruleStatus"] == "DRAFT"
+    assert d["warnings"] == ["DRAFT_RULES", "RULES_EXPIRE"]
 
 
 def test_once_required_steps_are_done_optional_ones_follow_by_points() -> None:

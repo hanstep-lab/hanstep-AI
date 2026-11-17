@@ -16,6 +16,7 @@ from app.visa.e74.dates import add_months, age_on, full_months_between
 from app.visa.e74.results import ItemResult, ItemStatus
 from app.visa.e74.rules import RuleSet, default_rule_sets, select_rule_set
 from app.visa.e74.schemas import E74Profile
+from tests.unit._e74_builders import rules_2026_with_review_note
 
 pytestmark = pytest.mark.unit
 
@@ -232,13 +233,22 @@ def test_fallback_years_use_top_two_and_need_review() -> None:
     assert _scores(result) == (ItemStatus.NEEDS_REVIEW, 0, 80)
 
 
-def test_agri_fishery_band_needs_review() -> None:
+def test_agri_fishery_band_scores_50_only_for_those_industries() -> None:
     incomes = [_income(2024, 24_600_000), _income(2025, 24_900_000)]
     farm = calculate_income_score(_profile(incomes=incomes, industry="FISHERY"), _rules(), AS_OF)
     assert farm.rule_code == "INCOME_24_25_AGRI_FISHERY"
-    assert _scores(farm) == (ItemStatus.NEEDS_REVIEW, 0, 50)
+    assert _scores(farm) == (ItemStatus.MET, 50, 50)
     factory = calculate_income_score(_profile(incomes=incomes), _rules(), AS_OF)
     assert _scores(factory) == (ItemStatus.NOT_MET, 0, 0)
+
+
+def test_matched_rule_with_review_note_needs_review() -> None:
+    # 해석 확인이 필요한 규칙(reviewNote)에 맞으면 확정 점수 없이 NEEDS_REVIEW
+    rules = rules_2026_with_review_note("INCOME_24_25_AGRI_FISHERY", "확인 필요(테스트)")
+    incomes = [_income(2024, 24_600_000), _income(2025, 24_900_000)]
+    farm = calculate_income_score(_profile(incomes=incomes, industry="FISHERY"), rules, AS_OF)
+    assert _scores(farm) == (ItemStatus.NEEDS_REVIEW, 0, 50)
+    assert farm.review_note == "확인 필요(테스트)"
 
 
 def test_unknown_industry_in_special_band_is_asked() -> None:

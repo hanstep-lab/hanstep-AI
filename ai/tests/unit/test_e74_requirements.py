@@ -7,7 +7,14 @@ import pytest
 
 from app.visa.e74.engine import E74Assessment, EligibilityStatus, assess_e74
 from app.visa.e74.results import ItemResult, ItemStatus
-from tests.unit._e74_builders import AS_OF, eligible_body, evidence, job, profile
+from tests.unit._e74_builders import (
+    AS_OF,
+    eligible_body,
+    evidence,
+    job,
+    profile,
+    rules_2026_with_review_note,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -192,12 +199,23 @@ def test_income_below_minimum_makes_ineligible() -> None:
     assert a.status is EligibilityStatus.INELIGIBLE
 
 
-def test_agri_fishery_income_band_needs_review() -> None:
+def _agri_body_in_special_band() -> dict[str, Any]:
     body = eligible_body()
     job(body)["industryCode"] = "AGRICULTURE"
     body["incomeRecords"][0]["annualAmount"] = 24_600_000
     body["incomeRecords"][1]["annualAmount"] = 24_900_000
-    a = _assess(body)
+    return body
+
+
+def test_agri_fishery_income_band_meets_special_minimum() -> None:
+    a = _assess(_agri_body_in_special_band())
+    assert _item(a, "REQ_MIN_INCOME_AGRI_FISHERY").status is ItemStatus.MET
+    assert _item(a, "REQ_MIN_INCOME").status is ItemStatus.NOT_APPLICABLE
+
+
+def test_income_band_under_review_makes_requirement_need_review() -> None:
+    rules = rules_2026_with_review_note("INCOME_24_25_AGRI_FISHERY", "확인 필요(테스트)")
+    a = assess_e74(profile(_agri_body_in_special_band()), AS_OF, rule_sets=[rules])
     assert _item(a, "REQ_MIN_INCOME_AGRI_FISHERY").status is ItemStatus.NEEDS_REVIEW
     assert _item(a, "REQ_MIN_INCOME").status is ItemStatus.NOT_APPLICABLE
     assert a.status is EligibilityStatus.NEEDS_REVIEW
