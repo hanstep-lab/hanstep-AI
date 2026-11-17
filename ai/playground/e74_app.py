@@ -443,7 +443,9 @@ def main() -> None:
         st.selectbox("샘플 프로필", names, key="sample", on_change=_use_sample)
         as_of = st.date_input("기준일(신청일)", value=date.today())
         include_draft = st.checkbox(
-            "DRAFT 규칙 허용", value=True, help="2026 규칙은 팀 확인 전이라 DRAFT 상태"
+            "DRAFT 규칙 허용",
+            value=True,
+            help="승인 전(DRAFT) 규칙 버전도 쓸지. 2026 규칙은 APPROVED",
         )
         mode = st.radio(
             "점수 계산 경로",
