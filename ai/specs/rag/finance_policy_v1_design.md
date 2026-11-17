@@ -463,6 +463,8 @@ uv run python scripts/finance_policy_review.py artifacts/chat/policy_baseline_v4
 - 포함률이 8까지 계속 오른다(5 → 8에서 A03이 들어옴). '더 오르지 않는 가장 작은 값'을 잰 범위(3·5·8) 안에서 고르면 **k = 8**을 제안한다.
   1문항 차이를 동점으로 보면 5도 가능하다. 대가: k=8 검색 결과는 입력 약 6,600토큰(아래 count_tokens)으로, 2차 호출 비용이 늘어난다.
   도구 코드에는 8로 넣었다(`RESULT_K`).
+- **결정(2026-11-18): k = 8 확정.** 미리 정한 1문항 동점 규칙상 5와 동점이지만, 주 지표(답변 정답·위험 오답)를 위해
+  핵심 사실을 하나라도 더 담는 8을 고른다(공개).
 
 ### 15-3. 동의어 사전 (만들지 않음, 후보만)
 
@@ -508,3 +510,39 @@ SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm
   - 49문항 회귀 147회: v4.1 회귀 실측 $0.2445에 프롬프트 증가(+12%)를 더해 **약 $0.27**. 규정 도구를 잘못 부르는 회차가 있으면
     늘어난다. 상한 `--max-usd 0.5`.
 - 기준선(v4.1, 46문항 × 3)은 아직 재지 않았다(운영 비자 문서 적재를 기다리는 중). after와 같은 서버 조건에서 v4.1로 잰다.
+
+## 16. 측정 계획과 조건 (2026-11-18 확정, 측정 전)
+
+### 16-1. 측정 조건
+
+- **비자 정책 데이터는 운영 11/18 00:39 덤프와 동일**(청크 129: active 92·inactive 37, policy_documents APPROVED 6·RETIRED 1,
+  검토 기록 6, rag_vector_index 1024 cosine). 로컬 Mongo·MySQL에 복원한 상태로 잰다.
+- AI 서버 8001: `CHAT_LLM_MODE=anthropic`, `LOAD_MODEL_ON_STARTUP=true`, `SPRING_INTERNAL_API_URL=http://localhost:8081`,
+  `FINANCE_POLICY_CORPUS_DIR=C:\Projects\hanstep\rag-data\finance-policy`, 프롬프트만 v4.1(기준선) / v4.2(after·회귀·hold-out v4.2)로 바꾼다.
+  **서버 프로세스에는 `SPRING_INTERNAL_API_KEY=CHANGE_ME`를 두지 않는다**(16-3).
+- 측정 스크립트도 `SPRING_INTERNAL_API_URL=http://localhost:8081`로 띄워, 숫자 대조용 INT-06을 서버 도구와 같은 Spring에서 읽는다.
+- 측정 뒤 수정(측정 준비 중, 유료 호출 전): v4.2에서 금융 정책 검색 결과를 근거 숫자로 쓰도록 했다(도구 측정 값에 결과 본문,
+  evaluate_chat `policyTools`). 레포 밖 문항 파일 옵션 `--policy-questions`를 더했다(hold-out용, 내용은 출력하지 않음).
+
+### 16-2. 측정 순서
+
+| 순서 | 측정 | 프롬프트 | 문항 × 회 | 상한 |
+|---|---|---|---|---|
+| 1 | 스모크 | v4.1 | A02 × 1 | $0.05 |
+| 2 | 기준선 | v4.1 | 46 × 3 | $0.4 |
+| 3 | 스모크 | v4.2 | A01 × 1 | $0.05 |
+| 4 | after | v4.2 | 46 × 3 | $0.8 |
+| 5 | 49문항 회귀 | v4.2 | 49 × 3 | $0.5 |
+| 6 | hold-out | v4.1 · v4.2 각 1회 | 20 × 3 | $0.2 · $0.3 |
+
+- **hold-out은 규칙(평가 세트·채점·k·프롬프트 v4.2) 확정 뒤 v4.1·v4.2 각각 한 번만** 잰다(20문항 × 3회). 파일은
+  `C:\Projects\hanstep\holdout\finance_policy_holdout_v1.json`(레포 밖, Claude Code는 열지 않음, 경로만 인자로 넘김),
+  결과는 레포 밖 `C:\Projects\hanstep\holdout\results\`에 둔다. 결과 문서에는 집계만 적는다.
+
+### 16-3. `SPRING_INTERNAL_API_KEY="CHANGE_ME"`의 영향 (코드 확인)
+
+- `is_placeholder`가 'CHANGE_ME'를 자리표시자로 보므로 `spring_configured()`가 false가 된다.
+- **AI 서버에 이 값이 있으면 Spring 8081을 전혀 부르지 않는다**: 금융 분석·송금·상품 도구는 fixture(데모 값)로 답하고,
+  E-7-4는 `SPRING_NOT_CONFIGURED`, 비자 검색은 승인 확인 게이트웨이가 `UnconfiguredPolicyGateway`라 fail-closed로 실패한다.
+- **측정 스크립트에만 있으면** 숫자 대조용 INT-06 요약만 fixture로 바뀌고 서버 도구에는 영향이 없다. 다만 서버는 8081의 실제
+  값으로 답하므로 숫자 대조가 어긋날 수 있다. 그래서 이번에는 측정 스크립트도 8081을 쓰게 한다(16-1).
