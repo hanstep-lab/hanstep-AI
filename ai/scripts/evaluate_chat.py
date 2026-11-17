@@ -100,7 +100,15 @@ QUESTION_SETS = {
     "policy": POLICY_QUESTIONS,
 }
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
-PROMPT_BASE = {"v3": "v2", "v3.1": "v3", "v3.2": "v3", "v4": "v3", "v4.1": "v4", "v4.2": "v4.1"}
+PROMPT_BASE = {
+    "v3": "v2",
+    "v3.1": "v3",
+    "v3.2": "v3",
+    "v4": "v3",
+    "v4.1": "v4",
+    "v4.2": "v4.1",
+    "v4.3a": "v4.2",
+}
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
 PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
 EXIT_INTERRUPTED = 130

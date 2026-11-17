@@ -107,3 +107,14 @@ def test_policy_v4_2_adds_the_policy_tool_and_search_result(tmp_path: Path) -> N
     use = second["messages"][1]["content"][0]
     assert use["name"] == "search_finance_policy" and use["input"]["queryKo"]
     assert "effectiveFrom" in second["messages"][2]["content"][0]["content"]
+
+
+def test_policy_v4_3a_counts_with_the_same_tools_as_v4_2(tmp_path: Path) -> None:
+    # 스펙 가드 ①(#88): v4.3a는 프롬프트 한 줄만 다르고 도구·검색 결과 예시는 v4.2와 같다.
+    counter = FakeCounter()
+    output = tmp_path / "policy43a.md"
+    argv = ["--question-set", "policy", "--prompt-version", "v4.3a", "--models", "claude-haiku-5-5"]
+    assert COUNT.main([*argv, "--output", str(output)], client=counter) == 0
+    assert "chat-v4.3a" in output.read_text(encoding="utf-8")
+    assert counter.calls[0]["system"] == COUNT.system_prompt("en", "v4.3a")
+    assert [t["name"] for t in counter.calls[0]["tools"]][-1] == "search_finance_policy"

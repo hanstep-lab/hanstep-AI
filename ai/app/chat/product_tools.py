@@ -126,6 +126,7 @@ TOOL_SCHEMAS_BY_PROMPT: dict[str, dict[str, Any]] = {
     "v4": TOOL_SCHEMA,
     "v4.1": TOOL_SCHEMA_V4_1,
     "v4.2": TOOL_SCHEMA_V4_1,
+    "v4.3a": TOOL_SCHEMA_V4_1,
 }
 
 

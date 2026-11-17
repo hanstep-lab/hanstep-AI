@@ -77,6 +77,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v4": "chat-v4",
         "v4.1": "chat-v4.1",
         "v4.2": "chat-v4.2",
+        "v4.3a": "chat-v4.3a",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -223,6 +224,8 @@ PROMPT_SHA256 = {
     "v4.1": "396e508c6213de778325464d2c5c847890c836817552dbbb8531545299c1d4e5",
     # 2026-11-17(#88): v4.2 = v4.1 + finance_policy_rules.md. v4.1까지의 값은 그대로다.
     "v4.2": "37dc8a8040834ddf668f28d27c10e6a54196ecf722387a0d6b31e09578b3d3b5",
+    # 2026-11-18(#88 스펙 가드 ①): v4.3a = v4.2 + 수령·지급 방향 규칙 한 줄.
+    "v4.3a": "b7cfb40bb720c74228b51d681676c328b0945ffe283d5eec55c8fadc576ad532",
 }
 
 
@@ -313,3 +316,16 @@ def test_v4_2_is_v4_1_plus_finance_policy_rules() -> None:
     assert _settings().chat_prompt_version == "v4.1"
     config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.2"))
     assert config.prompt_version_id == "chat-v4.2"
+
+
+def test_v4_3a_is_v4_2_plus_direction_rule() -> None:
+    # v4.3a(#88 스펙 가드 ①): v4.2 문구 그대로 + 규정 규칙 끝에 한 줄. 도구 구성은 v4.2와 같다.
+    from app.chat.prompts import DIRECTION_RULE
+
+    v42 = system_prompt("en", "v4.2").splitlines()
+    assert system_prompt("en", "v4.3a").splitlines() == [*v42, DIRECTION_RULE]
+    for phrase in ("수령", "지급", "receiving", "sending", "applies to"):
+        assert phrase in DIRECTION_RULE, phrase
+    assert _settings().chat_prompt_version == "v4.1"
+    config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.3a"))
+    assert config.prompt_version_id == "chat-v4.3a"

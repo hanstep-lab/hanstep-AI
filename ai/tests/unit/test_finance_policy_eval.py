@@ -187,6 +187,9 @@ def test_expected_tools_by_prompt_version() -> None:
         assert EVAL.expected_tools(by_id[qid], "v4.1") == []
         assert EVAL.expected_tools(by_id[qid], "v4.2") == ["search_finance_policy"]
     assert EVAL.expected_tools(by_id["O02"], "v4.2") == ["recommend_savings_products"]
+    # v4.3a는 v4.2의 기대값을 그대로 쓴다(PROMPT_BASE).
+    for q in by_id.values():
+        assert EVAL.expected_tools(q, "v4.3a") == EVAL.expected_tools(q, "v4.2"), q["id"]
 
 
 def test_policy_search_results_count_as_number_sources() -> None:

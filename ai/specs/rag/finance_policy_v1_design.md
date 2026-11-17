@@ -686,3 +686,11 @@ after v4.2의 위험 오답 7은 모두 제4-4조 ④(수령) → 송금 오독�
 - 채점은 17절과 같은 규칙(11-1절 1~5, 위험 오답·적용 대상 오류는 17-3절 확정 기준)으로 한다.
 - 두 안 모두 기준 1·2를 못 넘으면 고르지 않고 결과만 보고한다.
 - **범위 밖(후보로만 기록)**: A12 체신관서 검색 실패(after A12·A12v 6회 중 오답 1·기권 5). 동의어(우체국↔체신관서)는 15절 후보와 같다.
+
+### 18-1. ① v4.3a 구현 (측정 전)
+
+- `DIRECTION_RULE`(app/chat/prompts/__init__.py)을 v4.2 규정 규칙 끝에 한 줄로 더함: "수령 means receiving money and 지급 means paying or
+  sending money. Before you cite a rule, check that its direction (receiving or sending) and the people it applies to match the user's
+  question; if either does not match, do not use that rule for the answer." v4.2까지의 문구·해시는 그대로, 기본값은 v4.1 그대로.
+- 도구 구성은 v4.2와 같다(비자·송금·상품·금융 정책 검색). 평가 세트 기대 도구는 v4.2 값을 그대로 쓴다(`PROMPT_BASE`).
+- count_tokens(claude-haiku-5-5, 46문항): 1차 입력 평균 7,670(v4.2 7,594), 검색 결과 예시를 받은 1·2차 합 평균 21,940(v4.2 21,788).

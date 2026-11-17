@@ -58,6 +58,8 @@ POLICY_BASELINE_PROMPT = "v4.1"
 # 금융 정책 검색 도구가 붙는 버전(#88 after).
 # 2차 호출은 검색 결과 예시(fixture)를 받았다고 가정한다.
 POLICY_TOOL_PROMPT = "v4.2"
+# 스펙 가드 비교안 ①(#88): v4.2 + 수령·지급 방향 규칙 한 줄. 도구 구성은 v4.2와 같다.
+POLICY_GUARD_PROMPT = "v4.3a"
 POLICY_RESULT_SAMPLE = AI_ROOT / "tests" / "fixtures" / "chat" / "finance_policy_result_sample.json"
 TRANSACTIONS = AI_ROOT / "tests" / "fixtures" / "finance" / "minh_12m.json"
 CACHE_MIN_TOKENS = 512
@@ -275,9 +277,10 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
     )
     parser.add_argument(
         "--prompt-version",
-        choices=[POLICY_BASELINE_PROMPT, POLICY_TOOL_PROMPT],
+        choices=[POLICY_BASELINE_PROMPT, POLICY_TOOL_PROMPT, POLICY_GUARD_PROMPT],
         default=POLICY_BASELINE_PROMPT,
-        help="policy only: v4.1 baseline (no regulation tool) or v4.2 (search_finance_policy)",
+        help="policy only: v4.1 baseline (no regulation tool), v4.2 (search_finance_policy) or "
+        "v4.3a (v4.2 + direction rule)",
     )
     args = parser.parse_args(argv)
     if isinstance(sys.stdout, io.TextIOWrapper):
@@ -301,7 +304,7 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
     if args.question_set in ("product", "policy"):
         policy = args.question_set == "policy"
         spec = json.loads((POLICY_QUESTIONS if policy else PRODUCT_QUESTIONS).read_text("utf-8"))
-        with_tool = policy and args.prompt_version == POLICY_TOOL_PROMPT
+        with_tool = policy and args.prompt_version in (POLICY_TOOL_PROMPT, POLICY_GUARD_PROMPT)
         prompt = args.prompt_version if policy else BASELINE_PROMPT
         tools = v4_2_tools() if with_tool else v4_1_tools() if policy else v3_tools()
         second_tool = None
@@ -325,7 +328,7 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
         setup = None
         if with_tool:
             setup = (
-                f"챗봇 설정: system {PROMPT_VERSIONS[POLICY_TOOL_PROMPT]} + v4.1 도구 + "
+                f"챗봇 설정: system {PROMPT_VERSIONS[args.prompt_version]} + v4.1 도구 + "
                 "search_finance_policy. 문항: finance_policy_questions_v1.json. "
                 "아래 2차는 search_finance_policy 결과 예시(k=8)를 받았다고 가정한 호출이다."
             )

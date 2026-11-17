@@ -124,9 +124,12 @@ def test_query_without_hangul_uses_dense_only() -> None:
     assert mode == "hybrid" and hybrid.queries == ["외국인거주자 송금 한도"]
 
 
+_REAL_TOOLSET = chat_routes.ChatToolset
+
+
 def _tool_names(version: str, monkeypatch: pytest.MonkeyPatch) -> list[str]:
     seen: list[str] = []
-    real = chat_routes.ChatToolset
+    real = _REAL_TOOLSET  # 여러 번 불러도 spy가 겹치지 않게 원래 클래스를 쓴다
 
     def spy(*tools: Any) -> Any:
         toolset = real(*tools)
@@ -156,3 +159,5 @@ def test_tool_attached_only_for_v4_2(monkeypatch: pytest.MonkeyPatch) -> None:
     # v4.1(기본값, 기준선) 도구 구성에는 영향이 없다.
     assert SEARCH_FINANCE_POLICY not in _tool_names("v4.1", monkeypatch)
     assert SEARCH_FINANCE_POLICY in _tool_names("v4.2", monkeypatch)
+    # v4.3a(스펙 가드 ①)는 v4.2와 같은 도구 구성이다.
+    assert _tool_names("v4.3a", monkeypatch) == _tool_names("v4.2", monkeypatch)
