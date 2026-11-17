@@ -4,13 +4,14 @@
 - ② unit: 단위(조문·소제목) 하나가 청크 하나. 규칙(2026-11-17 결정, 측정 전 고정):
   30토큰 미만 단위는 같은 문서의 다음 단위에 붙이고, 900토큰 초과 단위는 줄(문단) 경계에서
   500토큰 이하로 나눈다.
+- ④: ②에서 나눈 조문 조각마다 조 머리를 붙인다(측정 뒤 추가한 후보).
 청크마다 문서·단위·쪽·effective_from 메타를 둔다.
 현행 단위만 받는다(시행 예정 판은 말뭉치에서 이미 뺐다).
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from app.finance_policy.corpus import Unit
@@ -57,8 +58,23 @@ def fixed_chunks(units: Sequence[Unit], count: TokenCounter) -> list[PolicyChunk
     return out
 
 
-def unit_chunks(units: Sequence[Unit], count: TokenCounter) -> list[PolicyChunk]:
-    """② 단위 하나 = 청크 하나. 짧은 단위는 다음 단위에 붙이고, 긴 단위는 문단 경계에서 나눈다."""
+def article_heads(units: Sequence[Unit], doc_titles: Mapping[str, str]) -> dict[str, str]:
+    """④ 조 머리: 법령·규정 단위마다 '법령명 제n조(제목)'. 가이드북·보도자료는 없음."""
+    return {
+        u.unit_id: f"{doc_titles[u.doc]} {u.ref}({u.title})"
+        for u in units
+        if u.doc in doc_titles and u.doc not in ("GUIDE", "PRESS")
+    }
+
+
+def unit_chunks(
+    units: Sequence[Unit], count: TokenCounter, heads: Mapping[str, str] | None = None
+) -> list[PolicyChunk]:
+    """② 단위 하나 = 청크 하나. 짧은 단위는 다음 단위에 붙이고, 긴 단위는 문단 경계에서 나눈다.
+
+    heads(④, 측정 뒤 추가한 후보)를 주면 긴 조문을 나눈 조각마다 그 조의 머리(법령명·조 번호·제목)를
+    앞에 붙인다. 나뉘지 않은 단위는 그대로다.
+    """
     merged: list[tuple[str, str, tuple[str, ...], int | None, str | None]] = []
     carry: tuple[str, str, tuple[str, ...], int | None, str | None] | None = None
     for u in units:
@@ -95,6 +111,8 @@ def unit_chunks(units: Sequence[Unit], count: TokenCounter) -> list[PolicyChunk]
                 current.append(line)
             if current:
                 parts.append("\n".join(current))
+        head = (heads or {}).get(ids[0]) if len(parts) > 1 else None
         for i, part in enumerate(parts):
-            out.append(PolicyChunk(f"unit:{ids[0]}#{i}", doc, part, ids, page, effective))
+            text_i = f"{head}\n{part}" if head else part
+            out.append(PolicyChunk(f"unit:{ids[0]}#{i}", doc, text_i, ids, page, effective))
     return out

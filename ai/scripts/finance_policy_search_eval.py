@@ -4,6 +4,9 @@
 - ② unit: 조문·소제목 단위 + dense. 30토큰 미만은 다음 단위에 붙이고,
   900 초과는 문단 경계에서 500 이하로 나눈다.
 - ③ unit + BM25: ②와 같은 청크, dense 20 + BM25 20을 RRF(k=60)로 합침(#47 ③과 같은 설정)
+- ④ ③ + 긴 조문을 나눈 조각마다 조 머리(법령명·조 번호·조 제목)를 붙임. **측정 뒤(2단계 결과를 보고)
+  추가한 후보**다. ③과만 비교한다(ko 원 문항 16개 기준, 1문항 이하 차이는 동점).
+핵심 사실 포함@3·@5·@8도 낸다(도구가 돌려줄 청크 수 k를 정하는 근거).
 
 현행 조문만 색인한다(시행 예정 판 제외). 문항은 answerable 32(original 16 + user 16).
 검색어: ko = queryKo(original·user 같음), en = original은 queryEn, user는 사용자 질문 원문.
@@ -33,7 +36,7 @@ from typing import Any
 
 import _bootstrap
 
-from app.finance_policy.chunks import PolicyChunk, fixed_chunks, unit_chunks
+from app.finance_policy.chunks import PolicyChunk, article_heads, fixed_chunks, unit_chunks
 from app.finance_policy.corpus import load_corpus, match_key
 
 AI_ROOT = _bootstrap.AI_ROOT
@@ -41,12 +44,17 @@ QUESTIONS_PATH = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json"
 DEFAULT_OUTPUT_DIR = AI_ROOT / "artifacts" / "rag"
 DEFAULT_CACHE_DIR = DEFAULT_OUTPUT_DIR / "embedding-cache"
 TOP_K = 5
-METHODS = ("1", "2", "3")
+COVERAGE_KS = (3, 5, 8)
+METHODS = ("1", "2", "3", "4")
+# 2단계 미리 정한 비교(①②③)와 측정 뒤 추가한 비교(③④).
+FIRST_ROUND = ("1", "2", "3")
+SECOND_ROUND = ("3", "4")
 LANGS = ("ko", "en")
 DESCRIPTIONS = {
     "1": "① 고정 길이(600/900/80) + dense",
     "2": "② 조문·소제목 단위(규칙 적용) + dense",
     "3": "③ ② + BM25(RRF k=60, 각 상위 20)",
+    "4": "④ ③ + 나눈 조문 조각마다 조 머리(측정 뒤 추가한 후보)",
 }
 
 
@@ -61,9 +69,11 @@ def relevant(chunk: PolicyChunk, fact: Mapping[str, Any]) -> bool:
 
 
 def score(
-    question: Mapping[str, Any], top: Sequence[PolicyChunk], corpus_chunks: Sequence[PolicyChunk]
+    question: Mapping[str, Any], ranked: Sequence[PolicyChunk], corpus_chunks: Sequence[PolicyChunk]
 ) -> dict[str, Any]:
+    """ranked는 상위 max(COVERAGE_KS)개. 주 지표는 상위 TOP_K로 낸다."""
     facts = question["keyFacts"]
+    top = ranked[:TOP_K]
     ranks = [i for i, c in enumerate(top, start=1) if any(relevant(c, f) for f in facts)]
     covered = [any(relevant(c, f) for c in top) for f in facts]
     in_corpus = [any(relevant(c, f) for c in corpus_chunks) for f in facts]
@@ -74,6 +84,9 @@ def score(
         "allFacts": all(covered),
         "factsCovered": covered,
         "factsInCorpus": in_corpus,
+        "allFactsAt": {
+            str(k): all(any(relevant(c, f) for c in ranked[:k]) for f in facts) for k in COVERAGE_KS
+        },
         "top": [{"chunkId": c.chunk_id, "doc": c.doc} for c in top],
     }
 
@@ -87,12 +100,15 @@ def aggregate(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "recall": sum(r["hit"] for r in rows),
         "allFacts": sum(r["allFacts"] for r in rows),
         "mrr": statistics.mean(r["rr"] for r in rows),
+        "allFactsAt": {str(k): sum(r["allFactsAt"][str(k)] for r in rows) for k in COVERAGE_KS},
     }
 
 
-def select(summary: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
-    """Recall → 핵심 사실 포함 → MRR → 단순. 최고와 1문항(MRR은 1/n) 이하 차이는 동점."""
-    alive = list(METHODS)
+def select(
+    summary: Mapping[str, Mapping[str, Any]], methods: Sequence[str] = FIRST_ROUND
+) -> dict[str, Any]:
+    """Recall → 핵심 사실 포함 → MRR → 단순(methods 순서). 최고와 1문항(MRR은 1/n) 이하는 동점."""
+    alive = list(methods)
     steps = []
     n = next(iter(summary.values()))["n"]
     for metric, tol in (("recall", 1), ("allFacts", 1), ("mrr", 1 / n)):
@@ -100,8 +116,8 @@ def select(summary: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
         kept = [m for m in alive if best - summary[m][metric] <= tol + 1e-9]
         steps.append({"metric": metric, "best": best, "kept": kept})
         alive = kept
-    chosen = alive[0]  # METHODS 순서가 단순한 순서
-    return {"steps": steps, "chosen": chosen, "distinguished": len(steps[0]["kept"]) < len(METHODS)}
+    chosen = alive[0]  # methods 순서가 단순한 순서
+    return {"steps": steps, "chosen": chosen, "distinguished": len(steps[0]["kept"]) < len(methods)}
 
 
 def build(chunks: Sequence[PolicyChunk], method: str, embedder: Any, cache: Any) -> Any:
@@ -118,7 +134,7 @@ def build(chunks: Sequence[PolicyChunk], method: str, embedder: Any, cache: Any)
     ]
     vectors, _ = cache.get_or_compute(wrapped, "none", embedder.embed_documents)
     dense = DenseRetriever(embedder, vectors)
-    if method != "3":
+    if method not in ("3", "4"):
         return dense
     return HybridRetriever(dense, BM25Index([c.text for c in chunks], 1.5, 0.75), 60, 20)
 
@@ -135,18 +151,18 @@ def render(report: Mapping[str, Any]) -> str:
         "LLM 호출 없음.",
         "청크 수: " + ", ".join(f"{m} {report['chunks'][m]}" for m in METHODS),
         "",
-        "| 방식 | 언어 | 묶음 | n | Recall@5 | 핵심 사실 포함@5 | MRR@5 |",
-        "|---|---|---|---|---|---|---|",
+        "| 방식 | 언어 | 묶음 | n | Recall@5 | 핵심 사실 포함@5 | MRR@5 | 포함@3 | 포함@8 |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for m in METHODS:
         for lang in LANGS:
             for group, agg in report["summary"][m][lang].items():
                 out.append(
                     f"| {m} | {lang} | {group} | {agg['n']} | {agg['recall']}/{agg['n']} | "
-                    f"{agg['allFacts']}/{agg['n']} | {agg['mrr']:.3f} |"
+                    f"{agg['allFacts']}/{agg['n']} | {agg['mrr']:.3f} | "
+                    f"{agg['allFactsAt']['3']}/{agg['n']} | {agg['allFactsAt']['8']}/{agg['n']} |"
                 )
-    for lang in LANGS:
-        sel = report["selection"][lang]
+    for lang, sel in report["selection"].items():
         out += [
             "",
             f"선택({lang}): "
@@ -192,6 +208,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "2": unit_chunks(corpus.units, embedder.count_tokens),
     }
     chunks["3"] = chunks["2"]
+    titles = {d["key"]: d["title"] for d in corpus.manifest["documents"]}
+    heads = article_heads(corpus.units, titles)
+    chunks["4"] = unit_chunks(corpus.units, embedder.count_tokens, heads)
     retrievers = {m: build(chunks[m], m, embedder, cache) for m in METHODS}
     for r in retrievers.values():
         r.search("해외송금 한도", TOP_K)  # 워밍업
@@ -202,8 +221,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             text = query_text(q, lang)
             per = {}
             for m in METHODS:
-                top = [chunks[m][i] for i, _ in retrievers[m].search(text, TOP_K)]
-                per[m] = score(q, top, chunks[m])
+                ranked = [chunks[m][i] for i, _ in retrievers[m].search(text, max(COVERAGE_KS))]
+                per[m] = score(q, ranked, chunks[m])
             rows.append({"id": q["id"], "variant": q.get("variant", "original"), "lang": lang,
                          "query": text, "methods": per})  # fmt: skip
     summary: dict[str, Any] = {}
@@ -217,6 +236,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                                    if r["lang"] == lang and r["variant"] == variant]  # fmt: skip
             summary[m][lang] = {g: aggregate(v) for g, v in groups.items()}
     selection = {lang: select({m: summary[m][lang]["all"] for m in METHODS}) for lang in LANGS}
+    # ③ vs ④(측정 뒤 추가): ko는 original·user가 같은 검색어라 원 문항 16개로 비교한다.
+    selection["ko ③④ (원 문항 16)"] = select(
+        {m: summary[m]["ko"]["original"] for m in SECOND_ROUND}, SECOND_ROUND
+    )
     report = {
         "startedAt": started.isoformat(timespec="seconds"),
         "model": args.model,
@@ -240,7 +263,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for lang in LANGS:
             a = summary[m][lang]["all"]
             line = f"{m} {lang} recall {a['recall']}/{a['n']} allFacts {a['allFacts']}"
-            print(f"{line} mrr {a['mrr']:.3f}")
+            print(f"{line} mrr {a['mrr']:.3f} allFactsAt {a['allFactsAt']}")
     print(f"wrote {args.output_dir / stem}.json/.md")
     return 0
 
