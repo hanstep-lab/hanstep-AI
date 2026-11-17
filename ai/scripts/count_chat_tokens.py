@@ -55,6 +55,10 @@ POLICY_QUESTIONS = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json
 BASELINE_PROMPT = "v3"
 # 금융 정책 RAG(#88) 기준선: 지금 기본 프롬프트(규정 도구 없음).
 POLICY_BASELINE_PROMPT = "v4.1"
+# 금융 정책 검색 도구가 붙는 버전(#88 after).
+# 2차 호출은 검색 결과 예시(fixture)를 받았다고 가정한다.
+POLICY_TOOL_PROMPT = "v4.2"
+POLICY_RESULT_SAMPLE = AI_ROOT / "tests" / "fixtures" / "chat" / "finance_policy_result_sample.json"
 TRANSACTIONS = AI_ROOT / "tests" / "fixtures" / "finance" / "minh_12m.json"
 CACHE_MIN_TOKENS = 512
 EXIT_USAGE = 2
@@ -84,6 +88,13 @@ def v4_1_tools() -> list[dict[str, Any]]:
     return [*v3_tools(), TOOL_SCHEMAS_BY_PROMPT[POLICY_BASELINE_PROMPT]]
 
 
+def v4_2_tools() -> list[dict[str, Any]]:
+    """v4.2: v4.1 도구 + 금융 정책 검색 도구."""
+    from app.chat.finance_policy_tools import TOOL_SCHEMA as POLICY_TOOL_SCHEMA
+
+    return [*v4_1_tools(), POLICY_TOOL_SCHEMA]
+
+
 def history_messages(history: list[dict[str, str]]) -> list[dict[str, Any]]:
     return [{"role": h["role"].lower(), "content": h["content"]} for h in history]
 
@@ -92,18 +103,26 @@ def baseline_requests(
     question: dict[str, Any],
     prompt: str = BASELINE_PROMPT,
     tools: list[dict[str, Any]] | None = None,
+    second_tool: tuple[str, dict[str, Any], Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Question with a chat setup (default: v3 + v3 tools): first and second call."""
+    """Question with a chat setup (default: v3 + v3 tools): first and second call.
+
+    second_tool: (도구 이름, 인자, 결과). 없으면 get_financial_analysis + fixture 요약.
+    """
     system = system_prompt("en", prompt)
     tools = v3_tools() if tools is None else tools
-    result = summarize(json.loads(FIXTURE.read_text(encoding="utf-8")))
+    name, arguments, result = second_tool or (
+        TOOL_NAME,
+        {},
+        summarize(json.loads(FIXTURE.read_text(encoding="utf-8"))),
+    )
     first = [*history_messages(question["history"]), {"role": "user", "content": question["text"]}]
     second = [
         *first,
         {
             "role": "assistant",
             "content": [
-                {"type": "tool_use", "id": "toolu_count_1", "name": TOOL_NAME, "input": {}}
+                {"type": "tool_use", "id": "toolu_count_1", "name": name, "input": arguments}
             ],
         },
         {
@@ -254,6 +273,12 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
         help="finance: raw vs tool (eval_questions_v1.json), product: #65 baseline (v3 tools), "
         "policy: #88 baseline (v4.1 tools)",
     )
+    parser.add_argument(
+        "--prompt-version",
+        choices=[POLICY_BASELINE_PROMPT, POLICY_TOOL_PROMPT],
+        default=POLICY_BASELINE_PROMPT,
+        help="policy only: v4.1 baseline (no regulation tool) or v4.2 (search_finance_policy)",
+    )
     args = parser.parse_args(argv)
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -276,12 +301,19 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
     if args.question_set in ("product", "policy"):
         policy = args.question_set == "policy"
         spec = json.loads((POLICY_QUESTIONS if policy else PRODUCT_QUESTIONS).read_text("utf-8"))
-        prompt = POLICY_BASELINE_PROMPT if policy else BASELINE_PROMPT
-        tools = v4_1_tools() if policy else v3_tools()
+        with_tool = policy and args.prompt_version == POLICY_TOOL_PROMPT
+        prompt = args.prompt_version if policy else BASELINE_PROMPT
+        tools = v4_2_tools() if with_tool else v4_1_tools() if policy else v3_tools()
+        second_tool = None
+        if with_tool:
+            from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
+
+            sample = json.loads(POLICY_RESULT_SAMPLE.read_text(encoding="utf-8"))
+            second_tool = (SEARCH_FINANCE_POLICY, {"queryKo": sample["query"]}, sample["result"])
         base_rows: list[dict[str, Any]] = []
         for model in models:
             for q in spec["questions"]:
-                first, second = baseline_requests(q, prompt, tools)
+                first, second = baseline_requests(q, prompt, tools, second_tool)
                 row = {
                     "model": model,
                     "question": q["id"],
@@ -290,12 +322,18 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
                 }
                 base_rows.append(row)
                 print(f"{model} {q['id']} first={row['first']} second={row['second']}", flush=True)
-        setup = (
-            f"지금 챗봇 설정: system {PROMPT_VERSIONS[POLICY_BASELINE_PROMPT]} + v4.1 도구"
-            "(금융·비자·송금·상품), 규정 도구 없음. 문항: finance_policy_questions_v1.json."
-            if policy
-            else None
-        )
+        setup = None
+        if with_tool:
+            setup = (
+                f"챗봇 설정: system {PROMPT_VERSIONS[POLICY_TOOL_PROMPT]} + v4.1 도구 + "
+                "search_finance_policy. 문항: finance_policy_questions_v1.json. "
+                "아래 2차는 search_finance_policy 결과 예시(k=8)를 받았다고 가정한 호출이다."
+            )
+        elif policy:
+            setup = (
+                f"지금 챗봇 설정: system {PROMPT_VERSIONS[POLICY_BASELINE_PROMPT]} + v4.1 도구"
+                "(금융·비자·송금·상품), 규정 도구 없음. 문항: finance_policy_questions_v1.json."
+            )
         report = render_baseline(base_rows, setup)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(report, encoding="utf-8")

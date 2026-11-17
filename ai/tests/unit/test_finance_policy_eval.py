@@ -178,3 +178,12 @@ def test_review_rejects_unknown_questions(
     results.write_text(json.dumps({"type": "call", "questionId": "F01", "answer": ""}) + "\n")
     assert REVIEW.main([str(results), "--output", str(tmp_path / "r.md")]) == 1
     assert "F01" in capsys.readouterr().out
+
+
+def test_expected_tools_by_prompt_version() -> None:
+    # v4.1 기준선은 규정 도구가 없고, v4.2(after)는 규정 질문에 search_finance_policy를 기대한다.
+    by_id = {q["id"]: q for q in _qset()["questions"]}
+    for qid in ("A01", "A01v", "N05"):
+        assert EVAL.expected_tools(by_id[qid], "v4.1") == []
+        assert EVAL.expected_tools(by_id[qid], "v4.2") == ["search_finance_policy"]
+    assert EVAL.expected_tools(by_id["O02"], "v4.2") == ["recommend_savings_products"]

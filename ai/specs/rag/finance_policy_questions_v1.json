@@ -1,6 +1,6 @@
 {
   "version": "finance-policy-questions-v1",
-  "description": "금융 정책 RAG(해외송금 규정, 이슈 #88) 평가 세트. 영어 46문항(answerable 16 + 사용자 표현 변형 16, not_in_docs 8, out_of_scope 6). 1차 실행(도구 장애, 2026-11-17) 뒤 정식 기준선 전에 24문항에서 늘렸다. variant: original(원 문항) / user(사용자 표현 변형, variantOf가 원 문항 id, gold·핵심 사실·위험 오답이 같음). 페르소나: E-9 필리핀 근로자 Reyes(2022년 입국, 재직 중). gold는 문서·조문(또는 가이드북·보도자료 PDF 쪽), keyFacts는 정답 핵심 사실과 그 근거 원문 인용(추출 텍스트에서 공백 무시하고 확인). queryKo·queryEn은 검색 비교용 검색어. riskyWrong은 사용자가 따르면 규정 위반이 될 수 있는 오답 유형(위험 오답). 가이드북·보도자료의 쪽은 PDF 쪽 번호. answerHint는 영어 답변에서 핵심 사실을 찾는 자동 채점 보조 정규식(맞아도 정답 판정이 아님, 사람 확인). expectedTools는 v4.1 기준선(규정 도구 없음)의 기대 도구: 규정 질문은 없음, out_of_scope는 그 주제의 기존 도구.",
+  "description": "금융 정책 RAG(해외송금 규정, 이슈 #88) 평가 세트. 영어 46문항(answerable 16 + 사용자 표현 변형 16, not_in_docs 8, out_of_scope 6). 1차 실행(도구 장애, 2026-11-17) 뒤 정식 기준선 전에 24문항에서 늘렸다. variant: original(원 문항) / user(사용자 표현 변형, variantOf가 원 문항 id, gold·핵심 사실·위험 오답이 같음). 페르소나: E-9 필리핀 근로자 Reyes(2022년 입국, 재직 중). gold는 문서·조문(또는 가이드북·보도자료 PDF 쪽), keyFacts는 정답 핵심 사실과 그 근거 원문 인용(추출 텍스트에서 공백 무시하고 확인). queryKo·queryEn은 검색 비교용 검색어. riskyWrong은 사용자가 따르면 규정 위반이 될 수 있는 오답 유형(위험 오답). 가이드북·보도자료의 쪽은 PDF 쪽 번호. answerHint는 영어 답변에서 핵심 사실을 찾는 자동 채점 보조 정규식(맞아도 정답 판정이 아님, 사람 확인). expectedTools는 v4.1 기준선(규정 도구 없음)의 기대 도구: 규정 질문은 없음, out_of_scope는 그 주제의 기존 도구. byPromptVersion.v4.2는 금융 정책 검색 도구가 붙는 v4.2의 기대 도구(answerable·not_in_docs는 search_finance_policy).",
   "persona": {
     "name": "Reyes",
     "visa": "E-9",
@@ -65,6 +65,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -115,6 +122,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -164,6 +178,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -219,6 +240,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -273,6 +301,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "FETA",
@@ -316,6 +351,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "FETA",
@@ -358,6 +400,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -396,6 +445,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -433,6 +489,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -477,6 +540,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -520,6 +590,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "EFTA",
@@ -580,6 +657,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "EFTA",
@@ -639,6 +723,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -675,6 +766,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -710,6 +808,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "EFTA",
@@ -758,6 +863,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "EFTA",
@@ -805,6 +917,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -834,6 +953,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -862,6 +988,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -891,6 +1024,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -919,6 +1059,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -948,6 +1095,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -976,6 +1130,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -1005,6 +1166,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -1033,6 +1201,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "GUIDE",
@@ -1076,6 +1251,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "GUIDE",
@@ -1118,6 +1300,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "GUIDE",
@@ -1149,6 +1338,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "GUIDE",
@@ -1179,6 +1375,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -1210,6 +1413,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "REG",
@@ -1240,6 +1450,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "PRESS",
@@ -1271,6 +1488,13 @@
       "category": "answerable",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [
         {
           "doc": "PRESS",
@@ -1301,6 +1525,13 @@
       "text": "What is Shinhan Bank's exact fee today for sending money to the Philippines?",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [],
       "keyFacts": [],
       "note": "가이드북 p.131에 2022년 기준 일반 수수료 범위가 있지만 신한은행의 현재 수수료는 없다",
@@ -1313,6 +1544,13 @@
       "text": "What is today's exchange rate from Korean won to Philippine peso?",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [],
       "keyFacts": [],
       "note": "현재 환율은 문서에 없다",
@@ -1325,6 +1563,13 @@
       "text": "Do I have to pay tax in Korea on the money I send home?",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [],
       "keyFacts": [],
       "note": "송금액 과세 여부는 적재 범위에 없다(제4-8조는 외국환은행의 국세청 통보만 다룬다)",
@@ -1337,6 +1582,13 @@
       "text": "How much can my family in the Philippines receive without reporting it to the Philippine government?",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [],
       "keyFacts": [],
       "note": "필리핀(상대국) 규정은 문서에 없다",
@@ -1349,6 +1601,13 @@
       "text": "Which remittance app has the lowest fee for sending money to the Philippines right now?",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [],
       "keyFacts": [],
       "note": "앱별 현재 수수료 비교·순위는 없다(가이드북에는 은행연합회 비교 조회 안내와 은행별 서비스 예시만 있음)",
@@ -1361,6 +1620,13 @@
       "text": "How much will my family's bank in the Philippines charge them to receive the money?",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [],
       "keyFacts": [],
       "note": "가이드북 p.109·p.131은 수취은행 수수료가 있다는 것만 말하고 금액은 없다",
@@ -1373,6 +1639,13 @@
       "text": "How do I cancel an overseas transfer I already sent yesterday?",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [],
       "keyFacts": [],
       "note": "송금 취소 방법은 적재 범위에 없다(원문에 cancel·취소 관련 서술 없음)",
@@ -1385,6 +1658,13 @@
       "text": "What is Shinhan Bank's SWIFT code?",
       "history": [],
       "expectedTools": [],
+      "byPromptVersion": {
+        "v4.2": {
+          "expectedTools": [
+            "search_finance_policy"
+          ]
+        }
+      },
       "gold": [],
       "keyFacts": [],
       "note": "가이드북 p.110은 SWIFT 코드가 필요하다는 것만 말하고 신한은행 코드는 없다",

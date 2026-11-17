@@ -92,3 +92,18 @@ def test_policy_baseline_counts_v4_1_tools_per_question(tmp_path: Path) -> None:
     assert names[0] == "get_financial_analysis" and names[-1] == "recommend_savings_products"
     assert counter.calls[0]["system"] == COUNT.system_prompt("en", "v4.1")
     assert len(counter.calls) == 92  # 1차·2차 × 46문항
+
+
+def test_policy_v4_2_adds_the_policy_tool_and_search_result(tmp_path: Path) -> None:
+    counter = FakeCounter()
+    output = tmp_path / "policy42.md"
+    argv = ["--question-set", "policy", "--prompt-version", "v4.2", "--models", "claude-haiku-5-5"]
+    assert COUNT.main([*argv, "--output", str(output)], client=counter) == 0
+    assert "chat-v4.2" in output.read_text(encoding="utf-8")
+    names = [t["name"] for t in counter.calls[0]["tools"]]
+    assert names[-1] == "search_finance_policy"
+    assert counter.calls[0]["system"] == COUNT.system_prompt("en", "v4.2")
+    second = next(c for c in counter.calls if len(c["messages"]) == 3)
+    use = second["messages"][1]["content"][0]
+    assert use["name"] == "search_finance_policy" and use["input"]["queryKo"]
+    assert "effectiveFrom" in second["messages"][2]["content"][0]["content"]
