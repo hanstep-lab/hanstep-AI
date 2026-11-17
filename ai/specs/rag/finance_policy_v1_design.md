@@ -406,6 +406,9 @@ uv run python scripts/finance_policy_review.py artifacts/chat/policy_baseline_v4
 
 ### 14-2. 선택 (결정된 규칙: Recall@5 → 핵심 사실 포함@5 → MRR → 단순, 1문항 이하 차이는 동점)
 
+> **명시(2026-11-17 확인): 한국어 검색어는 16개다(original·user가 같은 queryKo). ③ 선택 근거는 MRR@5 0.688(①) → 0.804(③)이고,
+> Recall@5·핵심 사실 포함@5는 ①과 같다. 표본이 작다.** 미리 정한 규칙대로 ③을 받는다.
+
 - **ko(챗봇은 한국어 검색어를 씀): ③ 선택.** Recall@5 ①·③ 30 vs ② 28로 ② 탈락 → 핵심 사실 포함@5 ①·③ 24 동점 →
   MRR@5 ③ 0.804 vs ① 0.688(차이 0.116 > 1/32) → ③.
   - 확인: ko는 검색어가 16개뿐이라 32회 기준 '2회 차이'는 실제 1문항 차이다. 16문항 기준으로 다시 따지면 ②도 Recall에서
@@ -434,3 +437,74 @@ uv run python scripts/finance_policy_review.py artifacts/chat/policy_baseline_v4
 - 조문 경계 실패(A01·A03)는 긴 조문(제4-4조·법 제3조)을 500토큰 이하로 나눈 결과다. 측정 뒤 규칙은 바꾸지 않았고,
   '조 머리(조 번호·제목)를 조각마다 붙이기' 같은 보완은 다음 후보로 남긴다.
 - 측정 뒤 평가기·규칙 수정: 없음.
+
+## 15. ④ 추가 비교·k 근거·3단계 구현 (2026-11-17)
+
+### 15-1. ④ = ③ + 나눈 조문 조각마다 조 머리 (측정 뒤 추가한 후보, 공개)
+
+- 2단계 결과(조문 경계 실패 A01·A03)를 보고 **측정 뒤에 추가한 후보**다. 같은 평가기·같은 규칙으로 ③과만 비교했다
+  (ko 원 문항 16개 기준, 1문항 이하 차이는 동점). 실행 2026-11-17 21:29(한국 시간), 결과 `ai/artifacts/rag/finance-policy-search-20261117T122955Z.{json,md}`.
+- 조 머리는 '법령명 제n조(제목)'(예: `외국환거래규정 제4-4조(비거주자또는외국인거주자의지급등)`)이고, 900토큰을 넘어 나뉜 조문의 조각에만 붙는다.
+
+| ko 원 문항 16 | Recall@5 | 핵심 사실 포함@5 | MRR@5 |
+|---|---|---|---|
+| ③ | 15/16 | 12/16 | 0.804 |
+| ④ | 15/16 | 12/16 | 0.804 |
+
+- 세 지표가 모두 같다 → 동점 → 단순한 **③ 유지**. 조 머리를 붙여도 A01(제4-4조 조각)·A03(법 제3조 조각)은 그대로 실패했다.
+  en에서도 ③과 거의 같다(포함@8만 4 → 5).
+
+### 15-2. 도구가 돌려줄 청크 수 k
+
+| ③, ko 원 문항 16 | 핵심 사실 포함@3 | @5 | @8 |
+|---|---|---|---|
+| 문항 수 | 11 | 12 (+A12) | 13 (+A03) |
+
+- 포함률이 8까지 계속 오른다(5 → 8에서 A03이 들어옴). '더 오르지 않는 가장 작은 값'을 잰 범위(3·5·8) 안에서 고르면 **k = 8**을 제안한다.
+  1문항 차이를 동점으로 보면 5도 가능하다. 대가: k=8 검색 결과는 입력 약 6,600토큰(아래 count_tokens)으로, 2차 호출 비용이 늘어난다.
+  도구 코드에는 8로 넣었다(`RESULT_K`).
+
+### 15-3. 동의어 사전 (만들지 않음, 후보만)
+
+- 급여 ↔ 국내보수(A02), 우체국 ↔ 체신관서(A12), 통장·체크카드 ↔ 접근매체(A08). 평가 세트 실패에서 나온 것이라
+  hold-out 결과를 본 뒤 판단한다.
+
+### 15-4. 3단계 구현 (측정하지 않음)
+
+| 항목 | 내용 |
+|---|---|
+| 검색 | `app/finance_policy/search.py` `FinancePolicySearch`: ③(조문 단위 + BM25 RRF). 검색어에 한글이 없으면 BM25를 빼고 dense만(`dense_only`). 현행 조문만 |
+| 도구 | `app/chat/finance_policy_tools.py` `search_finance_policy(queryKo)`: 도구 설명에 "Write queryKo in Korean". 결과는 문서 제목·번호·조문 번호(가이드북·보도자료는 쪽)·시행일(또는 발행일)·원문 인용만, k=8. sources는 비움(결정). 검색기가 없으면 `SEARCH_NOT_CONFIGURED` |
+| 서버 | `FINANCE_POLICY_CORPUS_DIR`(문서 폴더)와 로드된 모델(`LOAD_MODEL_ON_STARTUP=true`)로 시작 때 만든다(`app/main.py`). 임베딩은 `RAG_ARTIFACTS_DIR/embedding-cache`에 캐시 |
+| 프롬프트 | v4.2 = v4.1 + `finance_policy_rules.md`(규정 숫자·한도·대상은 도구 결과만, 외국인거주자/거주자 구분, 조문 번호·시행일 표시, 법률 판단 단정 금지 + 은행·관계기관 확인, 문서에 없으면 없다고 안내). v4.1 문구·해시는 그대로. 기본값은 v4.1 그대로 |
+| 연결 | 도구는 v4.2에서만 붙는다(`FINANCE_POLICY_PROMPT_VERSIONS`). 비자·송금·상품 도구도 v4.2에 붙는다(v4.1 구성 + 규정 도구) |
+| 평가 세트 | `byPromptVersion.v4.2`: answerable·not_in_docs의 기대 도구 `search_finance_policy`. v4.1 기대값은 그대로 |
+| 테스트 | 도구 결과 형식·미설정·잘못된 인자, 한글 없는 검색어 dense 전환, v4.2에서만 붙음(v4.1 영향 없음), 프롬프트 v4.2 = v4.1 + 규칙, 해시, count_tokens v4.2 |
+
+### 15-5. 측정 준비 (실행하지 않음)
+
+서버(측정용, 사용자가 실행): `CHAT_LLM_MODE=anthropic`, `CHAT_PROMPT_VERSION=v4.2`, `LOAD_MODEL_ON_STARTUP=true`,
+`FINANCE_POLICY_CORPUS_DIR=C:\Projects\hanstep\rag-data\finance-policy`로 8001을 띄운다. `/health/ready`에서 모델 로드를 확인한다.
+
+```
+# after: 46문항 × 3 (v4.2 + search_finance_policy)
+SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm-mode anthropic \
+    --question-set policy --repeats 3 --base-url http://localhost:8001 \
+    --output artifacts/chat/policy_after_v4_2.jsonl --max-usd 0.8
+uv run python scripts/finance_policy_review.py artifacts/chat/policy_after_v4_2.jsonl \
+    --output artifacts/chat/policy_after_v4_2_review.md [--grades <판정 파일>]
+
+# 49문항 회귀 (v4.2, 같은 서버)
+SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm-mode anthropic \
+    --question-set eval --repeats 3 --base-url http://localhost:8001 \
+    --output artifacts/chat/regression_v4_2.jsonl --max-usd 0.5
+```
+
+- count_tokens(2026-11-17, Haiku 5.5, 46문항, `artifacts/chat/policy_after_v4_2_tokens.md`): 1차 호출 입력 평균 **7,594토큰**
+  (v4.1 6,767 → +827, +12%), 검색 결과(k=8 예시, `tests/fixtures/chat/finance_policy_result_sample.json`)까지 받은 1·2차 합 평균 **21,788토큰**.
+- 예상(Haiku 5.5 입력 $0.10·출력 $0.50 /100만 토큰):
+  - after 138회: LLM 2회(1·2차 21,788 입력 + 출력 약 700) 회당 약 $0.0025 → **약 $0.35**. 검색을 두 번 부르는 회차가 많으면
+    회당 약 $0.004 → 약 $0.55. 상한 `--max-usd 0.8`.
+  - 49문항 회귀 147회: v4.1 회귀 실측 $0.2445에 프롬프트 증가(+12%)를 더해 **약 $0.27**. 규정 도구를 잘못 부르는 회차가 있으면
+    늘어난다. 상한 `--max-usd 0.5`.
+- 기준선(v4.1, 46문항 × 3)은 아직 재지 않았다(운영 비자 문서 적재를 기다리는 중). after와 같은 서버 조건에서 v4.1로 잰다.
