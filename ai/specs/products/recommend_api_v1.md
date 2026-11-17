@@ -63,25 +63,35 @@ BE(Spring)가 이 API를 불러 FE 응답(`GET /api/v1/finance/products/recommen
       "kind": "DEPOSIT",
       "termMonths": [6, 12],
       "monthlyAmountKrw": null,
-      "depositAmountKrw": {"min": 1000000, "max": 10000000},
+      "depositAmountKrw": {"min": 500000, "max": 20000000},
       "accrual": null,
       "foreignerEligible": "inferred",
       "notChecked": ["visa"],
       "stayFits": true,
-      "baseRate": {"ratePct": 2.0, "asOf": "2026-01-01", "quote": "…", "page": 2},
+      "baseRate": {
+        "ratePct": 3.3,
+        "asOf": "2026-11-09",
+        "quote": "기본이자율 (2026.11.09 현재, 세전) 6개월 : 연 3.3% 12개월 : 연 3.6%",
+        "page": 2
+      },
       "maxRate": null,
-      "feature": {"quote": "…", "page": 1},
-      "evidence": [{"about": "term", "quote": "…", "page": 3}]
+      "feature": {"quote": "신한 슈퍼 SOL 신규 고객 및 급여 첫 거래 고객에게 우대금리를 제공하는 정기예금", "page": 1},
+      "evidence": [
+        {"about": "term", "quote": "계약기간 6개월, 12개월", "page": 1},
+        {"about": "amount", "quote": "50만원 이상 2,000만원 이하", "page": 1},
+        {"about": "foreigners", "quote": "실명의 개인 및 개인사업자", "page": 1}
+      ]
     }
   ],
   "excludedSummary": [
-    {"reason": "stayTerm", "count": 5},
-    {"reason": "recommendable", "count": 1}
+    {"reason": "recommendable", "count": 1},
+    {"reason": "stayTerm", "count": 5}
   ]
 }
 ```
 
-(위 숫자·인용은 형식 예시다. 실제 값은 조건표에서 온다.)
+(위 응답은 Reyes 프로필(E-9, 만료 2027-10-04, 여유자금 675,317원, 조건 없음)의 실제 결과에서 상품 하나만 남긴 것이다.
+이 경우 `products`는 7개다.)
 
 | 필드 | 형식 | 뜻 |
 |---|---|---|
@@ -131,7 +141,9 @@ BE(Spring)가 이 API를 불러 FE 응답(`GET /api/v1/finance/products/recommen
 | quote | string | 금리 원문 인용(기간별이면 나머지 기간 값도 인용에 둔다) |
 | page | int | 인용 쪽 |
 
-`maxRate`: `{ratePct, quote, page}`. 원문이 "최종이자율 연 3.25%"처럼 값을 적은 경우에만 있다.
+`maxRate`: `{ratePct, quote, page}`. 원문이 '최고이자율'·'최종이자율' 항목에 값을 적은 경우에만 있다
+(예: "최종이자율 (2026.09.29 현재, 세전) 연 3.25%"). 기간별이면 가장 짧은 가입 기간 값이고 나머지 기간 값은 quote에 있다.
+2026-11-17 조건표 기준 13개 중 6개에 있다.
 
 - 금리는 원문 값을 옮길 뿐이다. 기본금리에 우대금리를 **더하거나 계산해서 만든 숫자는 내지 않는다**.
 - 원문에서 근거를 찾지 못한 값은 null이다(지어내지 않음). 화면은 null이면 금리를 표시하지 않는다.
