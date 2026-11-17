@@ -41,7 +41,7 @@ def test_engine_thread_propagates_errors() -> None:
 def test_main_exits_before_loading_engine_when_not_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(runner, "get_settings", lambda: Settings(_env_file=None, rabbitmq_url=""))
+    monkeypatch.setattr(runner, "get_settings", lambda: Settings(rabbitmq_url=""))
     monkeypatch.setattr(runner, "configure_logging", lambda level: None)
     monkeypatch.delitem(sys.modules, "pipeline.engine", raising=False)
 
