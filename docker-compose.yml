@@ -53,6 +53,33 @@ services:
     networks:
       - hanstep-net
 
+  ocr-worker:
+    # 외국인등록증 OCR Worker(ocr.request). 엔진은 ocr/pipeline(이지연), 큐 처리는 ocr/worker.
+    # Python 3.10 + paddle이라 ai-server와 이미지를 나눈다. 기본으로는 뜨지 않는다.
+    # 실행: docker compose --profile ocr up -d --build ocr-worker
+    profiles: ["ocr"]
+    build:
+      context: ./ocr
+    image: hanstep-ocr:local
+    container_name: hanstep-ocr-worker
+    restart: unless-stopped
+    init: true
+    command: ["python", "-m", "worker"]
+    # HTTP 서버가 없어 헬스체크는 끈다.
+    healthcheck:
+      disable: true
+    env_file:
+      - path: ./ocr/.env
+        required: false
+    environment:
+      # 컨테이너 주소(hanstep-net). ocr/.env의 호스트 주소보다 우선한다.
+      RABBITMQ_URL: ${RABBITMQ_URL:?Set the container RabbitMQ URL (rabbitmq:5672) in .env}
+      SPRING_INTERNAL_API_URL: ${SPRING_INTERNAL_API_URL:-http://host.docker.internal:8080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - hanstep-net
+
 networks:
   hanstep-net:
     external: true
