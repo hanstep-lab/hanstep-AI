@@ -46,13 +46,24 @@ def _qset() -> dict[str, Any]:
 def test_question_set_shape() -> None:
     qset = _qset()
     questions = qset["questions"]
-    assert len(questions) == 24
+    assert len(questions) == 46
     counts = {
         c: sum(q["category"] == c for q in questions)
         for c in ("answerable", "not_in_docs", "out_of_scope")
     }
-    assert counts == {"answerable": 16, "not_in_docs": 4, "out_of_scope": 4}
-    assert len({q["id"] for q in questions}) == 24
+    assert counts == {"answerable": 32, "not_in_docs": 8, "out_of_scope": 6}
+    assert len({q["id"] for q in questions}) == 46
+    by_id = {q["id"]: q for q in questions}
+    users = [q for q in questions if q["variant"] == "user"]
+    assert len(users) == 16 and all(q["category"] == "answerable" for q in users)
+    for q in users:
+        # 사용자 변형: gold·핵심 사실·위험 오답이 원 문항과 같고, 조문 문구를 쓰지 않는다.
+        base = by_id[q["variantOf"]]
+        assert q["id"] == f"{base['id']}v" and base["variant"] == "original"
+        for field in ("gold", "keyFacts", "riskyWrong", "queryKo", "queryEn"):
+            assert q[field] == base[field]
+        assert q["text"] != base["text"]
+        assert "designated foreign exchange bank" not in q["text"].lower()
     for q in questions:
         assert q["history"] == [] and isinstance(q["expectedTools"], list)
         if q["category"] != "answerable":
@@ -110,12 +121,54 @@ def test_signals_on_written_answers() -> None:
     )
     signals = REVIEW.signals(a01, {"answer": good, "tools": [], "numberCheck": {}})
     assert signals["factHints"] == [True, True, True]
-    assert signals["citations"] >= 2 and signals["effectiveDate"] is True
+    assert signals["lawNames"] == 1 and signals["articles"] == 1
+    assert signals["effectiveDate"] is True
     bad = REVIEW.signals(a01, {"answer": "Yes, you can.", "tools": [], "numberCheck": {}})
-    assert bad["factHints"] == [False, False, False] and bad["citations"] == 0
+    assert bad["factHints"] == [False, False, False] and bad["lawNames"] == bad["articles"] == 0
+    # 상담 전화번호는 근거 없는 숫자에서 뺀다. 단정 표현은 'against the law'·'prohibited'도 잡는다.
+    row = {
+        "answer": "Selling it is against the law and is prohibited. Call 1332.",
+        "numberCheck": {"unsupported": ["1332", "5000"]},
+        "tools": [
+            {"toolName": "search_visa_policies", "arguments": {"query": "송금 한도"},
+             "status": "FAILED", "errorCode": "SEARCH_NOT_CONFIGURED"}
+        ],
+        "usage": {"inputTokens": 10, "outputTokens": 2, "llmCalls": 2},
+        "timings": {"firstDeltaMs": 5, "doneMs": 9},
+    }  # fmt: skip
+    s = REVIEW.signals(a01, row)
+    assert s["unsupportedNumbers"] == ["5000"] and s["helplineNumbers"] == ["1332"]
+    assert len(s["assertive"]) == 2
+    assert s["queries"] == ["송금 한도"] and s["tools"][0]["errorCode"] == "SEARCH_NOT_CONFIGURED"
+    assert (s["inputTokens"], s["llmCalls"], s["doneMs"]) == (10, 2, 9)
     n01 = next(q for q in qset["questions"] if q["id"] == "N01")
     abstain = REVIEW.signals(n01, {"answer": "That fee is not in the documents I have."})
     assert abstain["saysNotInDocs"] is True
+
+
+def test_review_aggregates_grades_by_variant(tmp_path: Path) -> None:
+    rows = [
+        {"type": "call", "questionId": qid, "repeat": 1, "category": "answerable", "answer": "x"}
+        for qid in ("A01", "A01v")
+    ]
+    results = tmp_path / "run.jsonl"
+    results.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    grades = {
+        "A01#1": {"grade": "abstain", "reason": "r", "abstainCause": "tool_failed"},
+        "A01v#1": {"grade": "risky_wrong", "reason": "says yes", "outOfDocsClaims": 1},
+    }
+    grades_path = tmp_path / "grades.json"
+    grades_path.write_text(json.dumps(grades), encoding="utf-8")
+    review = tmp_path / "review.md"
+    argv = [str(results), "--grades", str(grades_path), "--output", str(review)]
+    assert REVIEW.main(argv) == 0
+    table = review.read_text(encoding="utf-8")
+    assert "| answerable | variant original | 0 | 0 | 0 | 0 | 1 | 0 | 0 |" in table
+    assert "| answerable | variant user | 0 | 0 | 0 | 1 | 0 | 0 | 0 |" in table
+    assert "| 문서 범위 밖 일반 진술 수 | 1 |" in table
+    assert "tool_failed 1" in table
+    grades_path.write_text(json.dumps({"A01#1": {"grade": "maybe"}}), encoding="utf-8")
+    assert REVIEW.main(argv) == 1
 
 
 def test_review_rejects_unknown_questions(
