@@ -53,8 +53,10 @@ def test_2026_rule_set_header() -> None:
     assert rs.effective_to == date(2027, 1, 1)
     assert rs.required_total_score == 200
     assert rs.source_policy_version == "E74-SELECTION-2026-20260601"
-    # 해석 합의 전이라 DRAFT. 팀 확인 후 APPROVED로 바꾼다.
-    assert rs.approval_status is ApprovalStatus.DRAFT
+    # 2026-11-17 팀이 원문과 대조해 승인했다.
+    assert rs.approval_status is ApprovalStatus.APPROVED
+    # 미합의 메모가 남은 규칙이 없다(Q1 정리 뒤).
+    assert [r.rule_code for r in rs.rules if r.review_note] == []
 
 
 INCOME_TABLE = {
@@ -88,12 +90,14 @@ def test_general_income_bands_are_contiguous_from_25m() -> None:
         assert upper == lower
 
 
-def test_agri_fishery_income_band_is_flagged_for_review() -> None:
+def test_agri_fishery_income_band_scores_50_only_for_those_industries() -> None:
+    # Q1: 2,400만원 이상 2,500만원 미만은 농·축산업, 어업·내항상선 종사자에게만 50점(합의됨)
     rule = _rule_set().rule("INCOME_24_25_AGRI_FISHERY")
     assert isinstance(rule.condition, IncomeRange)
     assert (rule.condition.min_amount, rule.condition.max_amount) == (24_000_000, 25_000_000)
     assert rule.condition.industry_codes == AGRI_FISHERY
-    assert rule.review_note is not None and rule.review_note.startswith("Q1")
+    assert rule.points == 50
+    assert rule.review_note is None
 
 
 KOREAN_TABLE = {
@@ -266,12 +270,19 @@ def test_selection_uses_effective_period_boundaries(as_of: date, expected: str |
     assert (selected.rule_version if selected else None) == expected
 
 
+def test_approved_2026_rule_set_is_selected_by_default() -> None:
+    selected = select_rule_set(date(2026, 10, 25), default_rule_sets())
+    assert selected is not None and selected.rule_version == V2026
+
+
 def test_draft_is_not_selected_unless_allowed() -> None:
-    assert select_rule_set(date(2026, 10, 25), default_rule_sets()) is None
+    draft = _rule_set().model_copy(update={"approval_status": ApprovalStatus.DRAFT})
+    assert select_rule_set(date(2026, 10, 25), [draft]) is None
+    assert select_rule_set(date(2026, 10, 25), [draft], include_draft=True) is draft
 
 
 def test_approved_wins_over_draft() -> None:
-    draft = _rule_set()
+    draft = _rule_set().model_copy(update={"approval_status": ApprovalStatus.DRAFT})
     approved = draft.model_copy(
         update={"rule_version": "E74-2026-v2", "approval_status": ApprovalStatus.APPROVED}
     )

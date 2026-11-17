@@ -9,7 +9,14 @@ from pydantic import ValidationError
 from app.visa.e74.engine import E74Assessment, EligibilityStatus, assess_e74, request_key
 from app.visa.e74.rules import ApprovalStatus, RuleCategory, default_rule_sets
 from app.visa.e74.schemas import E74Profile
-from tests.unit._e74_builders import AS_OF, eligible_body, profile, rules_2026
+from tests.unit._e74_builders import (
+    AS_OF,
+    draft_rules_2026,
+    eligible_body,
+    profile,
+    rules_2026,
+    rules_2026_with_review_note,
+)
 from tests.unit._e74_cases import profile_json
 
 pytestmark = pytest.mark.unit
@@ -65,10 +72,9 @@ def test_sample_profiles() -> None:
 
     p03 = assess_e74(E74Profile.model_validate(profile_json("P03")), AS_OF, include_draft=True)
     assert p03.status is EligibilityStatus.NEEDS_EVIDENCE
-    assert [n.rule_code for n in p03.review_notes] == [
-        "INCOME_24_25_AGRI_FISHERY",
-        "REQ_MIN_INCOME_AGRI_FISHERY",
-    ]
+    # 농어업 특례 소득 구간(Q1 합의, 50점)은 검토가 아니라 소득 증빙이 필요한 항목이다.
+    assert p03.review_notes == ()
+    assert "INCOME_24_25_AGRI_FISHERY" in p03.needs_evidence
 
 
 def test_missing_inputs_are_merged_by_field() -> None:
@@ -90,13 +96,18 @@ def test_ineligible_beats_missing_information() -> None:
 
 
 def test_missing_information_beats_review() -> None:
+    rules = [rules_2026_with_review_note("INCOME_24_25_AGRI_FISHERY", "확인 필요(테스트)")]
     body = eligible_body()
     body["employmentHistories"][0]["industryCode"] = "AGRICULTURE"
     body["incomeRecords"][0]["annualAmount"] = 24_600_000
     body["incomeRecords"][1]["annualAmount"] = 24_900_000
-    assert _assess(body).status is EligibilityStatus.NEEDS_REVIEW
+    assert (
+        assess_e74(profile(body), AS_OF, rule_sets=rules).status is EligibilityStatus.NEEDS_REVIEW
+    )
     body["legalDeclaration"]["hasCurrentTaxArrears"] = None
-    assert _assess(body).status is EligibilityStatus.NEEDS_EVIDENCE
+    assert (
+        assess_e74(profile(body), AS_OF, rule_sets=rules).status is EligibilityStatus.NEEDS_EVIDENCE
+    )
 
 
 def test_no_rule_set_for_the_date_needs_review() -> None:
@@ -107,8 +118,16 @@ def test_no_rule_set_for_the_date_needs_review() -> None:
 
 
 def test_draft_rules_are_not_used_by_default() -> None:
-    a = assess_e74(profile(eligible_body()), AS_OF)
+    draft = [draft_rules_2026()]
+    a = assess_e74(profile(eligible_body()), AS_OF, rule_sets=draft)
     assert a.status is EligibilityStatus.NEEDS_REVIEW and a.rule_version is None
+    allowed = assess_e74(profile(eligible_body()), AS_OF, rule_sets=draft, include_draft=True)
+    assert allowed.rule_version == "E74-2026-v1"
+
+
+def test_approved_2026_rules_are_used_by_default() -> None:
+    a = assess_e74(profile(eligible_body()), AS_OF)
+    assert a.status is EligibilityStatus.ELIGIBLE and a.rule_version == "E74-2026-v1"
 
 
 def test_approved_rules_are_used_without_draft_flag() -> None:

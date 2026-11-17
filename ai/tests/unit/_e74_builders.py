@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from app.visa.e74.rules import RuleSet, default_rule_sets, select_rule_set
+from app.visa.e74.rules import ApprovalStatus, RuleSet, default_rule_sets, select_rule_set
 from app.visa.e74.schemas import E74Profile
 from tests.unit._e74_cases import profile_json
 
@@ -39,3 +39,18 @@ def rules_2026() -> RuleSet:
     rule_set = select_rule_set(AS_OF, default_rule_sets(), include_draft=True)
     assert rule_set is not None
     return rule_set
+
+
+def draft_rules_2026() -> RuleSet:
+    """승인 전(DRAFT) 규칙 처리를 확인하려고 E74-2026-v1을 DRAFT로 바꾼 복사본."""
+    return rules_2026().model_copy(update={"approval_status": ApprovalStatus.DRAFT})
+
+
+def rules_2026_with_review_note(rule_code: str, note: str) -> RuleSet:
+    """규칙 하나에 reviewNote를 붙인 복사본(해석 확인이 필요한 규칙의 처리 확인용)."""
+    base = rules_2026()
+    rules = tuple(
+        r.model_copy(update={"review_note": note}) if r.rule_code == rule_code else r
+        for r in base.rules
+    )
+    return base.model_copy(update={"rules": rules})

@@ -15,7 +15,7 @@ from app.rag.embeddings import BgeM3Embedder
 from app.visa.e74.engine import assess_e74
 from app.visa.e74.scenario import apply_scenario
 from app.visa.e74.schemas import MAX_VISA_EVIDENCES, E74Scenario
-from tests.unit._e74_builders import AS_OF, eligible_body, profile
+from tests.unit._e74_builders import AS_OF, draft_rules_2026, eligible_body, profile
 
 pytestmark = pytest.mark.unit
 
@@ -70,19 +70,24 @@ def test_returns_engine_result_with_rule_status(client: TestClient) -> None:
     assert body["ruleVersion"] == "E74-2026-v1"
     # 요건별 판정과 저장·표시용 필드
     assert {i["category"] for i in body["items"]} >= {"REQUIREMENT", "EXCLUSION", "BONUS"}
-    assert body["ruleStatus"] == "DRAFT"
+    assert body["ruleStatus"] == "APPROVED"
     assert body["isScenario"] is False and body["scenario"] is None
     # 채팅 Tool과 같은 엔진 결과(키까지 같다)
     engine = assess_e74(profile(eligible_body()), AS_OF, include_draft=True)
     assert body["requestKey"] == engine.request_key
 
 
-def test_draft_rules_are_off_by_default() -> None:
+def test_draft_rules_are_off_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 승인 전 규칙만 있을 때(E74-2026-v1을 DRAFT로 바꾼 복사본) 기본 설정은 계산하지 않는다.
+    draft = draft_rules_2026()
+    monkeypatch.setattr("app.visa.e74.service.default_rule_sets", lambda: (draft,))
     body = _post(_client(include_draft=False), _request()).json()
     assert body["status"] == "NEEDS_REVIEW"
     assert body["ruleVersion"] is None and body["ruleStatus"] is None
     assert body["eligibilityConfirmed"] is False
     assert body["reviewNotes"]
+    allowed = _post(_client(include_draft=True), _request()).json()
+    assert (allowed["ruleVersion"], allowed["ruleStatus"]) == ("E74-2026-v1", "DRAFT")
 
 
 def test_same_input_gives_same_key_regardless_of_row_order(client: TestClient) -> None:
