@@ -240,3 +240,56 @@ def test_external_policy_questions_file(tmp_path: Path, capsys: pytest.CaptureFi
     both = [*argv, "--product-questions", str(path)]
     with pytest.raises(SystemExit):
         EVAL.main(both, client=_client(settings), settings=settings, confirm=lambda _: "n")
+
+
+def test_server_default_follows_the_server_prompt_version(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # #88 v4.3a 스모크: 서버는 v4.3a, 측정 스크립트 프로세스 설정은 v4.2 → 예전에는 STOP.
+    # 이제 server-default는 서버 보고값(v4.3a)을 기록·비교에 쓰고,
+    # 기대 도구만 PROMPT_BASE로 v4.2를 따른다.
+    base: dict[str, Any] = {"ai_internal_api_token": TOKEN, "chat_fake_delta_delay_ms": 0}
+    server = Settings(_env_file=None, **base, chat_prompt_version="v4.3a")  # type: ignore[call-arg]
+    local = Settings(_env_file=None, **base, chat_prompt_version="v4.2")  # type: ignore[call-arg]
+    output = tmp_path / "smoke.jsonl"
+    argv = ["--base-url", "http://testserver", "--question-set", "policy"]
+    argv += ["--questions", "A01,O02", "--output", str(output)]
+    code = EVAL.main(argv, client=_client(server), settings=local, confirm=lambda _: "n")
+    assert code == 0
+    assert (
+        "NOTE: server-default의 promptVersion을 서버 보고값 v4.3a로 맞춤" in capsys.readouterr().out
+    )
+    lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    variant = lines[0]["variants"][0]
+    assert (variant["promptVersion"], variant["localPromptVersion"]) == ("v4.3a", "v4.2")
+    assert variant["promptVersionFromServer"] is True
+    rows = {r["questionId"]: r for r in lines[1:]}
+    assert {r["promptVersion"] for r in rows.values()} == {"v4.3a"}
+    assert rows["A01"]["expectedTools"] == ["search_finance_policy"]  # v4.2 기대값
+    assert rows["O02"]["expectedTools"] == ["recommend_savings_products"]
+    assert lines[0]["status"] == "completed"
+    assert "promptVersion=v4.3a" in output.with_suffix(".md").read_text(encoding="utf-8")
+
+
+def test_server_change_after_the_first_answer_still_stops() -> None:
+    variant: dict[str, Any] = {"name": "server-default", "model": "fake", "promptVersion": "v4.2",
+                               "override": False}  # fmt: skip
+    first = {"config": {"promptVersion": "chat-v4.3a"}}
+    assert EVAL.adopt_server_prompt_version(variant, first) == "v4.2"
+    assert EVAL.config_mismatch(variant, None, first, True) == []
+    later = {"config": {"promptVersion": "chat-v4.2"}}
+    assert EVAL.adopt_server_prompt_version(variant, later) is None  # 한 번만 따른다
+    assert EVAL.config_mismatch(variant, None, later, True) == [
+        "promptVersion chat-v4.2 != chat-v4.3a"
+    ]
+    # --variants(override)는 서버에 버전을 보내므로 서버 값을 따르지 않는다.
+    pinned: dict[str, Any] = {
+        "name": "v42",
+        "model": "fake",
+        "promptVersion": "v4.2",
+        "override": True,
+    }
+    assert EVAL.adopt_server_prompt_version(pinned, first) is None
+    assert EVAL.config_mismatch(pinned, None, first, True) == [
+        "promptVersion chat-v4.3a != chat-v4.2"
+    ]

@@ -718,6 +718,33 @@ def tool_context(settings: Settings, user_id: int, llm_mode: str) -> dict[str, A
     return fixture_context()
 
 
+def adopt_server_prompt_version(
+    variant: dict[str, Any], metrics: dict[str, Any] | None
+) -> str | None:
+    """server-default는 서버가 실제로 쓴 프롬프트 버전을 따른다(첫 응답에서 한 번만).
+
+    server-default는 서버에 설정을 보내지 않으므로, 이 스크립트 프로세스의 설정(환경 변수·ai/.env)이
+    서버의 CHAT_PROMPT_VERSION과 다를 수 있다(#88 v4.3a 스모크: 서버 v4.3a, 스크립트 v4.2로 멈춤).
+    첫 응답이 보고한 버전으로 바꾸고 원래 값은 localPromptVersion에 남긴다. 그 뒤 응답은
+    config_mismatch가 그 버전과 엄격히 비교한다(측정 중 서버가 바뀌면 멈춘다).
+    바꿨으면 원래 값을 돌려준다.
+    --variants(override)는 서버에 버전을 보내므로 따르지 않는다.
+    """
+    if variant.get("override") or variant.get("promptVersionFromServer"):
+        return None
+    reported = ((metrics or {}).get("config") or {}).get("promptVersion")
+    key = next((k for k, v in PROMPT_VERSIONS.items() if v == reported), None)
+    if key is None:
+        return None
+    variant["promptVersionFromServer"] = True
+    previous = variant.get("promptVersion")
+    if key == previous:
+        return None
+    variant["promptVersion"] = key
+    variant["localPromptVersion"] = previous
+    return str(previous)
+
+
 def config_mismatch(
     variant: dict[str, Any], answered_by: str | None, metrics: dict[str, Any] | None, fake: bool
 ) -> list[str]:
@@ -1862,6 +1889,19 @@ def main(
                 )
                 save("mode_mismatch")
                 return EXIT_BLOCKED
+            confirmed = variant.get("promptVersionFromServer")
+            adopted = adopt_server_prompt_version(variant, metrics) if args.target == "ai" else None
+            if not confirmed and variant.get("promptVersionFromServer"):
+                # 조건 기록(첫 줄)에도 서버가 쓴 버전을 남긴다.
+                conditions["variants"] = [
+                    {k: v for k, v in item.items() if k != "override"} for item in variants
+                ]
+            if adopted is not None:
+                print(
+                    f"NOTE: {variant['name']}의 promptVersion을 서버 보고값 "
+                    f"{variant['promptVersion']}로 맞춤(이 프로세스 설정은 {adopted})",
+                    flush=True,
+                )
             mismatch = (
                 config_mismatch(variant, answered_by, metrics, fake) if args.target == "ai" else []
             )
