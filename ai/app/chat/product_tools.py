@@ -122,7 +122,11 @@ TOOL_SCHEMA_V4_1["input_schema"]["properties"]["accrual"]["description"] = (
     "FLEXIBLE: pay in any amount any time. FIXED: only when the user says they will pay the same "
     "amount each time. A monthly amount or 'every month' alone is not FIXED; leave accrual out."
 )
-TOOL_SCHEMAS_BY_PROMPT: dict[str, dict[str, Any]] = {"v4": TOOL_SCHEMA, "v4.1": TOOL_SCHEMA_V4_1}
+TOOL_SCHEMAS_BY_PROMPT: dict[str, dict[str, Any]] = {
+    "v4": TOOL_SCHEMA,
+    "v4.1": TOOL_SCHEMA_V4_1,
+    "v4.2": TOOL_SCHEMA_V4_1,
+}
 
 
 class RecommendConditions(BaseModel):

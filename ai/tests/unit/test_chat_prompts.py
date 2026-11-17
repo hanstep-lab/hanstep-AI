@@ -9,10 +9,12 @@ from typing import get_args
 import pytest
 
 from app.api.routes.chat import (
+    FINANCE_POLICY_PROMPT_VERSIONS,
     PRODUCT_PROMPT_VERSIONS,
     REMITTANCE_PROMPT_VERSIONS,
     VISA_PROMPT_VERSIONS,
 )
+from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
 from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.prompts import (
     PROMPT_VERSION,
@@ -74,6 +76,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v3.2": "chat-v3.2",
         "v4": "chat-v4",
         "v4.1": "chat-v4.1",
+        "v4.2": "chat-v4.2",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -218,6 +221,8 @@ PROMPT_SHA256 = {
     "v3.2": "e62f7dbb84c4eebfc244dfa294c722f6a8f615088c89e061f8d53a30ed36a8c7",
     "v4": "fc0e4ef7e61eef927cd1485d3a6e6a1e0c38c770ea0d8cdc068a5c10f632ee32",
     "v4.1": "396e508c6213de778325464d2c5c847890c836817552dbbb8531545299c1d4e5",
+    # 2026-11-17(#88): v4.2 = v4.1 + finance_policy_rules.md. v4.1까지의 값은 그대로다.
+    "v4.2": "37dc8a8040834ddf668f28d27c10e6a54196ecf722387a0d6b31e09578b3d3b5",
 }
 
 
@@ -242,6 +247,8 @@ def test_prompt_rules_and_attached_tools_agree() -> None:
         assert remittance == (version in REMITTANCE_PROMPT_VERSIONS), version
         product = RECOMMEND_SAVINGS_PRODUCTS in prompt
         assert product == (version in PRODUCT_PROMPT_VERSIONS), version
+        policy = SEARCH_FINANCE_POLICY in prompt
+        assert policy == (version in FINANCE_POLICY_PROMPT_VERSIONS), version
 
 
 V4_PRODUCTS = (
@@ -285,3 +292,24 @@ def test_v4_1_is_v4_with_one_stay_sentence() -> None:
     assert "extending the stay or the visa" in V4_1_STAY_RULE
     with pytest.raises(ValueError, match="STAY_TOO_SHORT rule"):
         _with_stay_rule("no such rule")
+
+
+def test_v4_2_is_v4_1_plus_finance_policy_rules() -> None:
+    # v4.2(#88): v4.1 문구는 그대로 두고 금융 정책 규칙을 끝에 더한다. 기본값은 v4.1 그대로다.
+    v41 = system_prompt("en", "v4.1").splitlines()
+    v42 = system_prompt("en", "v4.2").splitlines()
+    rules = (PROMPTS / "finance_policy_rules.md").read_text(encoding="utf-8").splitlines()
+    assert v42 == [*v41, "", *rules]
+    text = " ".join(rules)
+    for phrase in (
+        "search_finance_policy",
+        "queryKo in Korean",
+        "foreign residents",
+        "effective date",
+        "Under the regulation",
+        "do not guess",
+    ):
+        assert phrase in text, phrase
+    assert _settings().chat_prompt_version == "v4.1"
+    config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.2"))
+    assert config.prompt_version_id == "chat-v4.2"

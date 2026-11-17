@@ -17,6 +17,7 @@ PROMPT_VERSIONS = {
     "v3.2": "chat-v3.2",
     "v4": "chat-v4",
     "v4.1": "chat-v4.1",
+    "v4.2": "chat-v4.2",
 }
 PROMPT_VERSION = PROMPT_VERSIONS["v1"]  # the default
 
@@ -125,6 +126,13 @@ _SYSTEM = {
 }
 # v4 그대로 + STAY_TOO_SHORT 안내 한 문장(체류·비자 연장을 권하지 않음). 도구 설명도 v4.1용을 쓴다.
 _SYSTEM["v4.1"] = _with_stay_rule(_SYSTEM["v4"])
+# v4.1 그대로 + 금융 정책 규칙(#88). 금융 정책 검색 도구는 v4.2에서만 붙는다.
+# v4.1 문구는 바꾸지 않는다.
+_SYSTEM["v4.2"] = (
+    _SYSTEM["v4.1"].rstrip("\n")
+    + "\n\n"
+    + (_DIR / "finance_policy_rules.md").read_text(encoding="utf-8")
+)
 
 
 def system_prompt(language: str, version: str = "v1") -> str:
