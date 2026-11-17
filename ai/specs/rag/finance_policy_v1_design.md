@@ -209,16 +209,25 @@ uv run python scripts/finance_policy_review.py artifacts/chat/policy_baseline_v4
 - 추출·단위 나누기 스크립트는 조사용으로 레포 밖(스크래치)에서 돌렸고 커밋하지 않았다. 구현 단계에서 코드로 옮긴다.
 - 핵심 사실 문장과 검색어, 위험 오답 유형은 Claude Code가 원문을 보고 썼다. 사람 확인이 필요하다.
 
-## 10. 기준선 결과 (v4.1, 규정 도구 없음, 24문항 × 3)
+## 10. 도구 장애 상태 관찰 (2026-11-17, 정식 기준선 아님)
+
+> **이 실행은 정식 기준선이 아니다.** 측정 서버의 도구가 모두 실패한 상태(도구 호출 41번 전부 FAILED:
+> `search_visa_policies` 18 `SEARCH_NOT_CONFIGURED`, `get_financial_analysis` 8·`calculate_e74_score` 6·
+> `recommend_savings_products` 6·`get_fx_rate` 3 `SPRING_ERROR`)에서 24문항 × 3을 돌린 관찰이다.
+> 그 상태에서 근거 없는 규정 숫자 0, 위험 오답 0, answerable 기권(답 못 함) 26/48이었다.
+> 정식 기준선은 46문항으로 늘린 세트를 도구가 정상인 환경에서 다시 잰다(11·13절).
 
 - 실행: 2026-11-17 20:16(한국 시간) 시작, 서버 8001(사용자가 띄움, 기본 프롬프트 v4.1, Haiku 5.5, judgmentFacts true, maxTokens 2000).
   72회 모두 완료, 오류 0. **실제 비용 $0.0982**.
 - 명령: `SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm-mode anthropic --question-set policy --repeats 3 --base-url http://localhost:8001 --output artifacts/chat/policy_baseline_v4_1.jsonl --max-usd 0.3 --yes`
+  (당시 24문항 세트. 결과 파일은 실행 뒤 `_toolsdown`으로 이름을 바꿨다)
   - `--llm-mode anthropic`: 빼면 측정 스크립트가 로컬 설정의 모드(fake)로 잡혀 첫 호출 뒤 멈춘다(1회 $0.0010 쓰고 멈춤, 결과는
     `artifacts/chat/policy_baseline_v4_1_stopped-llm-mode.*`로 따로 둠).
   - `SPRING_INTERNAL_API_KEY="CHANGE_ME"`(이 프로세스만): 측정 스크립트가 숫자 대조용 INT-06을 로컬 설정의 Spring에서 가져오려다
     연결이 거부돼 시작하지 못했다(호출 0회, 2번). 이 값으로 fixture 요약을 쓴다. `.env`는 열거나 바꾸지 않았다.
-- 결과: `ai/artifacts/chat/policy_baseline_v4_1.jsonl`·`.md`, 확인표 `ai/artifacts/chat/policy_baseline_v4_1_review.md`(레포에 넣지 않음).
+- 결과: `ai/artifacts/chat/policy_baseline_v4_1_toolsdown.jsonl`·`.md`, 확인표 `…_toolsdown_review.md`,
+  분석 자료 `…_toolsdown_analysis.md`(레포에 넣지 않음). 판정 파일 `ai/specs/rag/finance_policy_grades_toolsdown_v1.json`
+  (Claude Code 판정, 사람 확인 전).
 - **환경 주의**: 측정 서버의 도구가 모두 실패했다. 72회 중 28회가 도구를 불렀고 호출 41번이 전부 FAILED였다
   (`search_visa_policies` 18 `SEARCH_NOT_CONFIGURED`, `get_financial_analysis` 8·`get_fx_rate` 3·`calculate_e74_score` 6·
   `recommend_savings_products` 6 `SPRING_ERROR`). 규정 질문 일부는 비자 검색이나 금융 분석을 부른 뒤 '조회 실패'로 답을 못 했다.
@@ -260,7 +269,7 @@ answerable에서 답을 하지 못한 경우('확인할 수 없다', 오답 없�
 - 질문 의도 빗나감: A11 ×3은 해외여행경비 한도 대신 금융 분석(여행 예산)을 하려다 실패했다. A12 ×3은 우체국 송금이 되는지 모른다고 했다.
 - 근거 없는 일반 진술: N03#3 "Transfers abroad are generally not treated as income"(문서 범위 밖).
 
-### 10-4. 채점 규칙 제안 (측정 뒤, 적용하지 않음)
+### 10-4. 채점 규칙 제안 (측정 뒤 제안 → 11절에서 1~5 적용)
 
 1. answerable의 '답 못 함(틀린 내용 없음, 핵심 사실 없음)' 등급을 정식으로 두자(지금 정의에는 없음).
 2. `finance_policy_review.py`의 단정 표현 정규식이 'against the law', 'prohibited', 'not allowed'를 못 잡는다.
@@ -268,3 +277,105 @@ answerable에서 답을 하지 못한 경우('확인할 수 없다', 오답 없�
 4. 근거 없는 숫자에서 상담 전화번호(112·1332·126·1345)를 빼자(`PROMPT_FIXED_NUMBERS`처럼).
 5. A13 핵심 사실 힌트에 'illegally'를 더하자(A13#3이 내용상 맞는데 힌트가 X).
 6. 기준선을 도구가 정상인 서버로 다시 잴지 결정 필요: 이번에는 도구 실패가 기권 26 중 상당수의 직접 원인이었다(10절 환경 주의).
+
+## 11. 1차 실행(도구 장애) 뒤, 정식 기준선 전 변경 (2026-11-17)
+
+### 11-1. 채점 규칙 (10-4절 제안 1~5 적용 + 보강)
+
+| 변경 | 내용 |
+|---|---|
+| 1. 기권(답 못 함) 등급 | answerable에서 틀린 내용 없이 답을 못 한 경우 `abstain`. 등급: correct / partial / wrong / risky_wrong / abstain / correct_abstain(not_in_docs) / ok(out_of_scope) |
+| 2. 단정 표현 정규식 | 'against the law', 'is/are prohibited', 'is not allowed'를 더함(1차 실행에서 자동 4 → 8, 사람 판정 8과 같음) |
+| 3. 인용 수 분리 | 법령 이름 언급 수와 조문 번호(Article n, 제n조) 인용 수를 따로 셈 |
+| 4. 상담 전화번호 제외 | 근거 없는 숫자에서 112·1332·126·1345를 뺌(따로 표시) |
+| 5. A13 힌트 | 'illegal'을 더함 |
+| A15 위험 오답 | "소액송금 앱은 지정은행·한도와 상관없다"(제2-31조 ⑦은 '적용하지 아니할 수 있다' = 업자 재량, ① 2호 건당 미화 5천불·연 미화 5만불 한도는 그대로) |
+| 보조 지표 | 문서 범위 밖 일반 진술 수(사람 판정, 예: N03#3 "Transfers abroad are generally not treated as income") |
+| 사람 판정 파일 | `finance_policy_review.py --grades`(키 '문항#회차': grade·reason·outOfDocsClaims·assertive·targetError·abstainCause). 분류×회차, 분류×variant로 집계 |
+| 실행 기록 | 확인표에 입력·출력 토큰, 첫 글자까지·전체 시간, LLM 호출 수, 도구별 상태·오류 코드, 모델이 만든 검색어 원문을 낸다(evaluate_chat jsonl에 이미 있는 값: usage, timings, tools[].arguments·status·errorCode) |
+
+### 11-2. 평가 세트 46문항으로 확장
+
+| 묶음 | 문항 | 내용 |
+|---|---|---|
+| answerable original | 16 | A01~A16(그대로) |
+| answerable user | 16 | A01v~A16v. 원 문항과 gold·핵심 사실·위험 오답·검색어가 같다. 구어체·소문자·철자 실수·한국어 단어(월급, 출국만기보험, 통장, 체크카드, 우체국), 조문 문구는 쓰지 않음 |
+| not_in_docs | 8 | N01~N04 + N05 앱별 최저 수수료, N06 필리핀 수취은행 수수료, N07 보낸 송금 취소, N08 신한 SWIFT 코드 |
+| out_of_scope | 6 | O01~O04 + O05 E-9 대출, O06 체크카드 발급 |
+
+- 문항에 `variant`(original/user)와 `variantOf`를 두고, 확인표·집계를 variant별로도 낸다.
+  검색 비교(2단계)의 Recall@5도 variant별로 낸다(검색 평가 스크립트는 2단계에서 작성).
+- not_in_docs 원문 대조: **송금 소요일은 넣지 않았다.** 가이드북 p.109·p.110에 "송금까지 보통 1~3일 정도 걸리게 되며"가 있다.
+  N05: 앱별 현재 수수료·순위 없음(가이드북은 은행연합회 비교 조회 안내와 은행별 서비스 예시만). N06: p.109·p.131은 수취은행
+  수수료가 있다는 것만 말하고 금액 없음. N07: 적재 범위에 cancel·취소 관련 서술 없음. N08: p.110은 SWIFT 코드가 필요하다는
+  것만 말하고 신한은행 코드 없음.
+
+## 12. 1차 실행(도구 장애) 분석 요약
+
+전체는 `ai/artifacts/chat/policy_baseline_v4_1_toolsdown_analysis.md`(72행 표, 기권 분류, 검색어 원문, A01·A02·A05 전문,
+부분 정답의 빠진 사실, 단정 문장).
+
+| 기권(답 못 함) 26회 | 회차 | 문항 |
+|---|---|---|
+| (a) 도구 실패를 이유로 기권 | 13 | A02 ×3, A03 ×3, A05 ×3, A11 ×3(여행 예산으로 잘못 읽고 금융 분석 실패), A15#3 |
+| (b) 도구 없이 기권 | 13 | A01 ×3, A04 ×3, A10#1·#2, A12 ×3, A15#1·#2 |
+| (c) 기타 | 0 | – |
+
+- 모델이 비자 검색에 넣은 검색어: answerable에서 12개, **모두 한국어**(A02 3, A03 4, A05 4, A15 1).
+  예: A02 "외국인 근로자 임금 송금 지정은행 지정 의무", A03 "해외송금 거주자 비거주자 구분 기준 체류 기간".
+- 부분 정답 13회의 빠진 핵심 사실: A06 범죄 이용 대여 규정·벌칙, A07 지정거래외국환은행 경유, A08 벌칙,
+  A10#3 건당 5천불 기준, A16 경찰 신고(조건부로만 안내).
+
+## 13. 도구 정상 환경 준비 (코드 읽기만)
+
+### 13-1. 도구별 필요 서비스와 설정 키(이름만)
+
+| 도구 | 필요한 것 | 설정 키 | 없을 때 |
+|---|---|---|---|
+| get_financial_analysis | Spring `GET /internal/v1/ai-context/users/{id}/finance`(INT-06) | `CHAT_LLM_MODE`=anthropic, `SPRING_INTERNAL_API_URL`, `SPRING_INTERNAL_API_KEY`, `INTERNAL_TOKEN_HEADER` | Spring 설정 없음 → fixture. 설정은 있는데 연결 실패 → `SPRING_ERROR` |
+| get_remittance_recipients·get_fx_rate·quote_remittance | Spring `…/remittance-recipients`, `…/fx-rates?currency=`, `…/remittance-quote` | 위와 같음 | 같음 |
+| recommend_savings_products | Spring `…/product-profile` + INT-06. 순서 B는 상품 PDF 폴더 | 위 + `PRODUCT_CORPUS_DIR`, `LOAD_MODEL_ON_STARTUP` | 프로필·INT-06 실패 → `SPRING_ERROR`. 폴더 없음 → 순서 A |
+| calculate_e74_score | Spring `…/e74-assessments` | 위와 같음 | Spring 설정 없음 → `SPRING_NOT_CONFIGURED`, 연결 실패 → `SPRING_ERROR` |
+| search_visa_policies | MongoDB(Atlas 벡터 검색 인덱스) + 로드된 BGE-M3 + Spring 승인 확인(`…/policy-documents/{id}`) | `MONGO_URI`, `MONGO_DATABASE`, `MONGO_COLLECTION`, `MONGO_VECTOR_INDEX`, `EMBEDDING_MODEL`, `EMBEDDING_MODEL_REVISION`, `LOAD_MODEL_ON_STARTUP`, Spring 키 | 아래 |
+| LLM | Anthropic | `ANTHROPIC_API_KEY`, `CHAT_MODEL`, `CHAT_PROMPT_VERSION` | – |
+
+- **`SEARCH_NOT_CONFIGURED`가 나는 조건**(`app/api/routes/chat.py` `policy_search`): `state.mongo is None`
+  (`MONGO_URI`가 비었거나 자리표시자) **또는** `state.embedder.loaded`가 false(`LOAD_MODEL_ON_STARTUP=false`로 띄워 모델이 로드되지 않음).
+  둘 중 하나면 검색 도구를 만들지 않는다. Spring 승인 확인이 실패하면 다른 오류 코드(`SEARCH_UNAVAILABLE` 등)다.
+- 1차 실행의 `SPRING_ERROR`는 Spring 설정은 있는데 연결·응답이 실패했다는 뜻이다(8081이 떠 있지 않았던 것으로 보인다).
+
+### 13-2. 로컬 Mongo의 비자 정책 청크 확인과 적재
+
+- 확인(서버 경유): `GET http://localhost:8001/health/ready` → `mongodb: ok`, `vector_index: <state>:queryable`, `model: loaded`면 검색 준비 완료.
+- 확인(DB 직접, 사용자가 실행): 승인·활성 청크 수
+  `db.getSiblingDB("shinhan_rag").visa_policy_chunks.countDocuments({review_status: "approved", is_active: true})`(DB·컬렉션 이름은 기본값).
+- 없으면 적재: `uv run python scripts/ingest_rag_documents.py --manifest specs/rag/sources.json --domain visa --apply`
+  (manifest의 visa 7개 항목은 모두 검토 완료·policy_document_id 있음). R2·Mongo·모델이 필요하고 새 청크는 pending/inactive로 쓴다.
+  → `--report-ingested`로 Spring INT-13 보고 → BE에서 승인(APPROVED) → 활성화. 임베딩 시간은 청크 수에 비례한다
+  (#47 측정: CPU에서 145청크 293초, 청크당 약 2초).
+
+### 13-3. 정식 기준선 명령과 예상 비용
+
+```
+SPRING_INTERNAL_API_KEY="CHANGE_ME" uv run python scripts/evaluate_chat.py --llm-mode anthropic \
+    --question-set policy --repeats 3 --base-url http://localhost:8001 \
+    --output artifacts/chat/policy_baseline_v4_1.jsonl --max-usd 0.6
+uv run python scripts/finance_policy_review.py artifacts/chat/policy_baseline_v4_1.jsonl \
+    --output artifacts/chat/policy_baseline_v4_1_review.md [--grades <판정 파일>]
+```
+
+- `SPRING_INTERNAL_API_KEY="CHANGE_ME"`는 측정 스크립트 프로세스에만 준다(숫자 대조용 INT-06을 fixture로). 서버(8001)의 도구에는
+  영향이 없다. 측정 스크립트가 서버와 같은 Spring에서 INT-06을 읽게 하려면 이 값을 빼고 측정 스크립트 쪽 Spring 설정을 맞춘다.
+- count_tokens(2026-11-17, Haiku 5.5, 46문항, `artifacts/chat/policy_baseline_tokens_46.md`): 1차 호출 입력 평균 6,767토큰,
+  금융 도구 1회 포함 1·2차 합 평균 13,854토큰.
+- 예상: 46 × 3 = 138회. 1차 실행 실제 회당 $0.00136을 그대로 쓰면 약 $0.19. 도구가 성공하면 결과(검색 청크 등)가 입력에 더해져
+  회당 $0.0022 안팎이면 약 $0.30. 1차 실행 최대 회당 $0.0026(LLM 3회)에 도구 결과 3천 토큰을 더한 $0.0035로 잡으면 약 $0.48.
+  **약 $0.2~0.3, 상한 $0.6**.
+
+### 13-4. 로컬과 운영의 차이
+
+- 비자 검색: 로컬 Mongo에 적재·승인된 비자 문서만 나온다. 금융 정책 문서는 아직 어디에도 없으므로, 규정 질문에 비자 문서가
+  걸리면 관계없는 근거가 답에 섞일 수 있다(기준선이 측정하려는 '규정 도구 없는 상태'의 일부).
+- 금융·송금·상품·E-7-4: 로컬 Spring의 데모 사용자 데이터로 답한다. 운영 사용자 데이터와 다르므로, 송금·여유자금 숫자가 들어간
+  답의 숫자 대조는 측정 스크립트가 읽는 INT-06(위 fixture 여부)과 맞춰야 한다.
+- 상품 순서: `PRODUCT_CORPUS_DIR`가 없으면 순서 A다(상품 질문 O02에만 영향).
