@@ -1,0 +1,7 @@
+# OCR Worker(ocr/worker) 직접 의존성. 엔진(requirements.txt) 다음에 설치한다.
+# Python 3.10 이미지라 ai/ 버전과 다를 수 있다(aio-pika 10.x·pydantic-settings 2.16+는 3.11 이상).
+aio-pika==9.6.2
+httpx==0.28.1
+boto3==1.44.4
+pydantic==2.14.3
+pydantic-settings==2.15.0
