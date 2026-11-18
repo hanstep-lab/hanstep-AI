@@ -58,6 +58,15 @@ def test_unsupported_numbers(answer: str, flagged: str) -> None:
     assert _check(answer).unsupported == [flagged]
 
 
+def test_negative_tool_numbers_back_their_absolute_value() -> None:
+    # 답변은 부호를 말로 한다(differencePct -2.6 → "2.6% lower").
+    # 숫자 검사는 마이너스를 읽지 않는다.
+    tool = {"differencePct": -2.6, "difference": -0.5591}
+    check = check_answer("It is 2.6% lower, 0.5591 KRW below the average.", [tool], [])
+    assert check.unsupported == []
+    assert check_answer("It is 2.7% lower.", [tool], []).unsupported == ["2.7%"]
+
+
 def test_numbers_from_question_and_history_are_allowed() -> None:
     result = _check("Yes, 1,000,000 won is not right.", ["My spare money is 1,000,000 won, right?"])
     assert result.unsupported == []

@@ -1,4 +1,4 @@
-"""Chat prompt versions: v1 unchanged, v1.1 two lines, v2 visa, v3 remittance, v4 product rules."""
+"""Chat prompt versions: v1 unchanged, v1.1 two lines, v2 visa, v3 remittance, v4 product, v5 fx."""
 
 from __future__ import annotations
 
@@ -10,11 +10,13 @@ import pytest
 
 from app.api.routes.chat import (
     FINANCE_POLICY_PROMPT_VERSIONS,
+    FX_PROMPT_VERSIONS,
     PRODUCT_PROMPT_VERSIONS,
     REMITTANCE_PROMPT_VERSIONS,
     VISA_PROMPT_VERSIONS,
 )
 from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
+from app.chat.fx_tools import FX_RATE_SUMMARY
 from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.prompts import (
     PROMPT_VERSION,
@@ -78,6 +80,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v4.1": "chat-v4.1",
         "v4.2": "chat-v4.2",
         "v4.3a": "chat-v4.3a",
+        "v5": "chat-v5",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -225,6 +228,8 @@ PROMPT_SHA256 = {
     "v4.1": "6348dd67a95b15f8cd375df4d6c543c987336b84aa83a93df082c8cf5001a0bf",
     "v4.2": "8edda4074b53ece8d6cc30c69ec61e70c82ff38dd4ea5ba1b14f67e8591df51d",
     "v4.3a": "ac9c014344e4409b0553ca5f3006010a4e2c1c51d72da32f3a795c7938b4165c",
+    # 2026-11-18(#91): v4.1 + 환율 진단 규칙(fx_rules.md).
+    "v5": "c6ddd09cbce67c87cd70a2a84eb87ce2dacc67958ee8f84edeb0a59ab3f17e65",
 }
 
 
@@ -251,6 +256,24 @@ def test_prompt_rules_and_attached_tools_agree() -> None:
         assert product == (version in PRODUCT_PROMPT_VERSIONS), version
         policy = SEARCH_FINANCE_POLICY in prompt
         assert policy == (version in FINANCE_POLICY_PROMPT_VERSIONS), version
+        assert (FX_RATE_SUMMARY in prompt) == (version in FX_PROMPT_VERSIONS), version
+
+
+def test_v5_is_v4_1_plus_fx_rules() -> None:
+    # v5(#91): v4.1의 줄은 그대로 두고 끝에 환율 진단 규칙 절만 더한다. 기본값은 아직 v4.1이다.
+    v41, v5 = system_prompt("en", "v4.1"), system_prompt("en", "v5")
+    fx_rules = (PROMPTS / "fx_rules.md").read_text(encoding="utf-8")
+    assert v5 == v41.rstrip("\n") + "\n\n" + fx_rules
+    assert _settings().chat_prompt_version == "v4.1"
+    for rule in (
+        "call fx_rate_summary first",
+        "never forecast rates",
+        '"market reference rate" for MARKET_REF',
+        "If isMock is true, say clearly that these rates are demo data",
+        "If stale is true, stress the as-of date",
+        "insufficientDataPeriods",
+    ):
+        assert rule in v5, rule
 
 
 V4_PRODUCTS = (

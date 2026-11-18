@@ -1015,3 +1015,47 @@ def test_holdout_profiles_reach_the_server(tmp_path: Path) -> None:
     assert row["productTool"]["content"]["user"]["remainingStayMonths"] == 0
     assert row["expectedOutcome"] == {"type": "abstain", "reason": "STAY_TOO_SHORT"}
     assert row["productToolCheck"]["outcomeCorrect"]
+
+
+def test_fx_tool_content_backs_numbers() -> None:
+    # 환율 진단 도구(#91)가 LLM에 준 값은 agent.metrics의 tools(measurement.content)로 와서
+    # 근거가 된다.
+    content = {
+        "currencies": [
+            {
+                "currency": "PHP",
+                "unit": 1,
+                "rate": 20.984,
+                "asOf": "2026-11-17",
+                "periodAverages": [
+                    {
+                        "period": "3M",
+                        "months": 3,
+                        "average": 21.5431,
+                        "differencePct": -2.6,
+                        "businessDays": 67,
+                    }
+                ],
+            }
+        ]
+    }
+    metrics = {
+        "tools": [{"order": 1, "toolName": "fx_rate_summary", "arguments": {}, "content": content}]
+    }
+    answer = (
+        "1 PHP = 20.984 KRW as of 2026-11-17, 2.6% lower than the 3-month average "
+        "of 21.5431 KRW (67 business days)."
+    )
+    row: dict[str, Any] = {
+        "answer": answer,
+        "toolResult": EVAL.tool_context(_settings(), 1, "fake"),
+        "contextTexts": ["How is PHP compared to last month?"],
+        "expectedTools": ["fx_rate_summary"],
+        "tools": [{"toolName": "fx_rate_summary"}],
+        "fxTools": EVAL.fx_tool_results(metrics),
+    }
+    EVAL.score(row)
+    assert row["numberCheck"]["unsupported"] == []
+    row["fxTools"] = []
+    EVAL.score(row)
+    assert "20.984 KRW" in row["numberCheck"]["unsupported"]
