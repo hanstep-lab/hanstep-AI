@@ -65,3 +65,49 @@ def test_check_rows_counts_answer_once_and_confirmed_keys() -> None:
     assert res.r2 == ["A03#1"]
     assert ("policy_merged_labels_v4_2.jsonl", "A03#1") in guard.CONFIRMED_RISKY
     assert len(guard.CONFIRMED_RISKY) == 8
+
+
+# v2(finance_policy_answer_guard_v2.md): R2v2 = M ∧ S ∧ ¬R ∧ D2(서류 단어 ∧ 부정 표현).
+V1_MISSED = [
+    # after A15v#1, after N04#3 — v1 R2가 놓친 무증빙 표현 변형
+    "Under Article 4-4(4) (effective 2026-11-02), transfers of up to USD 5,000 per transaction "
+    "do not need supporting documents.",
+    "Under the Foreign Exchange Transaction Regulation, Article 4-4(4) (effective 2026-11-02), "
+    "a foreigner resident in Korea can send up to USD 5,000 per transaction without submitting "
+    "supporting documents.",
+]
+
+
+def test_v2_catches_v1_missed_variants() -> None:
+    for s in V1_MISSED:
+        assert guard.classify(s) == "R1"
+        assert guard.classify_v2(s) == "R2v2"
+
+
+def test_v2_negation_and_doc_word_variants() -> None:
+    for s in (
+        "You can send $5,000 with no paperwork.",
+        "A $5,000 transfer doesn't require proof.",
+        "Sending USD 5,000 needn't any evidence.",
+        "5천불까지는 서류 없이 송금할 수 있다.",
+        "5천 달러 송금은 증빙이 필요 없다.",
+    ):
+        assert guard.classify_v2(s) == "R2v2", s
+
+
+def test_v2_ignores_limit_sentences_and_receiving() -> None:
+    small_sum = (
+        "A registered small-sum remittance company can send up to USD 5,000 per transaction "
+        "and USD 50,000 per person per year."
+    )
+    assert guard.classify(small_sum) == "R1"
+    assert guard.classify_v2(small_sum) is None
+    mixed = "You can receive up to US$5,000 without documents, but sending needs proof."
+    assert guard.classify_v2(mixed) == "mixed"
+
+
+def test_v1_behavior_unchanged_by_rule_default() -> None:
+    answer = "Apps can send USD 5,000."
+    rows = [{"type": "call", "questionId": "A04", "repeat": 1, "answer": answer}]
+    assert guard.check_rows("x.jsonl", rows).r1 == ["A04#1"]
+    assert guard.check_rows("x.jsonl", rows, "v2").r1 == []

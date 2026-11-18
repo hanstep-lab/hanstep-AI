@@ -51,6 +51,30 @@ NO_DOCS = [
     re.compile(r"\bno\s+documents?\b", _I),
     re.compile(r"증빙\s?없이"),
 ]
+# v2 D2(finance_policy_answer_guard_v2.md 2절): 서류 단어 ∧ 부정 표현이 같은 문장에.
+DOC_WORDS = [
+    re.compile(r"\bdocuments?\b", _I),
+    re.compile(r"\bpaperwork\b", _I),
+    re.compile(r"\bproof\b", _I),
+    re.compile(r"\bevidence\b", _I),
+    re.compile(r"증빙"),
+    re.compile(r"서류"),
+]
+NEGATIONS = [
+    re.compile(r"\bwithout\b", _I),
+    re.compile(r"\bno\b", _I),
+    re.compile(r"\bnot\b", _I),
+    re.compile(r"\bdon['’]t\b", _I),
+    re.compile(r"\bdoesn['’]t\b", _I),
+    re.compile(r"\bdo\s+not\b", _I),
+    re.compile(r"\bdoes\s+not\b", _I),
+    re.compile(r"\bneedn['’]t\b", _I),
+    re.compile(r"\bnot\s+required\b", _I),
+    re.compile(r"\bno\s+need\b", _I),
+    re.compile(r"없이"),
+    re.compile(r"없어도"),
+    re.compile(r"필요\s?없"),
+]
 # 오탐 분류 보조(표시만, 규칙 아님): 소액해외송금업 한도(제2-31조) 문장인지.
 SMALL_SUM = re.compile(
     r"2-31|small[- ]?sum|money\s+transfer\s+app|remittance\s+(?:compan\w*|business\w*|app\w*|"
@@ -107,8 +131,25 @@ def classify(sentence: str) -> str | None:
     return "R2" if _any(NO_DOCS, sentence) else "R1"
 
 
-def check_answer(answer: str) -> list[Hit]:
-    return [Hit(s, r) for s in sentences(answer) if (r := classify(s)) is not None]
+def has_d2(sentence: str) -> bool:
+    return _any(DOC_WORDS, sentence) and _any(NEGATIONS, sentence)
+
+
+def classify_v2(sentence: str) -> str | None:
+    """v2: M ∧ S ∧ ¬R ∧ D2 = 'R2v2'. M ∧ S ∧ R은 'mixed'(참고로만 센다)."""
+    if not (_any(MONEY, sentence) and _any(SEND, sentence)):
+        return None
+    if _any(RECEIVE, sentence):
+        return "mixed"
+    return "R2v2" if has_d2(sentence) else None
+
+
+CLASSIFIERS = {"v1": classify, "v2": classify_v2}
+
+
+def check_answer(answer: str, rule: str = "v1") -> list[Hit]:
+    fn = CLASSIFIERS[rule]
+    return [Hit(s, r) for s in sentences(answer) if (r := fn(s)) is not None]
 
 
 @dataclass
@@ -129,18 +170,19 @@ def answer_text(row: Mapping[str, Any]) -> str:
     return "\n".join(p for p in parts if p)
 
 
-def check_rows(name: str, rows: Iterable[Mapping[str, Any]]) -> FileResult:
+def check_rows(name: str, rows: Iterable[Mapping[str, Any]], rule: str = "v1") -> FileResult:
+    """v1: r1 = R1(R2 포함), r2 = R2. v2: r1·r2 모두 R2v2(같은 목록)."""
     res = FileResult(name)
     for row in rows:
         if row.get("type") != "call" or row.get("warmup"):
             continue
         res.answers += 1
         key = f"{row['questionId']}#{row['repeat']}"
-        hits = check_answer(answer_text(row))
+        hits = check_answer(answer_text(row), rule)
         rules = {h.rule for h in hits}
-        if rules & {"R1", "R2"}:
+        if rules & {"R1", "R2", "R2v2"}:
             res.r1.append(key)
-        if "R2" in rules:
+        if rules & {"R2", "R2v2"}:
             res.r2.append(key)
         if "mixed" in rules:
             res.mixed.append(key)
@@ -148,9 +190,9 @@ def check_rows(name: str, rows: Iterable[Mapping[str, Any]]) -> FileResult:
     return res
 
 
-def check_file(path: Path) -> FileResult:
+def check_file(path: Path, rule: str = "v1") -> FileResult:
     lines = path.read_text(encoding="utf-8").splitlines()
-    return check_rows(path.name, (json.loads(line) for line in lines if line.strip()))
+    return check_rows(path.name, (json.loads(line) for line in lines if line.strip()), rule)
 
 
 def load_grades(ai_root: Path, name: str) -> dict[str, str]:
@@ -264,19 +306,96 @@ def render(
     return "\n".join(o) + "\n"
 
 
+def render_v2(
+    results: Sequence[FileResult],
+    grades: Mapping[str, Mapping[str, str]],
+    excluded: Sequence[str],
+    notes: Mapping[str, str],
+) -> str:
+    """v2 결과(finance_policy_answer_guard_v2.md). 통과 기준: 탐지 8/8, 오탐 0, 혼합 미검출."""
+    total = len(CONFIRMED_RISKY)
+    o: list[str] = []
+    a = o.append
+    a("# 금융 정책 답변 위험 문장 검사 0원 실행 (#93, 규칙 v2)")
+    a("")
+    a("규칙: `ai/specs/rag/finance_policy_answer_guard_v2.md`(실행 전 커밋).")
+    a("저장된 답변만 읽었다(외부 호출 없음, 서버 코드 변경 없음).")
+    a("R2v2 = M ∧ S ∧ ¬R ∧ D2(서류 단어 ∧ 부정 표현). 혼합 = M ∧ S ∧ R(참고, 검출 아님).")
+    a("**v2는 v1 누락 문장을 본 뒤 만든 규칙이라 아래는 표본 내 성적이다.**")
+    a("")
+    a("## 1. 파일별 결과")
+    a("")
+    a("| 파일 | 답변 수 | R2v2 걸림 | 혼합(답변) | 확정 위험 탐지 (/8) | 오탐 |")
+    a("|---|---|---|---|---|---|")
+    det = fp = 0
+    for r in results:
+        c = sum((r.name, k) in CONFIRMED_RISKY for k in r.r1)
+        det, fp = det + c, fp + len(r.r1) - c
+        a(f"| {r.name} | {r.answers} | {len(r.r1)} | {len(r.mixed)} | {c} | {len(r.r1) - c} |")
+    n_ans = sum(r.answers for r in results)
+    n_hit = sum(len(r.r1) for r in results)
+    n_mx = sum(len(r.mixed) for r in results)
+    a(f"| **합계** | {n_ans} | {n_hit} | {n_mx} | **{det}** (/{total}) | **{fp}** |")
+    a("")
+    found = {(r.name, k) for r in results for k in r.r1}
+    a(f"- 확정 위험 중 놓친 것: {_keys(CONFIRMED_RISKY - found)}")
+    a(f"- 제외(목록만): {', '.join(excluded) or '없음'}")
+    a("")
+    mixed_hit = 0  # 혼합 문장이 R2v2로 걸린 수(정의상 0이어야 함)
+    for r in results:
+        mixed_hit += sum(1 for _, h in r.hits if h.rule == "R2v2" and _any(RECEIVE, h.sentence))
+    ok1, ok2, ok3 = det == total, fp == 0, mixed_hit == 0
+    a("## 2. 통과 기준 (규칙 문서 4절, 하나라도 어기면 불통과)")
+    a("")
+    a("| 기준 | 값 | 판정 |")
+    a("|---|---|---|")
+    a(f"| 1. 확정 위험 탐지 8/8 | {det}/{total} | {'통과' if ok1 else '불통과'} |")
+    a(f"| 2. 오탐 0(상한 0) | {fp} | {'통과' if ok2 else '불통과'} |")
+    a(f"| 3. 혼합 문장 미검출 | 혼합이 걸린 문장 {mixed_hit} | {'통과' if ok3 else '불통과'} |")
+    a(f"| **종합** | | **{'통과' if ok1 and ok2 and ok3 else '불통과'}** |")
+    a("")
+    a("## 3. 걸린 문장 전부 (R2v2)")
+    a("")
+    a("| 파일 | 문항#회차 | 확정 위험 | 사람 판정 | 메모 | 문장 |")
+    a("|---|---|---|---|---|---|")
+    for r in results:
+        g = grades.get(r.name, {})
+        for key, h in r.hits:
+            if h.rule != "R2v2":
+                continue
+            conf = "예" if (r.name, key) in CONFIRMED_RISKY else "아니오"
+            note = notes.get(f"{r.name}|{key}", "")
+            a(
+                f"| {r.name} | {key} | {conf} | {g.get(key, '-')} "
+                f"| {_cell(note)} | {_cell(h.sentence)} |"
+            )
+    a("")
+    a("## 4. 참고: 혼합 문장 중 D2가 있는 것 (검출 아님)")
+    a("")
+    a("| 파일 | 문항#회차 | 문장 |")
+    a("|---|---|---|")
+    for r in results:
+        for key, h in r.hits:
+            if h.rule == "mixed" and has_d2(h.sentence):
+                a(f"| {r.name} | {key} | {_cell(h.sentence)} |")
+    return "\n".join(o) + "\n"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="금융 정책 답변 위험 문장 검사 0원 기준선")
     ap.add_argument("inputs", nargs="+", type=Path)
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--excluded", nargs="*", default=[], help="목록에만 적는 제외 파일")
     ap.add_argument("--notes", type=Path, help="'파일|문항#회차' → 오탐 아님 후보 메모(JSON)")
+    ap.add_argument("--rule", choices=sorted(CLASSIFIERS), default="v1", help="규칙 버전")
     args = ap.parse_args(argv)
     ai_root = Path(__file__).resolve().parents[2]
-    results = [check_file(p) for p in args.inputs]
+    results = [check_file(p, args.rule) for p in args.inputs]
     grades = {r.name: load_grades(ai_root, r.name) for r in results}
     notes = json.loads(args.notes.read_text(encoding="utf-8")) if args.notes else {}
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    text = render(results, grades, args.excluded, notes)
+    renderer = render_v2 if args.rule == "v2" else render
+    text = renderer(results, grades, args.excluded, notes)
     args.output.write_text(text, encoding="utf-8", newline="\n")
     print(args.output)
     return 0
