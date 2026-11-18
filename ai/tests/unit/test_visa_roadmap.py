@@ -15,8 +15,11 @@ from app.core.config import Settings
 from app.integrations.policy_gateway import UnconfiguredPolicyGateway
 from app.main import AppState, _roadmap_writer, create_app
 from app.rag.embeddings import BgeM3Embedder
+from app.visa.e74.improvements import Improvement, ImprovementKind
+from app.visa.e74.rules import RuleActor
 from app.visa.roadmap.schemas import RoadmapRequest, RoadmapResponse
 from app.visa.roadmap.service import StepWriter, build_roadmap
+from app.visa.roadmap.steps import group_steps
 from app.visa.roadmap.text import (
     FORBIDDEN_PHRASE_CODES,
     FORBIDDEN_PHRASES,
@@ -78,6 +81,13 @@ def test_p04_matches_the_screen_numbers() -> None:
         "INCOME_25_30",
         "KOREAN_L4_PLUS",
         None,
+    ]
+    # 서류가 서로 다른 방안은 합치지 않는다.
+    assert [s["ruleCodes"] for s in d["steps"]] == [
+        ["REC_EMPLOYER"],
+        ["INCOME_25_30"],
+        ["KOREAN_L4_PLUS"],
+        [],
     ]
     assert [s["kind"] for s in d["steps"]] == [
         "OBTAIN_BONUS",
@@ -241,6 +251,92 @@ def test_apply_step_without_required_steps_opens_on_the_date() -> None:
     )
 
 
+# --- 같은 서류 단계 합치기 -----------------------------------------------------------------
+
+
+def _reyes() -> dict[str, Any]:
+    """P05(BE 데모 시드 Reyes): 고용기업 추천서를 신고만 해서 필수요건·가점이 모두 증빙 대기."""
+    return {"asOfDate": AS_OF, "stayExpiresOn": EXPIRES, "profile": profile_json("P05")}
+
+
+def test_p05_employer_recommendation_is_one_step() -> None:
+    d = _dump(_roadmap(_reyes()))
+    assert [s["ruleCodes"] for s in d["steps"]] == [
+        ["REC_EMPLOYER", "REQ_EMPLOYER_REC"],
+        ["KOREAN_L4_PLUS"],
+        [],
+    ]
+    assert [s["ruleCode"] for s in d["steps"]] == ["REC_EMPLOYER", "KOREAN_L4_PLUS", None]
+    assert [s["order"] for s in d["steps"]] == [1, 2, 3]
+    documents = [frozenset(s["requiredEvidence"]) for s in d["steps"][:-1]]
+    assert len(documents) == len(set(documents))
+    employer = d["steps"][0]
+    assert (employer["kind"], employer["required"], employer["estimatedAdditionalScore"]) == (
+        "SUBMIT_EVIDENCE",
+        True,
+        50,
+    )
+    assert employer["requiredEvidence"] == ["고용기업 추천서(붙임5)", "추천자 신분증 사본"]
+    assert "필수요건 충족과 가점 +50점이 함께 확정됨" in employer["description"]
+    assert employer["description"].endswith("신청하려면 꼭 필요함")
+    # 고르는 방안은 그대로라 엔진을 다시 돌린 예상 점수도 합치기 전과 같다.
+    assert d["projectedScore"] == {"afterRequiredSteps": 285, "afterAllSteps": 325}
+    rec = next(i for i in d["score"]["items"] if i["ruleCode"] == "REC_EMPLOYER")
+    assert rec["requiredForApplication"] is True
+
+
+def _imp(
+    code: str,
+    kind: ImprovementKind,
+    documents: tuple[str, ...],
+    points: int | None = None,
+    *,
+    blocking: bool = False,
+) -> Improvement:
+    return Improvement(
+        rule_code=code,
+        kind=kind,
+        actor=RuleActor.USER,
+        points_gain=points,
+        blocking=blocking,
+        documents=documents,
+        message_code="TEST",
+        description=code,
+    )
+
+
+SUBMIT = ImprovementKind.SUBMIT_EVIDENCE
+INCOME_DOCUMENTS = ("세무서 발행 소득금액증명원(최근 2년)",)
+
+
+def test_only_evidence_submissions_with_the_same_documents_are_merged() -> None:
+    groups = group_steps(
+        [
+            _imp("REQ_X", SUBMIT, ("B 서류", "A 서류"), blocking=True),
+            _imp("BONUS_X", SUBMIT, ("A 서류", "B 서류"), 30),
+            _imp("OTHER", SUBMIT, ("C 서류",), 10),
+            _imp("INCOME_25_30", SUBMIT, INCOME_DOCUMENTS, 50),
+            # 서류는 같아도 평균소득을 올리는 일이라 합치지 않는다.
+            _imp("INCOME_30_35", ImprovementKind.RAISE_LEVEL, INCOME_DOCUMENTS, 15),
+        ]
+    )
+    assert [g.rule_codes for g in groups] == [
+        ("REQ_X", "BONUS_X"),
+        ("OTHER",),
+        ("INCOME_25_30",),
+        ("INCOME_30_35",),
+    ]
+    assert (groups[0].blocking, groups[0].points_gain) == (True, 30)
+
+
+def test_two_scored_submissions_with_the_same_documents_stay_apart() -> None:
+    documents = ("외국인근로자 경력증명서(근무 이력)",)
+    groups = group_steps(
+        [_imp("TENURE_3Y", SUBMIT, documents, 20), _imp("REGION_3Y", SUBMIT, documents, 20)]
+    )
+    assert [g.rule_codes for g in groups] == [("TENURE_3Y",), ("REGION_3Y",)]
+
+
 # --- LLM 문장 ------------------------------------------------------------------------------
 
 
@@ -367,6 +463,26 @@ def test_llm_missing_a_step_or_failing_falls_back() -> None:
     assert _dump(_roadmap(_request(), writer))["text"]["fallbackReason"] == "INVALID_OUTPUT"
     writer, _ = _writer(RuntimeError("boom"))
     assert _dump(_roadmap(_request(), writer))["text"]["fallbackReason"] == "LLM_ERROR"
+
+
+def test_merged_step_llm_text_says_requirement_and_points() -> None:
+    writer, messages = _writer(_rewrite("추천서를 내면 필수 요건을 채우고 +50점도 받아요."))
+    d = _dump(_roadmap(_reyes(), writer))
+    assert d["text"]["source"] == "LLM"
+    sent = json.loads(messages.calls[0]["messages"][0]["content"])["steps"]
+    assert [s["combinesRequirementAndBonus"] for s in sent] == [True, False, False]
+    assert "combinesRequirementAndBonus" in SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize(
+    "description", ["추천서를 내면 +50점을 받아요.", "추천서를 내면 필수요건을 채워요."]
+)
+def test_merged_step_llm_text_missing_either_part_falls_back(description: str) -> None:
+    writer, _ = _writer(_rewrite(description))
+    template = _dump(_roadmap(_reyes()))
+    d = _dump(_roadmap(_reyes(), writer))
+    assert d["text"]["fallbackReason"] == "COMBINED_STEP_TEXT"
+    assert d["steps"] == template["steps"]
 
 
 def test_fallback_logs_reason_and_rule_codes_but_not_the_text(

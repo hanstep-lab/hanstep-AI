@@ -104,7 +104,13 @@ class RoadmapScore(CamelResponse):
 class RoadmapStep(CamelResponse):
     order: int
     kind: StepKind
-    rule_code: str | None
+    rule_code: str | None = Field(
+        description="대표 규칙 코드(ruleCodes의 첫 번째). 신청 단계는 null"
+    )
+    rule_codes: tuple[str, ...] = Field(
+        default=(),
+        description="이 단계로 해결하는 규칙 코드 전부. 같은 서류 방안을 합친 단계면 2개 이상",
+    )
     actor: RuleActor
     required: bool = Field(description="신청하려면 꼭 해야 하는 단계")
     estimated_additional_score: int | None = Field(

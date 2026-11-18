@@ -41,11 +41,18 @@ from app.visa.roadmap.schemas import (
     TextInfo,
     TextSource,
 )
-from app.visa.roadmap.steps import applicable_from, scenario_for, select_steps
+from app.visa.roadmap.steps import (
+    StepGroup,
+    applicable_from,
+    group_steps,
+    scenario_for,
+    select_steps,
+)
 from app.visa.roadmap.text import (
     LlmTextError,
     StepText,
     template_apply_text,
+    template_merged_text,
     template_step_text,
 )
 
@@ -185,6 +192,9 @@ def _llm_input(steps: Sequence[RoadmapStep]) -> list[dict[str, Any]]:
             "actor": s.actor.value,
             "required": s.required,
             "estimatedAdditionalScore": s.estimated_additional_score,
+            # 합친 단계에 점수가 있으면 필수요건 + 가점이다(steps.group_steps).
+            "combinesRequirementAndBonus": len(s.rule_codes) > 1
+            and s.estimated_additional_score is not None,
             "availableFrom": s.available_from.isoformat() if s.available_from else None,
             "targetDate": s.target_date.isoformat() if s.target_date else None,
             "requiredEvidence": list(s.required_evidence),
@@ -239,18 +249,24 @@ def _warnings(
     return tuple(warnings)
 
 
-def _action_step(order: int, imp: Improvement, rule_set: RuleSet) -> RoadmapStep:
-    text = template_step_text(imp, rule_set.rule(imp.rule_code), required=imp.blocking)
+def _action_step(order: int, group: StepGroup, rule_set: RuleSet) -> RoadmapStep:
+    lead = group.lead
+    if len(group.improvements) == 1:
+        text = template_step_text(lead, rule_set.rule(lead.rule_code), required=group.blocking)
+    else:
+        members = [(imp, rule_set.rule(imp.rule_code)) for imp in group.improvements]
+        text = template_merged_text(members, required=group.blocking)
     return RoadmapStep(
         order=order,
-        kind=StepKind(imp.kind.value),
-        rule_code=imp.rule_code,
-        actor=imp.actor,
-        required=imp.blocking,
-        estimated_additional_score=imp.points_gain,
-        available_from=imp.available_from,
+        kind=StepKind(lead.kind.value),
+        rule_code=lead.rule_code,
+        rule_codes=group.rule_codes,
+        actor=lead.actor,
+        required=group.blocking,
+        estimated_additional_score=group.points_gain,
+        available_from=group.available_from,
         target_date=None,
-        required_evidence=imp.documents,
+        required_evidence=lead.documents,
         title=text.title,
         description=text.description,
     )
@@ -278,7 +294,10 @@ def build_roadmap(
     if rule_set is not None:
         applicable = applicable_from(assessment, rule_set)
         chosen = select_steps(assessment, rule_set)
-        steps = [_action_step(order, imp, rule_set) for order, imp in enumerate(chosen, start=1)]
+        steps = [
+            _action_step(order, group, rule_set)
+            for order, group in enumerate(group_steps(chosen), start=1)
+        ]
     apply_text = template_apply_text(
         applicable, expires, required_steps_pending=any(imp.blocking for imp in chosen)
     )
