@@ -213,19 +213,18 @@ def test_setting_picks_the_system_message() -> None:
 # 버전별 완성된 프롬프트(en)의 SHA-256. 채팅 기록(chat_messages.prompt_version)과 측정 결과가
 # 가리키는 글을 고정한다. system_v1_1.md·visa_rules.md·remittance_rules.md는 여러 버전이 같이 쓰므로
 # 고치면 기본값(v3)을 포함한 여러 버전이 같은 이름으로 함께 바뀐다.
+# 2026-11-17(#77): 비자·체류 규칙에 한정하고 상품·송금은 제외해 v2~v4.1 해시 갱신.
 PROMPT_SHA256 = {
     "v1": "50f9632829d5f74b8764db7b7aea75527b5b05813e0b0eb5be3dc5e31be6ef48",
     "v1.1": "97b95203c491a97bd64cf0ea32f543f68a304085b3c18abf30b72e5b4d02c0c2",
-    "v2": "6376736a071df227659abe25b3eade6ff9c0511052e6e67f9ced4809d7bf6c34",
-    "v3": "81694ab609924880683ca239749d2068d355c35e0f13e42f0dcdbf9664f79a65",
-    "v3.1": "80c7f20adb3219077541d060898ccc87572b79fbc47772775d5c4d901da86ec9",
-    "v3.2": "e62f7dbb84c4eebfc244dfa294c722f6a8f615088c89e061f8d53a30ed36a8c7",
-    "v4": "fc0e4ef7e61eef927cd1485d3a6e6a1e0c38c770ea0d8cdc068a5c10f632ee32",
-    "v4.1": "396e508c6213de778325464d2c5c847890c836817552dbbb8531545299c1d4e5",
-    # 2026-11-17(#88): v4.2 = v4.1 + finance_policy_rules.md. v4.1까지의 값은 그대로다.
-    "v4.2": "37dc8a8040834ddf668f28d27c10e6a54196ecf722387a0d6b31e09578b3d3b5",
-    # 2026-11-18(#88 스펙 가드 ①): v4.3a = v4.2 + 수령·지급 방향 규칙 한 줄.
-    "v4.3a": "b7cfb40bb720c74228b51d681676c328b0945ffe283d5eec55c8fadc576ad532",
+    "v2": "c964dadba0fc6fc114bee3d79748ee13737169a1cd2c2641e8a2dd5cb235eee6",
+    "v3": "afcd6901865f703db374f327ae73fd3ba932043bcefbed5b0c56f959354c98c0",
+    "v3.1": "360206c1d6de37092cb1b5f1baaa5d696e07bb67ec17c0ffa6c9af2423ec3305",
+    "v3.2": "7ab4be64bb55670b4aea13746b2bf734d15ab7595c02f1fb45364a930b2544d0",
+    "v4": "15f6bcf6433a52edd8da0b3c7677832fd84de5aa6069a81c67ab3aeece297252",
+    "v4.1": "6348dd67a95b15f8cd375df4d6c543c987336b84aa83a93df082c8cf5001a0bf",
+    "v4.2": "8edda4074b53ece8d6cc30c69ec61e70c82ff38dd4ea5ba1b14f67e8591df51d",
+    "v4.3a": "ac9c014344e4409b0553ca5f3006010a4e2c1c51d72da32f3a795c7938b4165c",
 }
 
 
