@@ -1,0 +1,122 @@
+{
+  "userId": 1,
+  "screenCurrencies": [
+    "USD",
+    "PHP"
+  ],
+  "currencies": [
+    {
+      "currency": "USD",
+      "unit": 1,
+      "rate": 1406.51,
+      "sendRate": 1420.5751,
+      "receiveRate": 1392.4449,
+      "change": -1.08,
+      "changeRate": -0.08,
+      "asOf": "2026-11-06",
+      "source": "KOREAEXIM",
+      "sourceLabel": "수출입은행 고시 매매기준율",
+      "isMock": true,
+      "stale": true,
+      "rateAt": "2026-11-06T00:00:00+09:00",
+      "fetchedAt": "2026-11-06T11:05:00+09:00",
+      "notices": [],
+      "periodAverages": [
+        {
+          "period": "1M",
+          "avg": 1407.7735,
+          "diff": -1.2635,
+          "diffRate": -0.09,
+          "direction": "SAME",
+          "businessDays": 23,
+          "reason": null
+        },
+        {
+          "period": "3M",
+          "avg": 1429.6566,
+          "diff": -23.1466,
+          "diffRate": -1.62,
+          "direction": "LOWER",
+          "businessDays": 62,
+          "reason": null
+        },
+        {
+          "period": "6M",
+          "avg": 1419.9966,
+          "diff": -13.4866,
+          "diffRate": -0.95,
+          "direction": "LOWER",
+          "businessDays": 126,
+          "reason": null
+        },
+        {
+          "period": "1Y",
+          "avg": 1418.8393,
+          "diff": -12.3293,
+          "diffRate": -0.87,
+          "direction": "LOWER",
+          "businessDays": 246,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "currency": "PHP",
+      "unit": 1,
+      "rate": 20.984,
+      "sendRate": null,
+      "receiveRate": null,
+      "change": 0.112,
+      "changeRate": 0.54,
+      "asOf": "2026-11-17",
+      "source": "MARKET_REF",
+      "sourceLabel": "ECB 기준환율 기반 참고값",
+      "isMock": false,
+      "stale": false,
+      "rateAt": "2026-11-18T00:00:00+09:00",
+      "fetchedAt": "2026-11-18T14:13:52+09:00",
+      "notices": [
+        "REFERENCE_RATE_ONLY"
+      ],
+      "periodAverages": [
+        {
+          "period": "1M",
+          "avg": 21.0393,
+          "diff": -0.0553,
+          "diffRate": -0.26,
+          "direction": "LOWER",
+          "businessDays": 22,
+          "reason": null
+        },
+        {
+          "period": "3M",
+          "avg": 21.5431,
+          "diff": -0.5591,
+          "diffRate": -2.6,
+          "direction": "LOWER",
+          "businessDays": 67,
+          "reason": null
+        },
+        {
+          "period": "6M",
+          "avg": 22.9364,
+          "diff": -1.9524,
+          "diffRate": -8.51,
+          "direction": "LOWER",
+          "businessDays": 132,
+          "reason": null
+        },
+        {
+          "period": "1Y",
+          "avg": 23.8157,
+          "diff": -2.8317,
+          "diffRate": -11.89,
+          "direction": "LOWER",
+          "businessDays": 255,
+          "reason": null
+        }
+      ]
+    }
+  ],
+  "unavailableCurrencies": []
+}
