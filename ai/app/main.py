@@ -16,6 +16,7 @@ from pymongo import MongoClient
 from app.api.errors import install_error_handlers
 from app.api.routes import health, internal
 from app.core.config import Settings, configure_logging, get_settings
+from app.finance_policy.search import FinancePolicySearch
 from app.integrations.policy_gateway import PolicyDocumentGateway, UnconfiguredPolicyGateway
 from app.integrations.spring_client import SpringInternalClient
 from app.integrations.spring_policy_gateway import SpringPolicyGateway
@@ -44,6 +45,8 @@ class AppState:
     roadmap_writer: StepWriter | None = None
     # 상품 추천 도구의 순서 B(상품설명서 검색). None이면 조건표 순서(A).
     product_search: ProductSearch | None = None
+    # 금융 정책 검색(#88). None이면 search_finance_policy가 SEARCH_NOT_CONFIGURED.
+    finance_policy_search: FinancePolicySearch | None = None
 
 
 def _load_model(state: AppState) -> None:
@@ -58,6 +61,25 @@ def _load_model(state: AppState) -> None:
         return
     state.model_status = "loaded"
     _build_product_search(state)
+    _build_finance_policy_search(state)
+
+
+def _build_finance_policy_search(state: AppState) -> None:
+    """FINANCE_POLICY_CORPUS_DIR가 있으면 금융 정책 검색을 만든다. 실패하면 도구가 FAILED."""
+    settings = state.settings
+    if not settings.finance_policy_corpus_dir:
+        return
+    try:
+        state.finance_policy_search = FinancePolicySearch.build(
+            Path(settings.finance_policy_corpus_dir),
+            state.embedder,
+            settings.rag_artifacts_dir / "embedding-cache",
+            settings.embedding_model,
+            settings.embedding_model_revision,
+        )
+    except Exception as exc:
+        state.errors["financePolicySearch"] = type(exc).__name__
+        logger.exception("finance policy search failed to build")
 
 
 def _build_product_search(state: AppState) -> None:

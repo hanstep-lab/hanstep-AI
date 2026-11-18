@@ -9,10 +9,12 @@ from typing import get_args
 import pytest
 
 from app.api.routes.chat import (
+    FINANCE_POLICY_PROMPT_VERSIONS,
     PRODUCT_PROMPT_VERSIONS,
     REMITTANCE_PROMPT_VERSIONS,
     VISA_PROMPT_VERSIONS,
 )
+from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
 from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.prompts import (
     PROMPT_VERSION,
@@ -74,6 +76,8 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v3.2": "chat-v3.2",
         "v4": "chat-v4",
         "v4.1": "chat-v4.1",
+        "v4.2": "chat-v4.2",
+        "v4.3a": "chat-v4.3a",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -219,6 +223,8 @@ PROMPT_SHA256 = {
     "v3.2": "7ab4be64bb55670b4aea13746b2bf734d15ab7595c02f1fb45364a930b2544d0",
     "v4": "15f6bcf6433a52edd8da0b3c7677832fd84de5aa6069a81c67ab3aeece297252",
     "v4.1": "6348dd67a95b15f8cd375df4d6c543c987336b84aa83a93df082c8cf5001a0bf",
+    "v4.2": "8edda4074b53ece8d6cc30c69ec61e70c82ff38dd4ea5ba1b14f67e8591df51d",
+    "v4.3a": "ac9c014344e4409b0553ca5f3006010a4e2c1c51d72da32f3a795c7938b4165c",
 }
 
 
@@ -243,6 +249,8 @@ def test_prompt_rules_and_attached_tools_agree() -> None:
         assert remittance == (version in REMITTANCE_PROMPT_VERSIONS), version
         product = RECOMMEND_SAVINGS_PRODUCTS in prompt
         assert product == (version in PRODUCT_PROMPT_VERSIONS), version
+        policy = SEARCH_FINANCE_POLICY in prompt
+        assert policy == (version in FINANCE_POLICY_PROMPT_VERSIONS), version
 
 
 V4_PRODUCTS = (
@@ -286,3 +294,37 @@ def test_v4_1_is_v4_with_one_stay_sentence() -> None:
     assert "extending the stay or the visa" in V4_1_STAY_RULE
     with pytest.raises(ValueError, match="STAY_TOO_SHORT rule"):
         _with_stay_rule("no such rule")
+
+
+def test_v4_2_is_v4_1_plus_finance_policy_rules() -> None:
+    # v4.2(#88): v4.1 문구는 그대로 두고 금융 정책 규칙을 끝에 더한다. 기본값은 v4.1 그대로다.
+    v41 = system_prompt("en", "v4.1").splitlines()
+    v42 = system_prompt("en", "v4.2").splitlines()
+    rules = (PROMPTS / "finance_policy_rules.md").read_text(encoding="utf-8").splitlines()
+    assert v42 == [*v41, "", *rules]
+    text = " ".join(rules)
+    for phrase in (
+        "search_finance_policy",
+        "queryKo in Korean",
+        "foreign residents",
+        "effective date",
+        "Under the regulation",
+        "do not guess",
+    ):
+        assert phrase in text, phrase
+    assert _settings().chat_prompt_version == "v4.1"
+    config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.2"))
+    assert config.prompt_version_id == "chat-v4.2"
+
+
+def test_v4_3a_is_v4_2_plus_direction_rule() -> None:
+    # v4.3a(#88 스펙 가드 ①): v4.2 문구 그대로 + 규정 규칙 끝에 한 줄. 도구 구성은 v4.2와 같다.
+    from app.chat.prompts import DIRECTION_RULE
+
+    v42 = system_prompt("en", "v4.2").splitlines()
+    assert system_prompt("en", "v4.3a").splitlines() == [*v42, DIRECTION_RULE]
+    for phrase in ("수령", "지급", "receiving", "sending", "applies to"):
+        assert phrase in DIRECTION_RULE, phrase
+    assert _settings().chat_prompt_version == "v4.1"
+    config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.3a"))
+    assert config.prompt_version_id == "chat-v4.3a"

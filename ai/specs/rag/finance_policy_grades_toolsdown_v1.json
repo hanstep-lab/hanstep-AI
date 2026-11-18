@@ -1,0 +1,532 @@
+{
+  "A01#1": {
+    "grade": "abstain",
+    "reason": "공식 출처가 없다며 답하지 않음. 핵심 사실 (1)(2)(3) 모두 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A01#2": {
+    "grade": "abstain",
+    "reason": "공식 출처가 없다며 답하지 않음. 핵심 사실 (1)(2)(3) 모두 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A01#3": {
+    "grade": "abstain",
+    "reason": "공식 출처가 없다며 답하지 않음. 핵심 사실 (1)(2)(3) 모두 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A02#1": {
+    "grade": "abstain",
+    "reason": "비자 정책 검색 실패(SEARCH_NOT_CONFIGURED)를 이유로 답하지 않음. 핵심 사실 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A02#2": {
+    "grade": "abstain",
+    "reason": "금융 분석 실패(SPRING_ERROR)와 출처 없음을 이유로 답하지 않음. 핵심 사실 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A02#3": {
+    "grade": "abstain",
+    "reason": "비자 정책 검색 실패(SEARCH_NOT_CONFIGURED)를 이유로 답하지 않음. 핵심 사실 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A03#1": {
+    "grade": "abstain",
+    "reason": "비자 정책 검색 실패를 이유로 답하지 않음. 핵심 사실 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A03#2": {
+    "grade": "abstain",
+    "reason": "비자 정책 검색 실패를 이유로 답하지 않음. 핵심 사실 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A03#3": {
+    "grade": "abstain",
+    "reason": "비자 정책 검색 실패를 이유로 답하지 않음. 핵심 사실 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A04#1": {
+    "grade": "abstain",
+    "reason": "'앱마다 한도가 다르다'며 숫자를 주지 않음. 핵심 사실(건당 5천불·연 5만불) 없음. 법정 한도를 말하지 않은 점은 오해 소지",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A04#2": {
+    "grade": "abstain",
+    "reason": "'앱마다 한도가 다르다'며 숫자를 주지 않음. 핵심 사실(건당 5천불·연 5만불) 없음. 법정 한도를 말하지 않은 점은 오해 소지",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A04#3": {
+    "grade": "abstain",
+    "reason": "'앱마다 한도가 다르다'며 숫자를 주지 않음. 핵심 사실(건당 5천불·연 5만불) 없음. 법정 한도를 말하지 않은 점은 오해 소지",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A05#1": {
+    "grade": "abstain",
+    "reason": "금융 분석 실패와 출처 없음을 이유로 답하지 않음. 핵심 사실 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A05#2": {
+    "grade": "abstain",
+    "reason": "비자 정책 검색 실패를 이유로 답하지 않음. 핵심 사실 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A05#3": {
+    "grade": "abstain",
+    "reason": "비자 정책 검색 실패를 이유로 답하지 않음. 핵심 사실 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A06#1": {
+    "grade": "partial",
+    "reason": "(1) 대가 대여 불법은 있음. 빠짐: (2) 범죄 이용을 알면서 대여 금지 규정, (3) 5년 이하 징역·3천만원 이하 벌금",
+    "outOfDocsClaims": 0,
+    "assertive": 1,
+    "targetError": 0
+  },
+  "A06#2": {
+    "grade": "partial",
+    "reason": "(1) 있음(전자금융거래법 언급). 빠짐: (2) 범죄 이용 대여 규정, (3) 벌칙. 비자 기록 문제는 문서 밖 진술",
+    "outOfDocsClaims": 1,
+    "assertive": 1,
+    "targetError": 0
+  },
+  "A06#3": {
+    "grade": "partial",
+    "reason": "(1) 있음. 빠짐: (2), (3). '남이 쓰게 하는 것 자체가 불법'은 제6조 ③보다 넓은 과잉 단정",
+    "outOfDocsClaims": 0,
+    "assertive": 1,
+    "targetError": 0
+  },
+  "A07#1": {
+    "grade": "partial",
+    "reason": "(1) 소득 증빙(proof of income)은 있음. 빠짐: (2) 국내 보수 범위에서 지정거래외국환은행을 통해 지급",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A07#2": {
+    "grade": "partial",
+    "reason": "(1) 소득 증빙(proof of income)은 있음. 빠짐: (2) 국내 보수 범위에서 지정거래외국환은행을 통해 지급",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A07#3": {
+    "grade": "partial",
+    "reason": "(1) 소득 증빙(proof of income)은 있음. 빠짐: (2) 국내 보수 범위에서 지정거래외국환은행을 통해 지급",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A08#1": {
+    "grade": "partial",
+    "reason": "(1) 양도(판매) 금지는 있음. 빠짐: (2) 5년 이하 징역·3천만원 이하 벌금",
+    "outOfDocsClaims": 0,
+    "assertive": 1,
+    "targetError": 0
+  },
+  "A08#2": {
+    "grade": "partial",
+    "reason": "(1) 있음. 빠짐: (2) 벌칙. 범죄 기록이 비자에 문제라는 말은 문서 밖 진술",
+    "outOfDocsClaims": 1,
+    "assertive": 1,
+    "targetError": 0
+  },
+  "A08#3": {
+    "grade": "partial",
+    "reason": "(1) 양도(판매) 금지는 있음. 빠짐: (2) 5년 이하 징역·3천만원 이하 벌금",
+    "outOfDocsClaims": 0,
+    "assertive": 1,
+    "targetError": 0
+  },
+  "A09#1": {
+    "grade": "wrong",
+    "reason": "'정부가 외환 업무를 허가한 은행'으로 설명(외국환은행 일반). 제1-2조 35호: 당사자가 대외거래·사후관리를 위해 지정한 외국환은행",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A09#2": {
+    "grade": "wrong",
+    "reason": "'정부가 외환 업무를 허가한 은행'으로 설명(외국환은행 일반). 제1-2조 35호: 당사자가 대외거래·사후관리를 위해 지정한 외국환은행",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A09#3": {
+    "grade": "wrong",
+    "reason": "'정부가 외환 업무를 허가한 은행'으로 설명(외국환은행 일반). 제1-2조 35호: 당사자가 대외거래·사후관리를 위해 지정한 외국환은행",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A10#1": {
+    "grade": "abstain",
+    "reason": "확인할 수 없다며 은행에 물어보라고만 함. 핵심 사실(건당 5천불 이내 증빙 없이 수령) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A10#2": {
+    "grade": "abstain",
+    "reason": "확인할 수 없다며 은행에 물어보라고만 함. 핵심 사실(건당 5천불 이내 증빙 없이 수령) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A10#3": {
+    "grade": "partial",
+    "reason": "'보통 특별한 서류가 필요 없다'는 결론은 맞음. 빠짐: 근거인 건당 5천불 이내 기준",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A11#1": {
+    "grade": "abstain",
+    "reason": "여행 예산(금융 분석)으로 잘못 읽고 금융 분석 실패로 답하지 않음. 핵심 사실(미화 1만불) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A11#2": {
+    "grade": "abstain",
+    "reason": "여행 예산(금융 분석)으로 잘못 읽고 금융 분석 실패로 답하지 않음. 핵심 사실(미화 1만불) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A11#3": {
+    "grade": "abstain",
+    "reason": "여행 예산(금융 분석)으로 잘못 읽고 금융 분석 실패로 답하지 않음. 핵심 사실(미화 1만불) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A12#1": {
+    "grade": "abstain",
+    "reason": "우체국 해외송금 가능 여부를 모른다고 함. 핵심 사실(취득경위입증서류 내고 체신관서로 지급) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A12#2": {
+    "grade": "abstain",
+    "reason": "우체국 해외송금 가능 여부를 모른다고 함. 핵심 사실(취득경위입증서류 내고 체신관서로 지급) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A12#3": {
+    "grade": "abstain",
+    "reason": "우체국 해외송금 가능 여부를 모른다고 함. 핵심 사실(취득경위입증서류 내고 체신관서로 지급) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A13#1": {
+    "grade": "correct",
+    "reason": "(1) 머니뮬 사기 수법, (2) 범죄 연루 위험 모두 있음. 비자 조건 위반 언급은 문서 밖 진술",
+    "outOfDocsClaims": 1,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A13#2": {
+    "grade": "correct",
+    "reason": "(1)(2) 모두 있음(사기·자금세탁)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A13#3": {
+    "grade": "correct",
+    "reason": "(1) 머니뮬 사기 수법, (2) 범죄 연루 위험 모두 있음. 비자 조건 위반 언급은 문서 밖 진술",
+    "outOfDocsClaims": 1,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A14#1": {
+    "grade": "correct",
+    "reason": "무등록 송금은 불법이라는 핵심 사실 있음. '같이 처벌될 수 있다'는 문서 밖 진술",
+    "outOfDocsClaims": 1,
+    "assertive": 1,
+    "targetError": 0
+  },
+  "A14#2": {
+    "grade": "correct",
+    "reason": "'불법일 수 있다'로 핵심 사실 있음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A14#3": {
+    "grade": "correct",
+    "reason": "무등록 송금은 불법이라는 핵심 사실 있음",
+    "outOfDocsClaims": 0,
+    "assertive": 1,
+    "targetError": 0
+  },
+  "A15#1": {
+    "grade": "abstain",
+    "reason": "확인할 수 없다며 금감원·은행에 물어보라고 함. 핵심 사실(제2-31조 ⑦) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A15#2": {
+    "grade": "abstain",
+    "reason": "확인할 수 없다며 금감원·은행에 물어보라고 함. 핵심 사실(제2-31조 ⑦) 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "no_tool"
+  },
+  "A15#3": {
+    "grade": "abstain",
+    "reason": "비자 정책 검색 실패를 이유로 답하지 않고 HiKorea로 안내(주제 빗나감)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0,
+    "abstainCause": "tool_failed"
+  },
+  "A16#1": {
+    "grade": "partial",
+    "reason": "은행에 연락해 카드를 막으라는 안내는 있음. 경찰 신고는 '모르는 거래가 있으면'으로 조건부라 핵심 사실(경찰·금융회사에 신고) 일부만",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A16#2": {
+    "grade": "partial",
+    "reason": "은행에 연락해 카드를 막으라는 안내는 있음. 경찰 신고는 '모르는 거래가 있으면'으로 조건부라 핵심 사실(경찰·금융회사에 신고) 일부만",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "A16#3": {
+    "grade": "partial",
+    "reason": "은행에 연락해 카드를 막으라는 안내는 있음. 경찰 신고는 '모르는 거래가 있으면'으로 조건부라 핵심 사실(경찰·금융회사에 신고) 일부만",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N01#1": {
+    "grade": "correct_abstain",
+    "reason": "문서(채팅)에 없다고 안내, 숫자 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N01#2": {
+    "grade": "correct_abstain",
+    "reason": "문서(채팅)에 없다고 안내, 숫자 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N01#3": {
+    "grade": "correct_abstain",
+    "reason": "문서(채팅)에 없다고 안내, 숫자 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N02#1": {
+    "grade": "correct_abstain",
+    "reason": "문서(채팅)에 없다고 안내, 숫자 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N02#2": {
+    "grade": "correct_abstain",
+    "reason": "문서(채팅)에 없다고 안내, 숫자 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N02#3": {
+    "grade": "correct_abstain",
+    "reason": "문서(채팅)에 없다고 안내, 숫자 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N03#1": {
+    "grade": "correct_abstain",
+    "reason": "확인할 수 없다고 안내, 규정 숫자 없음(국세청 126 안내)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N03#2": {
+    "grade": "correct_abstain",
+    "reason": "확인할 수 없다고 안내, 규정 숫자 없음(국세청 126 안내)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N03#3": {
+    "grade": "correct_abstain",
+    "reason": "확인할 수 없다고 안내. 단 '해외 송금은 보통 소득으로 보지 않는다'는 문서 밖 일반 진술",
+    "outOfDocsClaims": 1,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N04#1": {
+    "grade": "correct_abstain",
+    "reason": "문서(채팅)에 없다고 안내, 숫자 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N04#2": {
+    "grade": "correct_abstain",
+    "reason": "문서(채팅)에 없다고 안내, 숫자 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "N04#3": {
+    "grade": "correct_abstain",
+    "reason": "문서(채팅)에 없다고 안내, 숫자 없음",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O01#1": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 그 주제의 기존 도구를 부름(도구는 실패)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O01#2": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 그 주제의 기존 도구를 부름(도구는 실패)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O01#3": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 그 주제의 기존 도구를 부름(도구는 실패)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O02#1": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 그 주제의 기존 도구를 부름(도구는 실패)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O02#2": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 그 주제의 기존 도구를 부름(도구는 실패)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O02#3": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 그 주제의 기존 도구를 부름(도구는 실패)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O03#1": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 그 주제의 기존 도구를 부름(도구는 실패)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O03#2": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 그 주제의 기존 도구를 부름(도구는 실패)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O03#3": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 그 주제의 기존 도구를 부름(도구는 실패)",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O04#1": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 카드 추천 불가 안내",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O04#2": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 카드 추천 불가 안내",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  },
+  "O04#3": {
+    "grade": "ok",
+    "reason": "규정 도구 없음, 카드 추천 불가 안내",
+    "outOfDocsClaims": 0,
+    "assertive": 0,
+    "targetError": 0
+  }
+}

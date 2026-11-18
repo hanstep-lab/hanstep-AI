@@ -20,6 +20,14 @@ the chat fixture (the baseline may call it for spare-money questions). History i
 
     uv run python scripts/count_chat_tokens.py --question-set product \
         --models claude-haiku-5-5 --output artifacts/chat/product_baseline_tokens.md
+
+--question-set policy (issue #88 baseline): each question in
+specs/rag/finance_policy_questions_v1.json with the current default chat (system prompt
+v4.1 + its tools: finance, visa, remittance, product; no regulation tool).
+Same first/second call as product.
+
+    uv run python scripts/count_chat_tokens.py --question-set policy \
+        --models claude-haiku-5-5 --output artifacts/chat/policy_baseline_tokens.md
 """
 
 from __future__ import annotations
@@ -43,7 +51,16 @@ from app.rag.cli import EXIT_BLOCKED, EXIT_OK
 AI_ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
 PRODUCT_QUESTIONS = AI_ROOT / "specs" / "chat" / "product_questions_v1.json"
+POLICY_QUESTIONS = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json"
 BASELINE_PROMPT = "v3"
+# 금융 정책 RAG(#88) 기준선: 지금 기본 프롬프트(규정 도구 없음).
+POLICY_BASELINE_PROMPT = "v4.1"
+# 금융 정책 검색 도구가 붙는 버전(#88 after).
+# 2차 호출은 검색 결과 예시(fixture)를 받았다고 가정한다.
+POLICY_TOOL_PROMPT = "v4.2"
+# 스펙 가드 비교안 ①(#88): v4.2 + 수령·지급 방향 규칙 한 줄. 도구 구성은 v4.2와 같다.
+POLICY_GUARD_PROMPT = "v4.3a"
+POLICY_RESULT_SAMPLE = AI_ROOT / "tests" / "fixtures" / "chat" / "finance_policy_result_sample.json"
 TRANSACTIONS = AI_ROOT / "tests" / "fixtures" / "finance" / "minh_12m.json"
 CACHE_MIN_TOKENS = 512
 EXIT_USAGE = 2
@@ -66,22 +83,48 @@ def v3_tools() -> list[dict[str, Any]]:
     return [TOOL_SCHEMA, *visa, *(dict(s) for s in REMITTANCE_TOOL_SCHEMAS)]
 
 
+def v4_1_tools() -> list[dict[str, Any]]:
+    """The tools the server binds for prompt v4.1: the v3 tools + the product tool (v4.1 schema)."""
+    from app.chat.product_tools import TOOL_SCHEMAS_BY_PROMPT
+
+    return [*v3_tools(), TOOL_SCHEMAS_BY_PROMPT[POLICY_BASELINE_PROMPT]]
+
+
+def v4_2_tools() -> list[dict[str, Any]]:
+    """v4.2: v4.1 도구 + 금융 정책 검색 도구."""
+    from app.chat.finance_policy_tools import TOOL_SCHEMA as POLICY_TOOL_SCHEMA
+
+    return [*v4_1_tools(), POLICY_TOOL_SCHEMA]
+
+
 def history_messages(history: list[dict[str, str]]) -> list[dict[str, Any]]:
     return [{"role": h["role"].lower(), "content": h["content"]} for h in history]
 
 
-def baseline_requests(question: dict[str, Any]) -> list[dict[str, Any]]:
-    """Product question with the current chat (v3, no product tool): first and second call."""
-    system = system_prompt("en", BASELINE_PROMPT)
-    tools = v3_tools()
-    result = summarize(json.loads(FIXTURE.read_text(encoding="utf-8")))
+def baseline_requests(
+    question: dict[str, Any],
+    prompt: str = BASELINE_PROMPT,
+    tools: list[dict[str, Any]] | None = None,
+    second_tool: tuple[str, dict[str, Any], Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Question with a chat setup (default: v3 + v3 tools): first and second call.
+
+    second_tool: (도구 이름, 인자, 결과). 없으면 get_financial_analysis + fixture 요약.
+    """
+    system = system_prompt("en", prompt)
+    tools = v3_tools() if tools is None else tools
+    name, arguments, result = second_tool or (
+        TOOL_NAME,
+        {},
+        summarize(json.loads(FIXTURE.read_text(encoding="utf-8"))),
+    )
     first = [*history_messages(question["history"]), {"role": "user", "content": question["text"]}]
     second = [
         *first,
         {
             "role": "assistant",
             "content": [
-                {"type": "tool_use", "id": "toolu_count_1", "name": TOOL_NAME, "input": {}}
+                {"type": "tool_use", "id": "toolu_count_1", "name": name, "input": arguments}
             ],
         },
         {
@@ -101,13 +144,16 @@ def baseline_requests(question: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def render_baseline(rows: list[dict[str, Any]]) -> str:
+def render_baseline(rows: list[dict[str, Any]], setup: str | None = None) -> str:
+    setup = setup or (
+        f"지금 챗봇 설정: system {PROMPT_VERSIONS[BASELINE_PROMPT]} + v3 도구(금융·비자·송금), "
+        "상품 도구 없음. 문항: product_questions_v1.json."
+    )
     out = [
-        "# 상품 질문 기준선 입력 토큰 (count_tokens)",
+        "# 질문 기준선 입력 토큰 (count_tokens)",
         "",
         "count_tokens 는 추정치다. 실제 과금 토큰과 조금 다를 수 있다.",
-        f"지금 챗봇 설정: system {PROMPT_VERSIONS[BASELINE_PROMPT]} + v3 도구(금융·비자·송금), "
-        "상품 도구 없음. 문항: product_questions_v1.json.",
+        setup,
         "2차는 get_financial_analysis를 부르고 fixture 결과를 받았다고 가정한 호출이다.",
         "",
         "| 모델 | 문항 | 1차 | 2차 | 합계 |",
@@ -224,9 +270,17 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
     parser.add_argument("--output", type=Path, default=None, help="markdown path (required)")
     parser.add_argument(
         "--question-set",
-        choices=["finance", "product"],
+        choices=["finance", "product", "policy"],
         default="finance",
-        help="finance: raw vs tool (eval_questions_v1.json), product: #65 baseline (v3 tools)",
+        help="finance: raw vs tool (eval_questions_v1.json), product: #65 baseline (v3 tools), "
+        "policy: #88 baseline (v4.1 tools)",
+    )
+    parser.add_argument(
+        "--prompt-version",
+        choices=[POLICY_BASELINE_PROMPT, POLICY_TOOL_PROMPT, POLICY_GUARD_PROMPT],
+        default=POLICY_BASELINE_PROMPT,
+        help="policy only: v4.1 baseline (no regulation tool), v4.2 (search_finance_policy) or "
+        "v4.3a (v4.2 + direction rule)",
     )
     args = parser.parse_args(argv)
     if isinstance(sys.stdout, io.TextIOWrapper):
@@ -247,12 +301,22 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
 
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
 
-    if args.question_set == "product":
-        spec = json.loads(PRODUCT_QUESTIONS.read_text(encoding="utf-8"))
+    if args.question_set in ("product", "policy"):
+        policy = args.question_set == "policy"
+        spec = json.loads((POLICY_QUESTIONS if policy else PRODUCT_QUESTIONS).read_text("utf-8"))
+        with_tool = policy and args.prompt_version in (POLICY_TOOL_PROMPT, POLICY_GUARD_PROMPT)
+        prompt = args.prompt_version if policy else BASELINE_PROMPT
+        tools = v4_2_tools() if with_tool else v4_1_tools() if policy else v3_tools()
+        second_tool = None
+        if with_tool:
+            from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
+
+            sample = json.loads(POLICY_RESULT_SAMPLE.read_text(encoding="utf-8"))
+            second_tool = (SEARCH_FINANCE_POLICY, {"queryKo": sample["query"]}, sample["result"])
         base_rows: list[dict[str, Any]] = []
         for model in models:
             for q in spec["questions"]:
-                first, second = baseline_requests(q)
+                first, second = baseline_requests(q, prompt, tools, second_tool)
                 row = {
                     "model": model,
                     "question": q["id"],
@@ -261,7 +325,19 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
                 }
                 base_rows.append(row)
                 print(f"{model} {q['id']} first={row['first']} second={row['second']}", flush=True)
-        report = render_baseline(base_rows)
+        setup = None
+        if with_tool:
+            setup = (
+                f"챗봇 설정: system {PROMPT_VERSIONS[args.prompt_version]} + v4.1 도구 + "
+                "search_finance_policy. 문항: finance_policy_questions_v1.json. "
+                "아래 2차는 search_finance_policy 결과 예시(k=8)를 받았다고 가정한 호출이다."
+            )
+        elif policy:
+            setup = (
+                f"지금 챗봇 설정: system {PROMPT_VERSIONS[POLICY_BASELINE_PROMPT]} + v4.1 도구"
+                "(금융·비자·송금·상품), 규정 도구 없음. 문항: finance_policy_questions_v1.json."
+            )
+        report = render_baseline(base_rows, setup)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(report, encoding="utf-8")
         print(report)

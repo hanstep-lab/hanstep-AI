@@ -91,9 +91,24 @@ AI_ROOT = Path(__file__).resolve().parents[1]
 QUESTIONS = AI_ROOT / "specs" / "chat" / "eval_questions_v1.json"
 REMIT_QUESTIONS = AI_ROOT / "specs" / "chat" / "remit_questions_v1.json"
 PRODUCT_QUESTIONS = AI_ROOT / "specs" / "chat" / "product_questions_v1.json"
-QUESTION_SETS = {"eval": QUESTIONS, "remit": REMIT_QUESTIONS, "product": PRODUCT_QUESTIONS}
+# 금융 정책 RAG(#88) 기준선: 해외송금 규정 질문. 답변 채점은 scripts/finance_policy_review.py.
+POLICY_QUESTIONS = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json"
+QUESTION_SETS = {
+    "eval": QUESTIONS,
+    "remit": REMIT_QUESTIONS,
+    "product": PRODUCT_QUESTIONS,
+    "policy": POLICY_QUESTIONS,
+}
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
-PROMPT_BASE = {"v3": "v2", "v3.1": "v3", "v3.2": "v3", "v4": "v3", "v4.1": "v4"}
+PROMPT_BASE = {
+    "v3": "v2",
+    "v3.1": "v3",
+    "v3.2": "v3",
+    "v4": "v3",
+    "v4.1": "v4",
+    "v4.2": "v4.1",
+    "v4.3a": "v4.2",
+}
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
 PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
 EXIT_INTERRUPTED = 130
@@ -703,6 +718,33 @@ def tool_context(settings: Settings, user_id: int, llm_mode: str) -> dict[str, A
     return fixture_context()
 
 
+def adopt_server_prompt_version(
+    variant: dict[str, Any], metrics: dict[str, Any] | None
+) -> str | None:
+    """server-default는 서버가 실제로 쓴 프롬프트 버전을 따른다(첫 응답에서 한 번만).
+
+    server-default는 서버에 설정을 보내지 않으므로, 이 스크립트 프로세스의 설정(환경 변수·ai/.env)이
+    서버의 CHAT_PROMPT_VERSION과 다를 수 있다(#88 v4.3a 스모크: 서버 v4.3a, 스크립트 v4.2로 멈춤).
+    첫 응답이 보고한 버전으로 바꾸고 원래 값은 localPromptVersion에 남긴다. 그 뒤 응답은
+    config_mismatch가 그 버전과 엄격히 비교한다(측정 중 서버가 바뀌면 멈춘다).
+    바꿨으면 원래 값을 돌려준다.
+    --variants(override)는 서버에 버전을 보내므로 따르지 않는다.
+    """
+    if variant.get("override") or variant.get("promptVersionFromServer"):
+        return None
+    reported = ((metrics or {}).get("config") or {}).get("promptVersion")
+    key = next((k for k, v in PROMPT_VERSIONS.items() if v == reported), None)
+    if key is None:
+        return None
+    variant["promptVersionFromServer"] = True
+    previous = variant.get("promptVersion")
+    if key == previous:
+        return None
+    variant["promptVersion"] = key
+    variant["localPromptVersion"] = previous
+    return str(previous)
+
+
 def config_mismatch(
     variant: dict[str, Any], answered_by: str | None, metrics: dict[str, Any] | None, fake: bool
 ) -> list[str]:
@@ -1006,6 +1048,15 @@ def product_tool_result(metrics: dict[str, Any] | None) -> dict[str, Any] | None
     return None
 
 
+def policy_tool_results(metrics: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """agent.metrics의 금융 정책 검색 도구 측정 값(호출마다, #88). 결과 본문은 근거 숫자다."""
+    return [
+        dict(tool)
+        for tool in (metrics or {}).get("tools") or []
+        if tool.get("toolName") == "search_finance_policy"
+    ]
+
+
 def row_gold(row: dict[str, Any]) -> list[str]:
     """행의 통과 집합. 질문 세트에 gold가 없으면(hold-out) 기대 인자·프로필로 계산한다."""
     if row.get("gold") is not None:
@@ -1047,6 +1098,10 @@ def score(row: dict[str, Any]) -> None:
     if product_tool and product_tool.get("content"):
         # 상품 도구가 LLM에 준 값(기간·금액 범위·여유자금·남은 체류 개월)도 근거다.
         tool_results.append(product_tool["content"])
+    for policy_tool in row.get("policyTools") or []:
+        # 금융 정책 검색 결과(조문 원문)도 근거다(#88, v4.2).
+        if policy_tool.get("content"):
+            tool_results.append(policy_tool["content"])
     check = check_answer(answer, tool_results, [*row["contextTexts"], *prompt_fixed_numbers(row)])
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
@@ -1523,7 +1578,8 @@ def main(
         choices=sorted(QUESTION_SETS),
         default="eval",
         help="eval: eval_questions_v1.json, remit: remit_questions_v1.json (prompt v3), "
-        "product: product_questions_v1.json (product tool, #65)",
+        "product: product_questions_v1.json (product tool, #65), "
+        "policy: specs/rag/finance_policy_questions_v1.json (finance policy RAG, #88)",
     )
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--warmup", type=int, default=0, help="calls per variant, not summarized")
@@ -1541,6 +1597,14 @@ def main(
         default=None,
         help="product question file (same schema as product_questions_v1.json, may be outside "
         "the repo, e.g. the hold-out); implies --question-set product",
+    )
+    parser.add_argument(
+        "--policy-questions",
+        type=Path,
+        default=None,
+        help="finance policy question file (same schema as finance_policy_questions_v1.json, may "
+        "be outside the repo, e.g. the hold-out; the file is read, never printed); implies "
+        "--question-set policy",
     )
     parser.add_argument("--max-usd", type=float, default=1.0)
     parser.add_argument("--rescore", type=Path, default=None, help="re-score a saved JSONL")
@@ -1578,9 +1642,13 @@ def main(
         print("BLOCKED: AI_INTERNAL_API_TOKEN is not configured")
         return EXIT_BLOCKED
     product_external = args.product_questions is not None
-    if product_external and args.remit_questions is not None:
-        parser.error("--product-questions and --remit-questions cannot be used together")
-    external = args.remit_questions is not None or product_external
+    policy_external = args.policy_questions is not None
+    given = [args.remit_questions, args.product_questions, args.policy_questions]
+    if sum(path is not None for path in given) > 1:
+        parser.error(
+            "--remit-questions, --product-questions and --policy-questions cannot be combined"
+        )
+    external = args.remit_questions is not None or product_external or policy_external
     remit = args.question_set == "remit" or args.remit_questions is not None
     if remit and args.subset:
         parser.error("--subset works with --question-set eval only")
@@ -1589,6 +1657,8 @@ def main(
         if args.remit_questions is not None
         else args.product_questions
         if product_external
+        else args.policy_questions
+        if policy_external
         else QUESTION_SETS[args.question_set]
     )
     try:
@@ -1774,6 +1844,7 @@ def main(
                 "expectedOutcome": question_outcome(spec, question),
                 **product_fields(spec, question),
                 "productTool": product_tool_result(metrics),
+                "policyTools": policy_tool_results(metrics),
                 # Listed for a person to grade: judgment questions and humanGraded ones only
                 # (other calculation questions keep their conclusion in the spec, not here).
                 "expectedConclusion": (
@@ -1818,6 +1889,19 @@ def main(
                 )
                 save("mode_mismatch")
                 return EXIT_BLOCKED
+            confirmed = variant.get("promptVersionFromServer")
+            adopted = adopt_server_prompt_version(variant, metrics) if args.target == "ai" else None
+            if not confirmed and variant.get("promptVersionFromServer"):
+                # 조건 기록(첫 줄)에도 서버가 쓴 버전을 남긴다.
+                conditions["variants"] = [
+                    {k: v for k, v in item.items() if k != "override"} for item in variants
+                ]
+            if adopted is not None:
+                print(
+                    f"NOTE: {variant['name']}의 promptVersion을 서버 보고값 "
+                    f"{variant['promptVersion']}로 맞춤(이 프로세스 설정은 {adopted})",
+                    flush=True,
+                )
             mismatch = (
                 config_mismatch(variant, answered_by, metrics, fake) if args.target == "ai" else []
             )

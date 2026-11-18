@@ -17,6 +17,8 @@ PROMPT_VERSIONS = {
     "v3.2": "chat-v3.2",
     "v4": "chat-v4",
     "v4.1": "chat-v4.1",
+    "v4.2": "chat-v4.2",
+    "v4.3a": "chat-v4.3a",
 }
 PROMPT_VERSION = PROMPT_VERSIONS["v1"]  # the default
 
@@ -125,6 +127,21 @@ _SYSTEM = {
 }
 # v4 그대로 + STAY_TOO_SHORT 안내 한 문장(체류·비자 연장을 권하지 않음). 도구 설명도 v4.1용을 쓴다.
 _SYSTEM["v4.1"] = _with_stay_rule(_SYSTEM["v4"])
+# v4.1 그대로 + 금융 정책 규칙(#88). 금융 정책 검색 도구는 v4.2에서만 붙는다.
+# v4.1 문구는 바꾸지 않는다.
+_SYSTEM["v4.2"] = (
+    _SYSTEM["v4.1"].rstrip("\n")
+    + "\n\n"
+    + (_DIR / "finance_policy_rules.md").read_text(encoding="utf-8")
+)
+# v4.3a(#88 스펙 가드 ①): v4.2 그대로 + 규정 규칙 끝에 한 줄. after v4.2의 위험 오답 7이 모두
+# 제4-4조 ④ '수령'(받는 돈)을 송금으로 옮긴 것이라, 수령·지급 방향과 적용 대상을 확인하게 한다.
+DIRECTION_RULE = (
+    "- 수령 means receiving money and 지급 means paying or sending money. Before you cite a rule, "
+    "check that its direction (receiving or sending) and the people it applies to match the "
+    "user's question; if either does not match, do not use that rule for the answer."
+)
+_SYSTEM["v4.3a"] = _with_rule(_SYSTEM["v4.2"], DIRECTION_RULE)
 
 
 def system_prompt(language: str, version: str = "v1") -> str:

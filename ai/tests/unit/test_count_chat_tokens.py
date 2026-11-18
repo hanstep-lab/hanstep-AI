@@ -76,3 +76,45 @@ def test_product_baseline_counts_v3_tools_per_question(tmp_path: Path) -> None:
     assert names[0] == "get_financial_analysis"
     assert "recommend_savings_products" not in names  # 기준선: 상품 도구 없음
     assert len(counter.calls) == 64  # 1차·2차 × 32문항
+
+
+def test_policy_baseline_counts_v4_1_tools_per_question(tmp_path: Path) -> None:
+    # 금융 정책 RAG(#88) 기준선: 기본 프롬프트 v4.1 + v4.1 도구(규정 도구 없음).
+    counter = FakeCounter()
+    output = tmp_path / "policy.md"
+    argv = ["--question-set", "policy", "--models", "claude-haiku-5-5", "--output", str(output)]
+    assert COUNT.main(argv, client=counter) == 0
+
+    report = output.read_text(encoding="utf-8")
+    assert "chat-v4.1" in report and "규정 도구 없음" in report
+    assert sum(report.count(f"| claude-haiku-5-5 | {p}") for p in "ANO") == 46
+    names = [t["name"] for t in counter.calls[0]["tools"]]
+    assert names[0] == "get_financial_analysis" and names[-1] == "recommend_savings_products"
+    assert counter.calls[0]["system"] == COUNT.system_prompt("en", "v4.1")
+    assert len(counter.calls) == 92  # 1차·2차 × 46문항
+
+
+def test_policy_v4_2_adds_the_policy_tool_and_search_result(tmp_path: Path) -> None:
+    counter = FakeCounter()
+    output = tmp_path / "policy42.md"
+    argv = ["--question-set", "policy", "--prompt-version", "v4.2", "--models", "claude-haiku-5-5"]
+    assert COUNT.main([*argv, "--output", str(output)], client=counter) == 0
+    assert "chat-v4.2" in output.read_text(encoding="utf-8")
+    names = [t["name"] for t in counter.calls[0]["tools"]]
+    assert names[-1] == "search_finance_policy"
+    assert counter.calls[0]["system"] == COUNT.system_prompt("en", "v4.2")
+    second = next(c for c in counter.calls if len(c["messages"]) == 3)
+    use = second["messages"][1]["content"][0]
+    assert use["name"] == "search_finance_policy" and use["input"]["queryKo"]
+    assert "effectiveFrom" in second["messages"][2]["content"][0]["content"]
+
+
+def test_policy_v4_3a_counts_with_the_same_tools_as_v4_2(tmp_path: Path) -> None:
+    # 스펙 가드 ①(#88): v4.3a는 프롬프트 한 줄만 다르고 도구·검색 결과 예시는 v4.2와 같다.
+    counter = FakeCounter()
+    output = tmp_path / "policy43a.md"
+    argv = ["--question-set", "policy", "--prompt-version", "v4.3a", "--models", "claude-haiku-5-5"]
+    assert COUNT.main([*argv, "--output", str(output)], client=counter) == 0
+    assert "chat-v4.3a" in output.read_text(encoding="utf-8")
+    assert counter.calls[0]["system"] == COUNT.system_prompt("en", "v4.3a")
+    assert [t["name"] for t in counter.calls[0]["tools"]][-1] == "search_finance_policy"

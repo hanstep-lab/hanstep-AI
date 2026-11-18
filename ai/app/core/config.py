@@ -20,7 +20,7 @@ PLACEHOLDER_MARKERS = ("your-", "CHANGE_ME", "example.", "username:password")
 
 ChatThinking = Literal["model_default", "adaptive", "between_tools", "disabled"]
 ChatEffort = Literal["", "low", "medium", "high"]
-ChatPromptVersion = Literal["v1", "v1.1", "v2", "v3", "v3.1", "v3.2", "v4", "v4.1"]
+ChatPromptVersion = Literal["v1", "v1.1", "v2", "v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a"]
 # Efforts allowed when thinking is turned off (between_tools / disabled).
 _EFFORTS_WITHOUT_THINKING = {"", "low", "medium", "high"}
 
@@ -126,9 +126,10 @@ class Settings(BaseSettings):
     chat_fake_delta_delay_ms: int = Field(default=30, ge=0, le=5000)
     # Add code-computed judgment facts (judgmentFacts) to the finance tool result.
     chat_judgment_facts: bool = True
-    # System prompt version (app/chat/prompts): v1 | v1.1 | v2 | v3 | v3.1 | v3.2 | v4 | v4.1.
-    # 비자 도구는 v2~v4.1, 송금 조회 도구는 v3.x·v4·v4.1, 상품 추천 도구는 v4·v4.1에서만 붙는다
-    # (app/api/routes/chat.py).
+    # System prompt version (app/chat/prompts):
+    # v1 | v1.1 | v2 | v3 | v3.1 | v3.2 | v4 | v4.1 | v4.2 | v4.3a.
+    # 비자 도구는 v2~v4.3a, 송금 조회 도구는 v3.x·v4~v4.3a, 상품 추천 도구는 v4~v4.3a,
+    # 금융 정책 검색 도구(#88)는 v4.2·v4.3a에서만 붙는다(app/api/routes/chat.py).
     chat_prompt_version: ChatPromptVersion = "v4.1"
     # Measurement only: honour the per-request X-Chat-Config header (and X-Chat-Product-Profile
     # for the product tool's fixture profile).
@@ -136,6 +137,14 @@ class Settings(BaseSettings):
     # 상품 추천 도구의 순서 B(상품설명서 검색, #65). 상품설명서 PDF 폴더. 비우면 조건표 순서(A).
     # 검색은 임베딩 모델이 로드된 뒤(LOAD_MODEL_ON_STARTUP=true) 만든다.
     product_corpus_dir: str = ""
+    # 금융 정책 검색(#88, 저장 방식 B). 금융 정책 문서 폴더(외국환거래규정 PDF·법령 HWPML 등,
+    # specs/rag/finance_policy_corpus_v1.json의 파일).
+    # 비우면 search_finance_policy가 SEARCH_NOT_CONFIGURED.
+    # 검색은 임베딩 모델이 로드된 뒤(LOAD_MODEL_ON_STARTUP=true) 만든다.
+    finance_policy_corpus_dir: str = ""
+    # 스펙 가드 ②(#88): 금융 정책 검색 결과에 항 단위 라벨(direction·appliesTo·발행처)을 붙인다.
+    # 라벨 표는 specs/rag/finance_policy_labels_v1.json. 기본 off(결과가 v4.2 after와 같음).
+    finance_policy_labels: bool = False
 
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")
