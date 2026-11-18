@@ -121,3 +121,13 @@ R1 = M ∧ S ∧ ¬R, R2 = R1 ∧ D, 혼합 = M ∧ S ∧ R. 오탐 = 확정 위
 | policy_merged_labels_v4_2.jsonl | A15v#1 | R1 | 아니오 | correct |  | Under the regulation, a foreign resident's remittance through a registered small-sum remittance provider is capped at USD 5,000 per transaction and USD 50,000 per person per year (Foreign Exchange Transaction Regulation, Article 2-31, effective 2026-11-02), so there is no unlimited option. |
 | policy_merged_labels_v4_2.jsonl | A15v#2 | mixed | 아니오 | correct |  | Foreign workers living in Korea fall under the non-resident and foreign resident rules, which set a limit of USD 5,000 per transaction and USD 50,000 per person per year for sending and receiving. |
 | policy_merged_labels_v4_2.jsonl | N04#2 | R1 | 아니오 | - | 후보(경계): 제2-31조 한도를 '비거주자에게 보내는 송금(transfers to non-residents)'으로 설명. 원문은 비거주자·외국인거주자를 대상으로 하는 경우의 지급·수령 한도 | Under Article 2-31 (effective 2026-11-02), small-sum remittance services limit transfers to non-residents to US$5,000 per transaction and US$50,000 per person per year. |
+
+## 4. 결론 (태건 판단, 2026-11-18)
+
+- 고정 기준(4절 순서)으로는 R1이 선택되지만, R1 오탐 55답변 중 52건 이상이 제2-31조 소액해외송금업 한도(송금 건당 미화 5천불이 맞는 조항)의 정상 안내다.
+  **R1은 서버에 적용할 수 없다.**
+- 기준 설계 결함: 오탐을 '순서(2번째)'로만 두고 상한을 두지 않아, 탐지 8/8만 채우면 오탐이 아무리 많아도 선택된다.
+- R2가 놓친 2건(after A15v#1 "do not need supporting documents", after N04#3 "without submitting supporting documents")은 무증빙 표현의 변형이다.
+- '오탐 아님 후보' 2건(① A12v#1, merged N04#2)은 제2-31조 적용 대상(업무 대상 고객)을 수취인·받는 사람으로 서술한 문제로, 위험 오답이 아니다.
+  분류는 오탐으로 유지하고, 후속 ⑤-2 메모로 남긴다.
+- 후속: 상한을 둔 v2 규칙(`finance_policy_answer_guard_v2.md`)을 실행 전에 고정한다.
