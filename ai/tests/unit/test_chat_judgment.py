@@ -231,6 +231,37 @@ def test_man_won_amount_that_is_not_whole_won_is_ignored() -> None:
     assert message_amounts("1.2345만 원이면?") == [12_345]
 
 
+@pytest.mark.parametrize(
+    ("message", "amounts"),
+    [
+        ("5000.00만원 보내도 돼?", [50_000_000]),
+        ("1500.00원", [1_500]),
+        ("₩3000.00", [3_000]),
+        ("8000.00 KRW", [8_000]),
+    ],
+)
+def test_four_digit_amount_with_decimals_is_not_a_date(message: str, amounts: list[int]) -> None:
+    # #91 날짜 판정 수정: 정수부 네 자리 + 소수 두 자리 + 금액 단위를 YYYY.MM 날짜로 읽어
+    # 버리지 않고 금액으로 읽는다(develop에서는 넷 다 빠졌다).
+    assert message_amounts(message) == amounts
+
+
+@pytest.mark.parametrize(
+    ("message", "amounts"),
+    [
+        ("2026.11.18에 50만원 보내고 싶어", [500_000]),
+        ("I can save 1406.51 dollars", []),
+        ("I have 12000.50", []),
+        ("1999.12 결혼", []),
+        # 금액으로 읽혀도 원 단위 정수가 아니면 judgmentFacts에 넣지 않는다.
+        ("2200.10원", []),
+        ("9999.99원", []),
+    ],
+)
+def test_dates_and_non_whole_amounts_are_unchanged(message: str, amounts: list[int]) -> None:
+    assert message_amounts(message) == amounts
+
+
 def test_note_applies_to_man_won_amounts() -> None:
     [scenario] = _facts("이번 달에 70만 원 보내도 돼?")["scenarios"]
     assert scenario["value"] == SPARE - 700_000
