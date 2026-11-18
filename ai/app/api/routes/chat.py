@@ -17,6 +17,7 @@ from langchain_core.language_models import BaseChatModel
 from app.api.errors import ApiError, request_id
 from app.chat.fake_llm import FAKE_MODEL_ID, FakeChatModel
 from app.chat.finance_policy_tools import FinancePolicyTool
+from app.chat.fx_tools import FixtureFxSummary, FxSummarySource, FxTools, SpringFxSummary
 from app.chat.product_tools import (
     TOOL_SCHEMAS_BY_PROMPT,
     FixtureProductContext,
@@ -56,14 +57,21 @@ router = APIRouter(prefix="/agent/chat", tags=["chat"])
 
 # 비자 도구(정책 검색·E-7-4 점수)를 설명하는 프롬프트 버전. 이 버전에서만 비자 도구를 붙인다.
 # v1·v1.1은 금융 도구만 붙어서 그 버전으로 잰 측정 조건이 그대로 남는다.
-VISA_PROMPT_VERSIONS = frozenset({"v2", "v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a"})
+VISA_PROMPT_VERSIONS = frozenset(
+    {"v2", "v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4"}
+)
 # 송금 조회 도구(받는 분·환율·견적)를 설명하는 프롬프트 버전. v1~v2의 도구 구성은 그대로다.
-REMITTANCE_PROMPT_VERSIONS = frozenset({"v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a"})
+REMITTANCE_PROMPT_VERSIONS = frozenset(
+    {"v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4"}
+)
 # 상품 추천 도구(#65)를 설명하는 프롬프트 버전. v3까지의 도구 구성은 그대로다.
-PRODUCT_PROMPT_VERSIONS = frozenset({"v4", "v4.1", "v4.2", "v4.3a"})
+PRODUCT_PROMPT_VERSIONS = frozenset({"v4", "v4.1", "v4.2", "v4.3a", "v4.4"})
 # 금융 정책 검색 도구(#88)를 설명하는 프롬프트 버전.
 # v4.1까지의 도구 구성은 그대로다(기준선 영향 없음).
-FINANCE_POLICY_PROMPT_VERSIONS = frozenset({"v4.2", "v4.3a"})
+FINANCE_POLICY_PROMPT_VERSIONS = frozenset({"v4.2", "v4.3a", "v4.4"})
+# 환율 진단 도구(fx_rate_summary, #91)를 설명하는 프롬프트 버전. v4.4 = v4.2 + 환율 진단 규칙이라
+# v4.4에는 v4.2의 도구가 모두 붙고 이 도구가 더 붙는다. 다른 버전의 도구 구성은 그대로다.
+FX_PROMPT_VERSIONS = frozenset({"v4.4"})
 
 
 @dataclass(frozen=True)
@@ -138,6 +146,14 @@ def remittance_source(request: Request) -> RemittanceSource:
     return FixtureRemittanceSource()
 
 
+def fx_source(request: Request) -> FxSummarySource:
+    """환율 진단(fx-summary). fake 모드이거나 Spring 설정이 없으면 Reyes 실제 출력 fixture."""
+    settings: Settings = request.app.state.rag.settings
+    if settings.chat_llm_mode == "anthropic" and settings.spring_configured():
+        return SpringFxSummary(_chat_spring(request), settings.chat_tool_timeout_seconds)
+    return FixtureFxSummary()
+
+
 def product_source(
     request: Request, x_chat_product_profile: Annotated[str | None, Header()] = None
 ) -> ProductContextSource:
@@ -191,6 +207,7 @@ async def chat_stream(
     search: Annotated[PolicySearchSource | None, Depends(policy_search)],
     remittance: Annotated[RemittanceSource, Depends(remittance_source)],
     product: Annotated[ProductContextSource, Depends(product_source)],
+    fx: Annotated[FxSummarySource, Depends(fx_source)],
     x_chat_metrics: Annotated[str | None, Header()] = None,
 ) -> AsyncIterator[ServerSentEvent]:
     settings: Settings = request.app.state.rag.settings
@@ -239,13 +256,24 @@ async def chat_stream(
                 schema=TOOL_SCHEMAS_BY_PROMPT[setup.config.prompt_version],
             )
         )
-    # 금융 정책 검색 도구는 v4.2·v4.3a에서만 붙는다. sources는 비운다(답변 본문에 조문·시행일 인용).
+    # 금융 정책 검색 도구는 v4.2·v4.3a·v4.4에서만 붙는다. sources는 비운다(본문에 조문·시행일 인용).
     if setup.config.prompt_version in FINANCE_POLICY_PROMPT_VERSIONS:
         tools.append(
             FinancePolicyTool(
                 request.app.state.rag.finance_policy_search,
                 timeout=settings.chat_tool_timeout_seconds,
                 labels=default_labels() if settings.finance_policy_labels else None,
+            )
+        )
+    # 환율 진단 도구는 FX_PROMPT_VERSIONS에서만 붙는다.
+    # 숫자는 Spring이 계산하고, 과거 평균 비교만 준다.
+    if setup.config.prompt_version in FX_PROMPT_VERSIONS:
+        tools.append(
+            FxTools(
+                fx,
+                user_id=body.user_id,
+                request_id=rid,
+                timeout=settings.chat_tool_timeout_seconds,
             )
         )
     tool = ChatToolset(*tools)

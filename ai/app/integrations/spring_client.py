@@ -253,6 +253,22 @@ class SpringInternalClient:
         path = "/internal/v1/ai-context/fx-rates"
         return self._get_object(path, request_id, timeout, {"currency": currency})
 
+    def fx_summary(
+        self,
+        user_id: int,
+        *,
+        currency: str | None,
+        timeout: float,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        """챗봇 환율 진단(fx_rate_summary): 화면 통화의 현재 값과 기간 평균 비교.
+
+        hanstep-backend #127. httpx.TimeoutException on timeout, SpringApiError on non-2xx.
+        """
+        path = f"/internal/v1/ai-context/users/{user_id}/fx-summary"
+        params: dict[str, str | int] | None = None if currency is None else {"currency": currency}
+        return self._get_object(path, request_id, timeout, params)
+
     def remittance_quote(
         self,
         user_id: int,

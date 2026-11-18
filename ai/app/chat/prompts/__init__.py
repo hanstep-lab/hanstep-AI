@@ -19,6 +19,7 @@ PROMPT_VERSIONS = {
     "v4.1": "chat-v4.1",
     "v4.2": "chat-v4.2",
     "v4.3a": "chat-v4.3a",
+    "v4.4": "chat-v4.4",
 }
 PROMPT_VERSION = PROMPT_VERSIONS["v1"]  # the default
 
@@ -142,6 +143,18 @@ DIRECTION_RULE = (
     "user's question; if either does not match, do not use that rule for the answer."
 )
 _SYSTEM["v4.3a"] = _with_rule(_SYSTEM["v4.2"], DIRECTION_RULE)
+
+
+def _with_fx_rules(base: str, fx_rules: str) -> str:
+    """v4.2 + 환율 진단 규칙(fx_rules.md, #91). v4.2의 줄은 바꾸지 않고 끝에 절을 더한다."""
+    return base.rstrip("\n") + "\n\n" + fx_rules
+
+
+# v4.4(#91, 리뷰 결정): v4.2 본문 그대로 + 환율 진단 규칙. v4.3a의 방향 규칙은 넣지 않는다.
+# 환율 진단 도구 fx_rate_summary는 v4.4에서만 붙는다.
+_SYSTEM["v4.4"] = _with_fx_rules(
+    _SYSTEM["v4.2"], (_DIR / "fx_rules.md").read_text(encoding="utf-8")
+)
 
 
 def system_prompt(language: str, version: str = "v1") -> str:
