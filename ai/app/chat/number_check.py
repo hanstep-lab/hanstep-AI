@@ -10,6 +10,8 @@ dates, ordinals and unit-less numbers ("October 31") only, never an amount or a 
 equals an allowed value (dates excluded) rounded half-up to 1,000 or 10,000 won ("약 68만 원"
 for 675,317). Dates and ordinals are reported apart as ambiguous when not plainly supported.
 Visa codes such as E-7-4 (upper-case letter-number-number) are names: their numbers are skipped.
+Only plausible dates count as dates (year 1900-2100, month 1-12, day 1-31): a rate such as
+1406.51 is a number, not the "date" 1406.51.
 A negative number in a tool result also backs its absolute value: the answer carries the sign in
 words ("2.6% lower than the 3-month average" for differencePct -2.6), and the scan never reads a
 minus sign.
@@ -90,6 +92,22 @@ def _norm(value: Decimal) -> str:
     return format(value.normalize(), "f")
 
 
+def _plausible_date(m: re.Match[str]) -> bool:
+    """연 1900~2100, 월 1~12, 일 1~31일 때만 날짜. 아니면 숫자로 읽는다.
+
+    환율처럼 정수부가 네 자리인 소수(USD 1406.51, 1429.6566)가 YYYY.MM 날짜로 읽혀 검사에서
+    빠지지 않게 한다.
+    """
+    year = m.group("y") or m.group("ky")
+    month = m.group("m") or m.group("km") or m.group("km2")
+    day = m.group("d") or m.group("kd") or m.group("kd2")
+    return (
+        (year is None or 1900 <= int(year) <= 2100)
+        and (month is None or 1 <= int(month) <= 12)
+        and (day is None or 1 <= int(day) <= 31)
+    )
+
+
 def scan_numbers(text: str) -> list[tuple[str, Decimal | None, str, list[Decimal]]]:
     """(matched text, value, kind, date parts) in order of appearance."""
     items: list[tuple[int, str, Decimal | None, str, list[Decimal]]] = []
@@ -105,7 +123,7 @@ def scan_numbers(text: str) -> list[tuple[str, Decimal | None, str, list[Decimal
     for m in _VISA_CODE.finditer(text):
         take(m.start(), m.end())  # skipped: not reported, not allowed
     for m in _DATE.finditer(text):
-        if not free(m.start(), m.end()):
+        if not free(m.start(), m.end()) or not _plausible_date(m):
             continue
         parts = [m.group(g) for g in ("y", "m", "d", "ky", "km", "kd", "km2", "kd2")]
         values = [Decimal(p) for p in parts if p]

@@ -58,6 +58,15 @@ def test_unsupported_numbers(answer: str, flagged: str) -> None:
     assert _check(answer).unsupported == [flagged]
 
 
+def test_four_digit_rates_are_numbers_not_dates() -> None:
+    # USD 환율(1406.51, 1429.6566)은 YYYY.MM 날짜가 아니다(월 51·65). 숫자로 검사한다.
+    tool = {"unit": 1, "rate": 1406.51, "average": 1429.6566, "asOf": "2026-11-06"}
+    answer = "USD 1 = 1406.51 KRW as of 2026-11-06; the 3-month average is 1429.6566 KRW."
+    check = check_answer(answer, [tool], ["How does the USD rate compare with 3 months?"])
+    assert check.unsupported == [] and check.ambiguous == []
+    assert check_answer("USD 1 = 1406.52 KRW.", [tool], ["USD 1"]).unsupported == ["1406.52 KRW"]
+
+
 def test_negative_tool_numbers_back_their_absolute_value() -> None:
     # 답변은 부호를 말로 한다(differencePct -2.6 → "2.6% lower").
     # 숫자 검사는 마이너스를 읽지 않는다.
