@@ -20,6 +20,7 @@ from app.chat.finance_policy_tools import (
     TOOL_SCHEMA,
     FinancePolicyTool,
 )
+from app.chat.fx_tools import FX_RATE_SUMMARY
 from app.core.config import Settings
 from app.finance_policy.chunks import PolicyChunk
 from app.finance_policy.search import FinancePolicySearch, PolicyHit, has_hangul
@@ -161,6 +162,15 @@ def test_tool_attached_only_for_v4_2(monkeypatch: pytest.MonkeyPatch) -> None:
     assert SEARCH_FINANCE_POLICY in _tool_names("v4.2", monkeypatch)
     # v4.3a(스펙 가드 ①)는 v4.2와 같은 도구 구성이다.
     assert _tool_names("v4.3a", monkeypatch) == _tool_names("v4.2", monkeypatch)
+
+
+def test_v4_4_adds_only_the_fx_tool_to_v4_2(monkeypatch: pytest.MonkeyPatch) -> None:
+    # v4.4(#91) = v4.2 + 환율 진단 규칙: v4.2의 도구에 fx_rate_summary만 더 붙는다.
+    # 다른 버전에는 붙지 않는다(도구 구성 그대로).
+    v42 = _tool_names("v4.2", monkeypatch)
+    assert _tool_names("v4.4", monkeypatch) == [*v42, FX_RATE_SUMMARY]
+    for version in ("v1", "v2", "v3", "v4", "v4.1", "v4.2", "v4.3a"):
+        assert FX_RATE_SUMMARY not in _tool_names(version, monkeypatch), version
 
 
 @pytest.mark.parametrize("enabled", [False, True])

@@ -6,7 +6,7 @@ Spring 내부 API(hanstep-backend#127)를 부르고, 그 값을 LLM에 줄 형�
 - 숫자는 Spring이 계산한다(환율 화면 GET /api/v1/fx/rates와 같은 계산). LLM은 숫자를 옮겨 쓰고 설명만 한다.
 - 과거 평균과의 비교만 준다. 예측·송금 권유·시점 추천은 없다.
 - 환율은 실데이터만 쓴다(운영 `isMock`은 항상 false). 로컬 Mock 포함 설정에서는 `isMock: true`가 올 수 있다.
-- 프롬프트 v4.4(= v4.2 본문 그대로 + 환율 진단 규칙)에서 붙인다(준비 중). 기본 프롬프트 전환은 측정 결과를 보고 따로 정한다.
+- 프롬프트 v4.4(`chat-v4.4` = v4.2 본문 그대로 + 환율 진단 규칙)에서만 붙는다. 다른 버전의 도구 구성은 그대로다. 기본 프롬프트(v4.1) 전환은 측정 결과를 보고 따로 정한다.
 
 ## 도구
 
@@ -69,7 +69,7 @@ Spring 내부 API(hanstep-backend#127)를 부르고, 그 값을 LLM에 줄 형�
 | 시간 초과 | `TIMEOUT` | `data unavailable` |
 | 그 밖(404 `USER_NOT_FOUND`, 401, 5xx, 연결 실패, 본문 형식 오류) | `FAILED` | `data unavailable` |
 
-## 프롬프트에 더할 규칙(`app/chat/prompts/fx_rules.md`)
+## 프롬프트 v4.4에 더한 규칙(`app/chat/prompts/fx_rules.md`)
 
 - 환율 질문(현재 값, 지난달·과거와 비교, 지금 보내도 되는지)은 `fx_rate_summary`를 먼저 부른다. 이런 질문에 `get_fx_rate`는 쓰지 않는다.
 - 도구 결과의 숫자만 그대로 쓴다(계산·반올림·환산 금지).

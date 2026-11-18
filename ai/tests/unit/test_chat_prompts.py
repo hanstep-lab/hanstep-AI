@@ -1,4 +1,7 @@
-"""Chat prompt versions: v1 unchanged, v1.1 two lines, v2 visa, v3 remittance, v4 product rules."""
+"""Chat prompt versions: v1 unchanged, v1.1 two lines, v2 visa, v3 remittance, v4 product, v4.4 FX.
+
+v4.4 = v4.2 + exchange rate rules (fx_rules.md).
+"""
 
 from __future__ import annotations
 
@@ -80,6 +83,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v4.1": "chat-v4.1",
         "v4.2": "chat-v4.2",
         "v4.3a": "chat-v4.3a",
+        "v4.4": "chat-v4.4",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -227,6 +231,8 @@ PROMPT_SHA256 = {
     "v4.1": "6348dd67a95b15f8cd375df4d6c543c987336b84aa83a93df082c8cf5001a0bf",
     "v4.2": "8edda4074b53ece8d6cc30c69ec61e70c82ff38dd4ea5ba1b14f67e8591df51d",
     "v4.3a": "ac9c014344e4409b0553ca5f3006010a4e2c1c51d72da32f3a795c7938b4165c",
+    # 2026-11-18(#91): v4.2 본문 그대로 + 환율 진단 규칙(fx_rules.md).
+    "v4.4": "61f665e249634c23bb469820f82a9d354b7d57c83c5460af433a0d7449541f55",
 }
 
 
@@ -256,12 +262,16 @@ def test_prompt_rules_and_attached_tools_agree() -> None:
         assert (FX_RATE_SUMMARY in prompt) == (version in FX_PROMPT_VERSIONS), version
 
 
-def test_fx_rules_are_ready_but_not_in_any_prompt_yet() -> None:
-    # #91: 환율 진단 규칙은 v4.4(v4.2 + 이 파일)로 붙일 예정이다. 그때까지 어느 버전에도 없다.
+def test_v4_4_is_v4_2_plus_fx_rules() -> None:
+    # v4.4(#91, 리뷰 결정): v4.2의 줄은 그대로 두고 끝에 환율 진단 규칙 절만 더한다.
+    # 환율 진단 도구는 v4.4에만 붙고, 기본값은 아직 v4.1이다(측정을 보고 정한다).
+    v42, v44 = system_prompt("en", "v4.2"), system_prompt("en", "v4.4")
     fx_rules = (PROMPTS / "fx_rules.md").read_text(encoding="utf-8")
-    assert FX_PROMPT_VERSIONS == frozenset()
-    assert not any(FX_RATE_SUMMARY in system_prompt("en", v) for v in PROMPT_VERSIONS)
+    assert v44 == v42.rstrip("\n") + "\n\n" + fx_rules
+    assert FX_PROMPT_VERSIONS == frozenset({"v4.4"})
     assert _settings().chat_prompt_version == "v4.1"
+    config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.4"))
+    assert config.prompt_version_id == "chat-v4.4"
     for rule in (
         "call fx_rate_summary first",
         "never forecast rates",
@@ -270,7 +280,7 @@ def test_fx_rules_are_ready_but_not_in_any_prompt_yet() -> None:
         "If stale is true, stress the as-of date",
         "insufficientDataPeriods",
     ):
-        assert rule in fx_rules, rule
+        assert rule in v44, rule
 
 
 V4_PRODUCTS = (
