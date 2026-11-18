@@ -254,6 +254,7 @@ async def chat_stream(
         run_timeout_seconds=settings.chat_run_timeout_seconds,
         metrics=x_chat_metrics == "1",
         model_id=setup.model_id,
+        answer_guard=settings.finance_policy_answer_guard,
     )
     async for event in run_chat(
         body, config=setup.config, model=setup.model, tool=tool, options=options
