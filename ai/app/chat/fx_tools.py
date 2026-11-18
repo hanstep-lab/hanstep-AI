@@ -1,5 +1,7 @@
 """챗봇 환율 진단 도구 fx_rate_summary(#91). Spring hanstep-backend#127의 내부 API를 부른다.
 
+형식(인자·출력·오류·프롬프트 규칙)은 specs/chat/fx_summary_tool_v1.md에 정리했다.
+
 - Spring GET /internal/v1/ai-context/users/{userId}/fx-summary?currency= :
   사용자 화면 통화(USD + 모국 통화)의 현재 일별 고시 환율과 지난 1·3·6·12개월 평균 비교.
   숫자는 Spring(환율 화면과 같은 계산)만 만든다.
