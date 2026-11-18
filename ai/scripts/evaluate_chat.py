@@ -73,6 +73,7 @@ import httpx
 
 from app.api.routes.chat import PRODUCT_PROMPT_VERSIONS, REMITTANCE_PROMPT_VERSIONS
 from app.chat.fake_llm import FAKE_MODEL_ID
+from app.chat.fx_tools import FX_RATE_SUMMARY
 from app.chat.judgment import judgment_facts
 from app.chat.number_check import check_answer, rounded_values, scan_numbers
 from app.chat.prompts import PROMPT_VERSIONS, system_prompt
@@ -1057,6 +1058,18 @@ def policy_tool_results(metrics: dict[str, Any] | None) -> list[dict[str, Any]]:
     ]
 
 
+def fx_tool_results(metrics: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """agent.metrics의 환율 진단 도구(fx_rate_summary, #91) 측정 값(호출마다).
+
+    인자와 LLM에 준 결과(content)가 있다. 숫자 검사가 content를 근거로 쓴다.
+    """
+    return [
+        dict(tool)
+        for tool in (metrics or {}).get("tools") or []
+        if tool.get("toolName") == FX_RATE_SUMMARY
+    ]
+
+
 def row_gold(row: dict[str, Any]) -> list[str]:
     """행의 통과 집합. 질문 세트에 gold가 없으면(hold-out) 기대 인자·프로필로 계산한다."""
     if row.get("gold") is not None:
@@ -1102,6 +1115,9 @@ def score(row: dict[str, Any]) -> None:
         # 금융 정책 검색 결과(조문 원문)도 근거다(#88, v4.2).
         if policy_tool.get("content"):
             tool_results.append(policy_tool["content"])
+    for fx_tool in row.get("fxTools") or []:
+        # 환율 진단 도구가 LLM에 준 값(현재 값·기간 평균·차이·영업일 수·기준일)도 근거다.
+        tool_results.append(fx_tool.get("content"))
     check = check_answer(answer, tool_results, [*row["contextTexts"], *prompt_fixed_numbers(row)])
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
@@ -1845,6 +1861,7 @@ def main(
                 **product_fields(spec, question),
                 "productTool": product_tool_result(metrics),
                 "policyTools": policy_tool_results(metrics),
+                "fxTools": fx_tool_results(metrics),
                 # Listed for a person to grade: judgment questions and humanGraded ones only
                 # (other calculation questions keep their conclusion in the spec, not here).
                 "expectedConclusion": (

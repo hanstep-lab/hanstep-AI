@@ -10,6 +10,9 @@ dates, ordinals and unit-less numbers ("October 31") only, never an amount or a 
 equals an allowed value (dates excluded) rounded half-up to 1,000 or 10,000 won ("약 68만 원"
 for 675,317). Dates and ordinals are reported apart as ambiguous when not plainly supported.
 Visa codes such as E-7-4 (upper-case letter-number-number) are names: their numbers are skipped.
+A negative number in a tool result also backs its absolute value: the answer carries the sign in
+words ("2.6% lower than the 3-month average" for differencePct -2.6), and the scan never reads a
+minus sign.
 """
 
 from __future__ import annotations
@@ -169,7 +172,8 @@ def allowed_numbers(tool_results: Iterable[Any], texts: Iterable[str]) -> Allowe
         if isinstance(leaf, bool) or leaf is None:
             continue
         if isinstance(leaf, int | float):
-            allowed.values.add(Decimal(str(leaf)))
+            number = Decimal(str(leaf))
+            allowed.values.update((number, abs(number)))
         elif isinstance(leaf, str):
             texts = [*texts, leaf]
     for text in texts:
