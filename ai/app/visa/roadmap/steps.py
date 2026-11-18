@@ -3,6 +3,7 @@
 - 단계는 엔진이 추천한 개선 방안에서만 고른다(나이·지난 감점은 엔진이 추천하지 않는다).
 - 기다리면 채워지는 것(체류기간, 근속)은 단계가 아니라 신청 가능일·단계 날짜로만 낸다.
 - 예상 점수는 단계 점수를 더하지 않고, 가정을 반영한 프로필로 엔진을 다시 돌려 얻는다.
+- 같은 서류를 내면 끝나는 방안(예: 고용기업 추천 필수요건과 가점)은 화면 단계 하나로 합친다.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from app.visa.e74.rules import (
     MinAverageIncome,
     MinKorean,
     Qualification,
+    RuleActor,
     RuleCategory,
     RuleSet,
     StayPeriod,
@@ -38,6 +40,7 @@ from app.visa.e74.schemas import (
 )
 
 # 선택 단계를 채우는 상한. 필수(blocking) 단계는 이 수를 넘어도 모두 넣는다.
+# 같은 서류 단계를 합치기 전 방안 수로 센다(합쳐도 고르는 방안과 예상 점수는 그대로).
 MAX_ACTION_STEPS = 3
 
 
@@ -138,6 +141,63 @@ def select_steps(assessment: E74Assessment, rule_set: RuleSet) -> list[Improveme
         groups.add(group)
         chosen.append(imp)
     return chosen
+
+
+# --- 같은 서류 단계 합치기 ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class StepGroup:
+    """화면 단계 하나. 같은 서류를 내면 끝나는 방안들을 합친 것이고, 첫 방안이 대표다."""
+
+    improvements: tuple[Improvement, ...]
+
+    @property
+    def lead(self) -> Improvement:
+        return self.improvements[0]
+
+    @property
+    def rule_codes(self) -> tuple[str, ...]:
+        return tuple(imp.rule_code for imp in self.improvements)
+
+    @property
+    def blocking(self) -> bool:
+        return any(imp.blocking for imp in self.improvements)
+
+    @property
+    def points_gain(self) -> int | None:
+        """가점 쪽 값. 합친 단계에는 점수가 있는 방안이 많아야 하나다(group_steps)."""
+        return next(
+            (imp.points_gain for imp in self.improvements if imp.points_gain is not None), None
+        )
+
+    @property
+    def available_from(self) -> date | None:
+        days = [imp.available_from for imp in self.improvements if imp.available_from is not None]
+        return max(days) if days else None
+
+
+def group_steps(chosen: Sequence[Improvement]) -> list[StepGroup]:
+    """같은 서류 묶음(순서 무관)을 내면 끝나는 방안을 한 단계로 합친다. 순서는 처음 나온 자리.
+
+    - 서류 제출(SUBMIT_EVIDENCE)끼리만 합친다. 올리기·받기·요건 맞추기는 서류가 같아도 할 일이
+      다르다(예: 소득금액증명원 제출과 평균소득 올리기).
+    - 점수가 있는 방안이 둘 이상이면 합치지 않는다. 단계 점수를 엔진 계산 없이 하나로 낼 수 없다.
+    - 고르는 방안(select_steps)은 그대로라 예상 점수와 점수 항목은 합치기 전과 같다.
+    """
+    members: dict[str | tuple[frozenset[str], RuleActor], list[Improvement]] = {}
+    for imp in chosen:
+        key: str | tuple[frozenset[str], RuleActor] = imp.rule_code
+        if imp.kind is ImprovementKind.SUBMIT_EVIDENCE and imp.documents:
+            key = (frozenset(imp.documents), imp.actor)
+        members.setdefault(key, []).append(imp)
+    groups: list[StepGroup] = []
+    for imps in members.values():
+        if sum(imp.points_gain is not None for imp in imps) > 1:
+            groups.extend(StepGroup((imp,)) for imp in imps)
+        else:
+            groups.append(StepGroup(tuple(imps)))
+    return groups
 
 
 # --- 가정 시나리오 ------------------------------------------------------------------------

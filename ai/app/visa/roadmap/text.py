@@ -33,7 +33,7 @@ from app.visa.e74.schemas import EvidenceType
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSION = "visa-roadmap-text-v3"
+PROMPT_VERSION = "visa-roadmap-text-v4"
 MAX_OUTPUT_TOKENS = 2048
 MAX_TITLE_CHARS = 40
 MAX_DESCRIPTION_CHARS = 300
@@ -125,6 +125,29 @@ def template_step_text(imp: Improvement, rule: Rule, *, required: bool) -> StepT
     return StepText(title=_title(imp, rule), description=description)
 
 
+def template_merged_text(
+    members: Sequence[tuple[Improvement, Rule]], *, required: bool
+) -> StepText:
+    """같은 서류로 끝나는 방안을 합친 단계(steps.group_steps). 필수요건 충족과 가점을 함께 말한다.
+
+    합친 서류 제출 방안 중 점수가 없는 것은 필수요건이다(엔진의 요건 증빙 제출 방안).
+    """
+    lead, lead_rule = members[0]
+    requirements = ", ".join(rule.description for imp, rule in members if imp.points_gain is None)
+    scored = next(((imp, rule) for imp, rule in members if imp.points_gain is not None), None)
+    if scored is not None:
+        bonus, bonus_rule = scored
+        description = (
+            f"{bonus_rule.description}: 증빙 서류를 내면 필수요건 충족과 "
+            f"가점 +{bonus.points_gain}점이 함께 확정됨. 필수요건: {requirements}"
+        )
+    else:
+        description = f"증빙 서류를 내면 필수요건이 함께 확정됨: {requirements}"
+    if required:
+        description += ". 신청하려면 꼭 필요함"
+    return StepText(title=_title(lead, lead_rule), description=description)
+
+
 def template_apply_text(
     applicable: date | None, expires: date, *, required_steps_pending: bool = False
 ) -> StepText:
@@ -168,6 +191,9 @@ SYSTEM_PROMPT = "\n".join(
         "- 숫자·날짜·금액·점수는 입력 데이터에 있는 것만 그대로 써요. "
         "계산하거나 새로 만들지 않아요.",
         "- 입력에 없는 요건·서류·기관을 더하지 않아요.",
+        "- combinesRequirementAndBonus가 true인 단계는 서류를 한 번 내서 필수요건도 채우고 "
+        "가점도 받는 단계예요. description에 '필수요건'과 estimatedAdditionalScore 점수를 "
+        "함께 써요.",
         "- 이 결과는 모의 사전진단이에요. "
         "승인 가능성, 합격, 순위(상위 몇 %), 기준 점수를 말하지 않아요.",
         "- 이모지와 마크다운을 쓰지 않아요.",
@@ -247,10 +273,16 @@ def _without_disclaimers(texts: dict[int, StepText]) -> dict[int, StepText]:
     return cleaned
 
 
+def _says_both(description: str, points: int) -> bool:
+    """합친 단계 설명이 필수요건과 가점 점수를 모두 말하는지("필수 요건" 띄어쓰기 허용)."""
+    return "필수요건" in description.replace(" ", "") and points in numbers_in(description)
+
+
 def check_llm_texts(
     steps: Sequence[dict[str, Any]], texts: dict[int, StepText]
 ) -> dict[int, StepText]:
-    """면책 문장을 지운 뒤, 단계 데이터에 없는 숫자·금지 표현·빠진 단계가 있으면 LlmTextError."""
+    """면책 문장을 지운 뒤, 단계 데이터에 없는 숫자·금지 표현·빠진 단계가 있거나 합친 단계가
+    필수요건·가점 중 하나만 말하면 LlmTextError."""
     allowed = numbers_in(json.dumps(steps, ensure_ascii=False))
     if set(texts) != {s["order"] for s in steps}:
         raise LlmTextError("INVALID_OUTPUT")
@@ -270,6 +302,11 @@ def check_llm_texts(
     for body in bodies:
         if not numbers_in(body) <= allowed:
             raise LlmTextError("UNVERIFIED_NUMBER")
+    for s in steps:
+        if s.get("combinesRequirementAndBonus") and not _says_both(
+            texts[s["order"]].description, s["estimatedAdditionalScore"]
+        ):
+            raise LlmTextError("COMBINED_STEP_TEXT")
     return texts
 
 
