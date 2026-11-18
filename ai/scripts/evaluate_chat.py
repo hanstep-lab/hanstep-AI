@@ -1115,10 +1115,15 @@ def score(row: dict[str, Any]) -> None:
         # 금융 정책 검색 결과(조문 원문)도 근거다(#88, v4.2).
         if policy_tool.get("content"):
             tool_results.append(policy_tool["content"])
-    for fx_tool in row.get("fxTools") or []:
-        # 환율 진단 도구가 LLM에 준 값(현재 값·기간 평균·차이·영업일 수·기준일)도 근거다.
-        tool_results.append(fx_tool.get("content"))
-    check = check_answer(answer, tool_results, [*row["contextTexts"], *prompt_fixed_numbers(row)])
+    # 환율 진단 도구가 LLM에 준 값(현재 값·기간 평균·차이·영업일 수·기준일)도 근거다.
+    # 이 결과만 음수의 절댓값도 근거로 본다("2.6% lower" ← differencePct -2.6).
+    fx_results = [t.get("content") for t in row.get("fxTools") or []]
+    check = check_answer(
+        answer,
+        tool_results,
+        [*row["contextTexts"], *prompt_fixed_numbers(row)],
+        fx_results=fx_results,
+    )
     row["numberCheck"] = check.to_json()
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)

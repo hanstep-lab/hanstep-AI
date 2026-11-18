@@ -283,7 +283,7 @@ QUESTION = "How is PHP compared to last month?"
 )
 def test_number_check_accepts_tool_numbers(answer: str) -> None:
     content = json.loads(_run(_fixture_tools(), {"currency": "PHP"}).content)
-    check = check_answer(answer, [content], [QUESTION])
+    check = check_answer(answer, [], [QUESTION], fx_results=[content])
     assert check.unsupported == [] and check.ambiguous == [], check.to_json()
 
 
@@ -297,4 +297,4 @@ def test_number_check_accepts_tool_numbers(answer: str) -> None:
 )
 def test_number_check_flags_numbers_not_in_the_tool(answer: str, flagged: str) -> None:
     content = json.loads(_run(_fixture_tools(), {"currency": "PHP"}).content)
-    assert flagged in check_answer(answer, [content], [QUESTION]).unsupported
+    assert flagged in check_answer(answer, [], [QUESTION], fx_results=[content]).unsupported

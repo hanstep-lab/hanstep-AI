@@ -12,9 +12,10 @@ for 675,317). Dates and ordinals are reported apart as ambiguous when not plainl
 Visa codes such as E-7-4 (upper-case letter-number-number) are names: their numbers are skipped.
 Only plausible dates count as dates (year 1900-2100, month 1-12, day 1-31): a rate such as
 1406.51 is a number, not the "date" 1406.51.
-A negative number in a tool result also backs its absolute value: the answer carries the sign in
-words ("2.6% lower than the 3-month average" for differencePct -2.6), and the scan never reads a
-minus sign.
+Results of the exchange rate summary tool (fx_rate_summary, passed as fx_results) are the only
+ones whose negative numbers also back their absolute value: that answer carries the sign in words
+("2.6% lower than the 3-month average" for differencePct -2.6), and the scan never reads a minus
+sign. Other tool results keep exact values only.
 """
 
 from __future__ import annotations
@@ -183,17 +184,26 @@ class AllowedNumbers:
     date_parts: set[Decimal] = field(default_factory=set)  # dates, ordinals, unit-less only
 
 
-def allowed_numbers(tool_results: Iterable[Any], texts: Iterable[str]) -> AllowedNumbers:
-    """Numbers in tool results and in the question/history texts, date parts kept apart."""
+def allowed_numbers(
+    tool_results: Iterable[Any], texts: Iterable[str], fx_results: Iterable[Any] = ()
+) -> AllowedNumbers:
+    """Numbers in tool results and in the question/history texts, date parts kept apart.
+
+    fx_results (fx_rate_summary results) also allow the absolute value of each negative number.
+    """
     allowed = AllowedNumbers()
-    for leaf in _walk(list(tool_results)):
-        if isinstance(leaf, bool) or leaf is None:
-            continue
-        if isinstance(leaf, int | float):
-            number = Decimal(str(leaf))
-            allowed.values.update((number, abs(number)))
-        elif isinstance(leaf, str):
-            texts = [*texts, leaf]
+    texts = list(texts)
+    for results, signless in ((tool_results, False), (fx_results, True)):
+        for leaf in _walk(list(results)):
+            if isinstance(leaf, bool) or leaf is None:
+                continue
+            if isinstance(leaf, int | float):
+                number = Decimal(str(leaf))
+                allowed.values.add(number)
+                if signless:
+                    allowed.values.add(abs(number))
+            elif isinstance(leaf, str):
+                texts.append(leaf)
     for text in texts:
         for _, value, kind, parts in scan_numbers(text):
             if value is not None:
@@ -212,8 +222,10 @@ def rounded_values(values: set[Decimal]) -> set[Decimal]:
     return out
 
 
-def check_answer(answer: str, tool_results: Iterable[Any], texts: Iterable[str]) -> NumberCheck:
-    allowed = allowed_numbers(tool_results, texts)
+def check_answer(
+    answer: str, tool_results: Iterable[Any], texts: Iterable[str], fx_results: Iterable[Any] = ()
+) -> NumberCheck:
+    allowed = allowed_numbers(tool_results, texts, fx_results)
     with_dates = allowed.values | allowed.date_parts
     approx = rounded_values(allowed.values)
     result = NumberCheck()

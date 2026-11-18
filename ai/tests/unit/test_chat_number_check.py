@@ -67,13 +67,17 @@ def test_four_digit_rates_are_numbers_not_dates() -> None:
     assert check_answer("USD 1 = 1406.52 KRW.", [tool], ["USD 1"]).unsupported == ["1406.52 KRW"]
 
 
-def test_negative_tool_numbers_back_their_absolute_value() -> None:
-    # 답변은 부호를 말로 한다(differencePct -2.6 → "2.6% lower").
-    # 숫자 검사는 마이너스를 읽지 않는다.
+def test_only_fx_summary_negatives_back_their_absolute_value() -> None:
+    # fx_rate_summary 답변은 부호를 말로 한다(differencePct -2.6 → "2.6% lower").
+    # 숫자 검사는 마이너스를 읽지 않으므로 이 도구 결과만 절댓값을 허용한다.
+    answer = "It is 2.6% lower, 0.5591 KRW below the average."
     tool = {"differencePct": -2.6, "difference": -0.5591}
-    check = check_answer("It is 2.6% lower, 0.5591 KRW below the average.", [tool], [])
-    assert check.unsupported == []
-    assert check_answer("It is 2.7% lower.", [tool], []).unsupported == ["2.7%"]
+    fx = check_answer(answer, [], [], fx_results=[tool])
+    assert fx.unsupported == []
+    assert check_answer("It is 2.7% lower.", [], [], fx_results=[tool]).unsupported == ["2.7%"]
+    # 다른 도구 결과의 -2.6은 "2.6%"를 뒷받침하지 않는다(이전 동작 그대로).
+    other = check_answer(answer, [tool], [])
+    assert other.unsupported == ["2.6%", "0.5591 KRW"]
 
 
 def test_numbers_from_question_and_history_are_allowed() -> None:
