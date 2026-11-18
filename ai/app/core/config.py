@@ -145,6 +145,10 @@ class Settings(BaseSettings):
     # 스펙 가드 ②(#88): 금융 정책 검색 결과에 항 단위 라벨(direction·appliesTo·발행처)을 붙인다.
     # 라벨 표는 specs/rag/finance_policy_labels_v1.json. 기본 off(결과가 v4.2 after와 같음).
     finance_policy_labels: bool = False
+    # 금융 정책 답변 위험 문장 검사기(#93, specs/rag/finance_policy_answer_guard_v3.md 6절).
+    # off | log | replace. 기본 replace(env에 키가 빠져도 안전한 쪽). search_finance_policy가
+    # SUCCEEDED인 턴의 답변에만 붙으므로 그 도구가 없는 프롬프트(v4.1 등)에는 영향이 없다.
+    finance_policy_answer_guard: Literal["off", "log", "replace"] = "replace"
 
     law_api_base_url: str = "https://www.law.go.kr"
     law_api_oc: SecretStr = SecretStr("")

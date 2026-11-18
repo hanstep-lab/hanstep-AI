@@ -9,6 +9,11 @@ agent.done content never run two calls' text together.
 The graph runs in its own task so the run deadline and a Spring disconnect (generator cancelled
 or closed) cancel the graph and the in-flight LLM call. Logs carry run id, latency, token
 counts, tool names and stop reasons only.
+
+금융 정책 답변 위험 문장 검사기(#93, specs/rag/finance_policy_answer_guard_v3.md 6절):
+search_finance_policy가 SUCCEEDED로 끝난 뒤의 텍스트는 ``SentenceGuard``를 거친다.
+replace는 문장 단위로 검사 뒤 내보내고(걸린 문장은 대체 문장), log는 바로 내보내며 적중만 센다.
+정상 종료 때만 남은 버퍼를 검사해 내보낸다. delta 합 = agent.done content.
 """
 
 from __future__ import annotations
@@ -27,10 +32,13 @@ from fastapi.sse import ServerSentEvent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
+from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
 from app.chat.graph import build_graph
 from app.chat.prompts import system_prompt
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.tools import ChatTool
+from app.finance_policy.answer_guard import RULE as GUARD_RULE
+from app.finance_policy.answer_guard import GuardMode, SentenceGuard
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +78,8 @@ class ChatRunOptions:
     run_timeout_seconds: float
     metrics: bool = False
     model_id: str | None = None  # defaults to config.model
+    # 금융 정책 답변 위험 문장 검사기(#93): off | log | replace. 설정 FINANCE_POLICY_ANSWER_GUARD.
+    answer_guard: GuardMode = "replace"
 
 
 def build_messages(request: ChatStreamRequest, prompt_version: str = "v1") -> list[BaseMessage]:
@@ -131,6 +141,8 @@ async def run_chat(
     call_first_delta_ms: dict[int, int] = {}
     call_text_chars: dict[int, int] = {}
     last_text_call: int | None = None  # LLM call that wrote the last non-blank text
+    # search_finance_policy가 SUCCEEDED로 끝난 뒤부터 쓰는 위험 문장 검사기(#93).
+    guard: SentenceGuard | None = None
     outcome = "cancelled"
 
     def metrics_event() -> ServerSentEvent:
@@ -158,8 +170,17 @@ async def run_chat(
                     for t in tools
                     if t.get("measurement")
                 ],
+                # 위험 문장 검사기(측정 전용, 대체 전 원문 포함). 검사기가 붙은 턴에만.
+                **({"answerGuard": guard.metrics()} if guard is not None else {}),
             },
         )
+
+    def emit(text: str, at_ms: int) -> ServerSentEvent:
+        nonlocal first_delta_ms
+        if first_delta_ms is None:
+            first_delta_ms = at_ms
+        deltas.append(text)
+        return _event("agent.delta", {"text": text})
 
     try:
         try:
@@ -175,8 +196,6 @@ async def run_chat(
                     raise item
                 if item["type"] == "delta":
                     now_ms = _ms(started)
-                    if first_delta_ms is None:
-                        first_delta_ms = now_ms
                     call_first_delta_ms.setdefault(item["call"], now_ms)
                     call_text_chars[item["call"]] = call_text_chars.get(item["call"], 0) + len(
                         item["text"]
@@ -188,9 +207,20 @@ async def run_chat(
                         text = CALL_SEPARATOR + text.lstrip()
                     if text.strip():
                         last_text_call = item["call"]
-                    deltas.append(text)
-                    yield _event("agent.delta", {"text": text})
+                    if guard is None:
+                        yield emit(text, now_ms)
+                    else:
+                        checked = guard.feed(text)
+                        if checked:
+                            yield emit(checked, now_ms if not guard.buffers else _ms(started))
                 elif item["type"] == "tool_call":
+                    if (
+                        guard is None
+                        and options.answer_guard != "off"
+                        and item["toolName"] == SEARCH_FINANCE_POLICY
+                        and item["status"] == "SUCCEEDED"
+                    ):
+                        guard = SentenceGuard(options.answer_guard)
                     tools.append(item)
                     for source in item["sources"]:
                         if source not in sources:
@@ -210,6 +240,10 @@ async def run_chat(
             logger.warning("chat agent error run=%s error=%s", request.run_id, type(exc).__name__)
             outcome = "AGENT_INTERNAL_ERROR"
         else:
+            # 정상 종료: 검사기 버퍼에 남은 마지막 조각을 검사해 내보낸다(오류·끊김 때는 버린다).
+            rest = guard.finish() if guard is not None else ""
+            if rest:
+                yield emit(rest, _ms(started))
             content = "".join(deltas)
             if not content.strip():
                 # e.g. thinking used the whole max_tokens budget
@@ -270,3 +304,14 @@ async def run_chat(
             [t["toolName"] for t in tools],
             [c["stopReason"] for c in calls],
         )
+        if guard is not None:
+            # 원문·금액·사용자 id 없이 적중 수와 D3 갈래만(운영 표본 밖 감시용).
+            logger.info(
+                "chat guard run=%s prompt=%s rule=%s hits=%s branches=%s action=%s",
+                request.run_id,
+                config.prompt_version,
+                GUARD_RULE,
+                len(guard.hits),
+                ",".join(h.branch for h in guard.hits) or "-",
+                guard.mode,
+            )
