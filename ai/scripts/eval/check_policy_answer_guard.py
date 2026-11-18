@@ -144,7 +144,62 @@ def classify_v2(sentence: str) -> str | None:
     return "R2v2" if has_d2(sentence) else None
 
 
-CLASSIFIERS = {"v1": classify, "v2": classify_v2}
+# v3 D3(finance_policy_answer_guard_v3.md 2절): 부정 표현과 서류 단어가 0~3단어 안에.
+_DOC = r"(?:documents?|paperwork|proof|evidence)"
+_GAP = r"(?:\s+[\w'’-]+){0,3}?\s+"
+D3 = [
+    re.compile(
+        r"\b(?:without|no|do\s+not\s+need|does\s+not\s+need|don['’]t\s+need|doesn['’]t\s+need|"
+        r"needn['’]t|no\s+need\s+for)" + _GAP + _DOC + r"\b",
+        _I,
+    ),
+    re.compile(
+        r"\b"
+        + _DOC
+        + _GAP
+        + r"(?:not\s+required|not\s+needed|not\s+necessary|are\s+not|is\s+not)\b",
+        _I,
+    ),
+    re.compile(r"(?:증빙|서류)[^\s.]{0,3}\s?(?:없이|없어도|필요\s?없)"),
+]
+
+
+def has_d3(sentence: str) -> bool:
+    return _any(D3, sentence)
+
+
+def classify_v3(sentence: str) -> str | None:
+    """v3: M ∧ S ∧ ¬R ∧ D3 = 'R3'. M ∧ S ∧ R은 'mixed'(참고로만 센다)."""
+    if not (_any(MONEY, sentence) and _any(SEND, sentence)):
+        return None
+    if _any(RECEIVE, sentence):
+        return "mixed"
+    return "R3" if has_d3(sentence) else None
+
+
+CLASSIFIERS = {"v1": classify, "v2": classify_v2, "v3": classify_v3}
+# 엄격 규칙(v2·v3) 결과 md의 규칙별 문구. v2 문구는 v2 결과 md와 같게 둔다.
+STRICT = {
+    "v2": {
+        "hit": "R2v2",
+        "doc": "finance_policy_answer_guard_v2.md",
+        "formula": "R2v2 = M ∧ S ∧ ¬R ∧ D2(서류 단어 ∧ 부정 표현). "
+        "혼합 = M ∧ S ∧ R(참고, 검출 아님).",
+        "disclose": "**v2는 v1 누락 문장을 본 뒤 만든 규칙이라 아래는 표본 내 성적이다.**",
+        "d": "D2",
+        "has_d": has_d2,
+    },
+    "v3": {
+        "hit": "R3",
+        "doc": "finance_policy_answer_guard_v3.md",
+        "formula": "R3 = M ∧ S ∧ ¬R ∧ D3(부정 표현·서류 단어 0~3단어 근접, 한국어 증빙·서류 없이). "
+        "혼합 = M ∧ S ∧ R(참고, 검출 아님).",
+        "disclose": "**v3는 v2 오탐(after A10#3)과 v1 누락 문장을 본 뒤 만든 규칙이라 "
+        "아래는 표본 내 성적이다. 규칙 수정은 v3가 마지막이다.**",
+        "d": "D3",
+        "has_d": has_d3,
+    },
+}
 
 
 def check_answer(answer: str, rule: str = "v1") -> list[Hit]:
@@ -171,7 +226,7 @@ def answer_text(row: Mapping[str, Any]) -> str:
 
 
 def check_rows(name: str, rows: Iterable[Mapping[str, Any]], rule: str = "v1") -> FileResult:
-    """v1: r1 = R1(R2 포함), r2 = R2. v2: r1·r2 모두 R2v2(같은 목록)."""
+    """v1: r1 = R1(R2 포함), r2 = R2. v2·v3: r1·r2 모두 R2v2·R3(같은 목록)."""
     res = FileResult(name)
     for row in rows:
         if row.get("type") != "call" or row.get("warmup"):
@@ -180,9 +235,9 @@ def check_rows(name: str, rows: Iterable[Mapping[str, Any]], rule: str = "v1") -
         key = f"{row['questionId']}#{row['repeat']}"
         hits = check_answer(answer_text(row), rule)
         rules = {h.rule for h in hits}
-        if rules & {"R1", "R2", "R2v2"}:
+        if rules & {"R1", "R2", "R2v2", "R3"}:
             res.r1.append(key)
-        if rules & {"R2", "R2v2"}:
+        if rules & {"R2", "R2v2", "R3"}:
             res.r2.append(key)
         if "mixed" in rules:
             res.mixed.append(key)
@@ -306,26 +361,30 @@ def render(
     return "\n".join(o) + "\n"
 
 
-def render_v2(
+def render_strict(
     results: Sequence[FileResult],
     grades: Mapping[str, Mapping[str, str]],
     excluded: Sequence[str],
     notes: Mapping[str, str],
+    rule: str = "v2",
 ) -> str:
-    """v2 결과(finance_policy_answer_guard_v2.md). 통과 기준: 탐지 8/8, 오탐 0, 혼합 미검출."""
+    """v2·v3 결과. 통과 기준(상한 포함): 탐지 8/8, 오탐 0, 혼합 미검출."""
+    spec = STRICT[rule]
+    hit_name = str(spec["hit"])
+    has_d = spec["has_d"]
     total = len(CONFIRMED_RISKY)
     o: list[str] = []
     a = o.append
-    a("# 금융 정책 답변 위험 문장 검사 0원 실행 (#93, 규칙 v2)")
+    a(f"# 금융 정책 답변 위험 문장 검사 0원 실행 (#93, 규칙 {rule})")
     a("")
-    a("규칙: `ai/specs/rag/finance_policy_answer_guard_v2.md`(실행 전 커밋).")
+    a(f"규칙: `ai/specs/rag/{spec['doc']}`(실행 전 커밋).")
     a("저장된 답변만 읽었다(외부 호출 없음, 서버 코드 변경 없음).")
-    a("R2v2 = M ∧ S ∧ ¬R ∧ D2(서류 단어 ∧ 부정 표현). 혼합 = M ∧ S ∧ R(참고, 검출 아님).")
-    a("**v2는 v1 누락 문장을 본 뒤 만든 규칙이라 아래는 표본 내 성적이다.**")
+    a(str(spec["formula"]))
+    a(str(spec["disclose"]))
     a("")
     a("## 1. 파일별 결과")
     a("")
-    a("| 파일 | 답변 수 | R2v2 걸림 | 혼합(답변) | 확정 위험 탐지 (/8) | 오탐 |")
+    a(f"| 파일 | 답변 수 | {hit_name} 걸림 | 혼합(답변) | 확정 위험 탐지 (/8) | 오탐 |")
     a("|---|---|---|---|---|---|")
     det = fp = 0
     for r in results:
@@ -341,9 +400,9 @@ def render_v2(
     a(f"- 확정 위험 중 놓친 것: {_keys(CONFIRMED_RISKY - found)}")
     a(f"- 제외(목록만): {', '.join(excluded) or '없음'}")
     a("")
-    mixed_hit = 0  # 혼합 문장이 R2v2로 걸린 수(정의상 0이어야 함)
+    mixed_hit = 0  # 혼합 문장이 검출 규칙으로 걸린 수(정의상 0이어야 함)
     for r in results:
-        mixed_hit += sum(1 for _, h in r.hits if h.rule == "R2v2" and _any(RECEIVE, h.sentence))
+        mixed_hit += sum(1 for _, h in r.hits if h.rule == hit_name and _any(RECEIVE, h.sentence))
     ok1, ok2, ok3 = det == total, fp == 0, mixed_hit == 0
     a("## 2. 통과 기준 (규칙 문서 4절, 하나라도 어기면 불통과)")
     a("")
@@ -354,14 +413,14 @@ def render_v2(
     a(f"| 3. 혼합 문장 미검출 | 혼합이 걸린 문장 {mixed_hit} | {'통과' if ok3 else '불통과'} |")
     a(f"| **종합** | | **{'통과' if ok1 and ok2 and ok3 else '불통과'}** |")
     a("")
-    a("## 3. 걸린 문장 전부 (R2v2)")
+    a(f"## 3. 걸린 문장 전부 ({hit_name})")
     a("")
     a("| 파일 | 문항#회차 | 확정 위험 | 사람 판정 | 메모 | 문장 |")
     a("|---|---|---|---|---|---|")
     for r in results:
         g = grades.get(r.name, {})
         for key, h in r.hits:
-            if h.rule != "R2v2":
+            if h.rule != hit_name:
                 continue
             conf = "예" if (r.name, key) in CONFIRMED_RISKY else "아니오"
             note = notes.get(f"{r.name}|{key}", "")
@@ -370,13 +429,13 @@ def render_v2(
                 f"| {_cell(note)} | {_cell(h.sentence)} |"
             )
     a("")
-    a("## 4. 참고: 혼합 문장 중 D2가 있는 것 (검출 아님)")
+    a(f"## 4. 참고: 혼합 문장 중 {spec['d']}가 있는 것 (검출 아님)")
     a("")
     a("| 파일 | 문항#회차 | 문장 |")
     a("|---|---|---|")
     for r in results:
         for key, h in r.hits:
-            if h.rule == "mixed" and has_d2(h.sentence):
+            if h.rule == "mixed" and has_d(h.sentence):  # type: ignore[operator]
                 a(f"| {r.name} | {key} | {_cell(h.sentence)} |")
     return "\n".join(o) + "\n"
 
@@ -394,8 +453,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     grades = {r.name: load_grades(ai_root, r.name) for r in results}
     notes = json.loads(args.notes.read_text(encoding="utf-8")) if args.notes else {}
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    renderer = render_v2 if args.rule == "v2" else render
-    text = renderer(results, grades, args.excluded, notes)
+    if args.rule in STRICT:
+        text = render_strict(results, grades, args.excluded, notes, args.rule)
+    else:
+        text = render(results, grades, args.excluded, notes)
     args.output.write_text(text, encoding="utf-8", newline="\n")
     print(args.output)
     return 0

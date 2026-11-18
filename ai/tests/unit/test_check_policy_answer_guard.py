@@ -111,3 +111,36 @@ def test_v1_behavior_unchanged_by_rule_default() -> None:
     rows = [{"type": "call", "questionId": "A04", "repeat": 1, "answer": answer}]
     assert guard.check_rows("x.jsonl", rows).r1 == ["A04#1"]
     assert guard.check_rows("x.jsonl", rows, "v2").r1 == []
+
+
+# v3(finance_policy_answer_guard_v3.md): R3 = M ∧ S ∧ ¬R ∧ D3(부정 표현·서류 단어 0~3단어 근접).
+V2_FALSE_POSITIVE = (
+    # after A10#3 — v2 오탐(뒤 절의 'not'이 부정으로 잡힘)
+    "Amounts above USD 5,000 in one transfer would need documents, so split transfers may not "
+    "be the way around that."
+)
+
+
+def test_v3_catches_v1_missed_and_skips_v2_false_positive() -> None:
+    for s in V1_MISSED:
+        assert guard.classify_v3(s) == "R3", s
+    assert guard.classify_v2(V2_FALSE_POSITIVE) == "R2v2"
+    assert guard.classify_v3(V2_FALSE_POSITIVE) is None
+
+
+def test_v3_d3_forms() -> None:
+    for s in (
+        "You can send $5,000 with no paperwork.",  # (a) no + 0단어
+        "Sending USD 5,000 does not need any supporting proof.",  # (a) 2단어
+        "For a $5,000 transfer, documents are not required.",  # (b)
+        "5천불까지는 증빙서류 없이 송금할 수 있다.",  # (c)
+        "5천 달러 송금은 서류가 필요 없다.",  # (c)
+    ):
+        assert guard.classify_v3(s) == "R3", s
+
+
+def test_v3_distance_limit_and_receiving() -> None:
+    far = "You can send USD 5,000 without any of the usual supporting documents."  # 4단어
+    assert guard.classify_v3(far) is None
+    mixed = "You can receive up to US$5,000 without documents, but sending needs proof."
+    assert guard.classify_v3(mixed) == "mixed"
