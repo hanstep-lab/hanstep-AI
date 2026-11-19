@@ -1,0 +1,29 @@
+[
+  {
+    "name": "v4.4",
+    "model": "claude-haiku-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000,
+    "judgmentFacts": true,
+    "promptVersion": "v4.4"
+  },
+  {
+    "name": "v4.5",
+    "model": "claude-haiku-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000,
+    "judgmentFacts": true,
+    "promptVersion": "v4.5"
+  },
+  {
+    "name": "v4.5b",
+    "model": "claude-haiku-5-5",
+    "thinking": "model_default",
+    "effort": "",
+    "maxTokens": 2000,
+    "judgmentFacts": true,
+    "promptVersion": "v4.5b"
+  }
+]

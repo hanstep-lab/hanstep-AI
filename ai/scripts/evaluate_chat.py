@@ -47,6 +47,10 @@ With judgmentFacts on, the number check also allows the judgment facts the serve
 (app/chat/judgment.py on the same summary and question).
 With --target ai the run stops if the server's model, judgmentFacts or prompt version differ
 from the variant (e.g. X-Chat-Config ignored because CHAT_ALLOW_CONFIG_OVERRIDE is off).
+Every answer gets a languageCheck (#106, scripts/_lang_check.py): Hangul mixed into an answer
+for a non-Korean user, with the allowlist in specs/chat/answer_language_allowlist_v1.json.
+--language (ai target only) sets the user's language sent to the agent (default en); the answer
+language set is --question-set lang (specs/chat/answer_language_questions_v1.json).
 The API key and internal tokens are never printed or written.
 """
 
@@ -69,6 +73,7 @@ from typing import Any
 
 import _bootstrap  # noqa: F401
 import _fx_check
+import _lang_check
 import _product_check
 import httpx
 
@@ -97,12 +102,15 @@ PRODUCT_QUESTIONS = AI_ROOT / "specs" / "chat" / "product_questions_v1.json"
 POLICY_QUESTIONS = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json"
 # 프롬프트 v4.4 전환 측정(#101): 환율 진단(FX)·E-7-4 점수(E)·송금 카드(R) 문항. eval과 같은 형식.
 V44_QUESTIONS = AI_ROOT / "specs" / "chat" / "v44_questions_v1.json"
+# 답변 언어 측정(#106): E-7-4·비자 정책·금융 정책·대조군(환율·송금). 언어는 --language.
+LANG_QUESTIONS = AI_ROOT / "specs" / "chat" / "answer_language_questions_v1.json"
 QUESTION_SETS = {
     "eval": QUESTIONS,
     "remit": REMIT_QUESTIONS,
     "product": PRODUCT_QUESTIONS,
     "policy": POLICY_QUESTIONS,
     "v44": V44_QUESTIONS,
+    "lang": LANG_QUESTIONS,
 }
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
 PROMPT_BASE = {
@@ -844,13 +852,14 @@ def call_ai(
     question: dict[str, Any],
     variant: dict[str, Any],
     user_id: int,
+    language: str = "en",
 ) -> dict[str, Any]:
     run_id = "run_" + uuid.uuid4().hex
     body = {
         "runId": run_id,
         "userId": user_id,
         "sessionId": 1,
-        "language": "en",
+        "language": language,
         "history": question.get("history", []),
         "message": question["text"],
     }
@@ -877,6 +886,7 @@ def run_follow_up(
     first_answer: str,
     variant: dict[str, Any],
     user_id: int,
+    language: str = "en",
 ) -> dict[str, Any]:
     """애매한 송금 문항의 2턴째: 1턴 질문·답변을 history로 보내고 followUpReply를 묻는다."""
     second = {
@@ -886,7 +896,7 @@ def run_follow_up(
             {"role": "ASSISTANT", "content": first_answer},
         ],
     }
-    result = call_ai(client, base_url, token, second, variant, user_id)
+    result = call_ai(client, base_url, token, second, variant, user_id, language)
     done = result.get("done") or {}
     metrics = result.get("metrics")
     model = answering_model(done, metrics) or (metrics or {}).get("config", {}).get("model")
@@ -1145,6 +1155,10 @@ def score(row: dict[str, Any]) -> None:
         row.pop("fxCheck", None)
     # 금지 표현(실시간·환율 예측·근거 없는 우대율, #101)은 모든 답변에서 본다.
     row["forbidden"] = _fx_check.forbidden_phrases(answer)
+    # 답변 언어(#106): 사용자 언어와 다른 글자(한글 혼입 등). 언어가 없는 옛 행은 en(당시 고정값).
+    row["languageCheck"] = _lang_check.language_check(
+        answer, row.get("language") or "en", row["contextTexts"]
+    )
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
     called = sorted({t.get("toolName") for t in row.get("tools", [])})
@@ -1333,6 +1347,7 @@ def render_summary(
                 }[check["verdict"]]
                 out.append(f"  - {r['questionId']} #{r['repeat']}: {detail}")
         out += fx_summary_lines(mine)
+        out += _lang_check.summary_lines(mine)
         out += source_split_table(mine)
         out += _product_check.summary_lines(mine)
         out += _product_check.tool_summary_lines(mine)
@@ -1665,7 +1680,15 @@ def main(
         help="eval: eval_questions_v1.json, remit: remit_questions_v1.json (prompt v3), "
         "product: product_questions_v1.json (product tool, #65), "
         "policy: specs/rag/finance_policy_questions_v1.json (finance policy RAG, #88), "
-        "v44: v44_questions_v1.json (FX summary, E-7-4 and remittance cards, #101)",
+        "v44: v44_questions_v1.json (FX summary, E-7-4 and remittance cards, #101), "
+        "lang: answer_language_questions_v1.json (answer language, #106)",
+    )
+    parser.add_argument(
+        "--language",
+        choices=["en", "ko", "vi", "zh"],
+        default="en",
+        help="ai target: the user's language sent to the agent (#106). spring target: the "
+        "user's preferred_language in MySQL is used, so only en is accepted here",
     )
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--warmup", type=int, default=0, help="calls per variant, not summarized")
@@ -1724,6 +1747,10 @@ def main(
         )
     if args.repeats < 1 or args.warmup < 0:
         parser.error("--repeats must be >= 1 and --warmup >= 0")
+    if args.target == "spring" and args.language != "en":
+        parser.error(
+            "--language works with --target ai only (Spring sends users.preferred_language)"
+        )
     if args.target == "ai" and not settings.internal_token_configured():
         print("BLOCKED: AI_INTERNAL_API_TOKEN is not configured")
         return EXIT_BLOCKED
@@ -1777,7 +1804,7 @@ def main(
 
     planned_turns = sum(turns_of(q) for q in questions) * args.repeats
     planned_max = sum(estimates[v["name"]] * (args.warmup + planned_turns) for v in variants)
-    print(f"llm-mode={args.llm_mode} target={args.target} base={base_url}")
+    print(f"llm-mode={args.llm_mode} target={args.target} base={base_url} language={args.language}")
     for v in variants:
         print(
             f"  {v['name']}: model={v['model']} thinking={v.get('thinking')} "
@@ -1819,6 +1846,8 @@ def main(
         "mode": args.llm_mode,
         "baseUrl": base_url,
         "userId": args.user_id,
+        # 사용자 언어(#106). ai 대상은 요청 language, spring 대상은 MySQL 값(여기서는 en으로 둠).
+        "language": args.language,
         "variants": [{k: v for k, v in variant.items() if k != "override"} for variant in variants],
         "questionSet": {
             "file": question_file.name,
@@ -1880,7 +1909,9 @@ def main(
                 print(render_summary(conditions, rows, answers=False))
                 return EXIT_OK
             if args.target == "ai":
-                result = call_ai(http, base_url, token, question, variant, args.user_id)
+                result = call_ai(
+                    http, base_url, token, question, variant, args.user_id, args.language
+                )
             else:
                 result = call_spring(http, base_url, args.jwt, question)
             done = result.get("done") or {}
@@ -1897,7 +1928,14 @@ def main(
                 ) or any(b.get("type") == "REMITTANCE_CONFIRM" for b in done.get("blocks") or [])
                 if not first_quoted:
                     follow_up = run_follow_up(
-                        http, base_url, token, question, answer, variant, args.user_id
+                        http,
+                        base_url,
+                        token,
+                        question,
+                        answer,
+                        variant,
+                        args.user_id,
+                        args.language,
                     )
             row: dict[str, Any] = {
                 "variant": variant["name"],
@@ -1905,6 +1943,7 @@ def main(
                 "category": question["category"],
                 "repeat": repeat,
                 "warmup": warmup,
+                "language": args.language,
                 "at": datetime.now(UTC).isoformat(),
                 "status": result.get("status"),
                 "httpStatus": result.get("httpStatus"),

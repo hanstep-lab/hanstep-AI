@@ -14,6 +14,9 @@ API 호출 없음. 같은 variants 파일(예: specs/chat/variants_v44_v1.json)�
 - 지연은 측정 스크립트가 잰 첫 delta·전체 시간(완료 회차)의 중앙값(파일별·분류별), 토큰은 턴 평균
   (송금 2턴은 턴마다).
 - 실패 사례는 new 설정의 실패 회차와 회귀 문항의 base 회차 답변 원문을 적는다.
+- 답변 언어(#106, scripts/_lang_check.py): 설정·사용자 언어별 한글 혼입(허용 목록 적용)·본문 대부분
+  한글·그 언어로 답함. 행에 languageCheck가 없으면(#106 전 측정) 답변으로 다시 계산하고 언어는 en.
+  언어가 어긋난 회차는 실패 사례에 language로 적는다(회귀 판정 항목에는 넣지 않는다).
 """
 
 from __future__ import annotations
@@ -26,6 +29,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
+
+import _lang_check
 
 E74_TOOL = "calculate_e74_score"
 USAGE_KEYS = ("inputTokens", "cacheReadInputTokens", "cacheCreationInputTokens", "outputTokens")
@@ -152,6 +157,9 @@ def failed(row: dict[str, Any]) -> list[str]:
         reasons.append("direction")
     if e74_card_in_answer(row) is False:
         reasons.append("e74CardValue")
+    lang = _lang_check.row_check(row)
+    if lang is not None and not lang["inLanguage"]:
+        reasons.append("language")
     return reasons
 
 
@@ -178,11 +186,38 @@ def _answer_block(row: dict[str, Any], reasons: list[str]) -> list[str]:
     for m in ((row.get("fxCheck") or {}).get("direction") or {}).get("mentions") or []:
         if m["result"] in ("mismatch", "insufficientData"):
             out.append(f"- 방향 불일치: {m['currency']} {m['period']} {m['said']}≠{m['expected']}")
+    lang = _lang_check.row_check(row)
+    if lang is not None and not lang["inLanguage"]:
+        runs = ", ".join(dict.fromkeys(lang["disallowedRuns"])) or "-"
+        out.append(
+            f"- 언어({lang['language']}): 한글 비율 {lang['hangulShare']}, "
+            f"베트남어 글자 비율 {lang['viShare']}, 걸린 한글: {runs}"
+        )
     out += ["", "> " + (row.get("answer") or "(빈 답변)").replace("\n", "\n> ")]
     if follow:
         out += ["", f"2턴 사용자: {follow.get('message')}", ""]
         out += ["> " + (follow.get("answer") or "(빈 답변)").replace("\n", "\n> ")]
     return [*out, ""]
+
+
+def language_section(stats: dict[str, list[dict[str, Any]]], base: str, new: str) -> list[str]:
+    """설정·사용자 언어별 답변 언어 검사(#106). 완료 회차만."""
+    out = ["", "## 답변 언어(#106, 완료 회차)", ""]
+    out += [
+        "| 설정 | 사용자 언어 | 회차 | 한글 혼입(허용 목록 적용) | 괄호·따옴표 병기 제외 "
+        "| 한글 있음(허용 목록 전) | 본문 대부분 한글 | 그 언어로 답함 |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for name in (base, new):
+        checks_of = [c for r in stats[name] if (c := _lang_check.row_check(r)) is not None]
+        for language in dict.fromkeys(c["language"] for c in checks_of):
+            mine = [c for c in checks_of if c["language"] == language]
+            cells = [
+                ratio([c.get(k, c["mixed"]) for c in mine])
+                for k in ("mixed", "mixedBare", "mixedRaw", "mostlyKorean", "inLanguage")
+            ]
+            out.append(f"| {name} | {language} | {len(mine)} | " + " | ".join(cells) + " |")
+    return out
 
 
 def render(
@@ -345,6 +380,8 @@ def render(
         + " | ".join(ratio([e74_card_in_answer(r) for r in stats[n]]) for n in (base, new))
         + " |"
     )
+
+    out += language_section(stats, base, new)
 
     # --- 지연 ---
     out += ["", "## 지연(완료 회차, 측정 스크립트 기준 ms 중앙값)", ""]

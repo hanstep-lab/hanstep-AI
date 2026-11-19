@@ -1,0 +1,102 @@
+{
+  "version": "v1",
+  "description": "답변 언어 측정(#106) 문항. eval_questions_v1.json과 같은 형식. 모두 영어 질문이고 사용자 언어는 evaluate_chat.py --language로 정한다(기본 en). 기대 도구는 프롬프트 v4.4 기준(v4.5·v4.5b는 PROMPT_BASE로 v4.4를 따른다). 출처: E-7-4 3문항은 v44_questions_v1.json E01~E03, 비자 정책은 specs/rag/evaluation.json en-05·en-07, 금융 정책은 specs/rag/finance_policy_questions_v1.json A02·A06, 대조군은 v44 FX11·R01. LR01은 로드맵 질문이지만 채팅에 get_visa_roadmap이 없어(app/chat/visa_tools.py VISA_TOOL_NAMES) calculate_e74_score를 기대한다. 설계: specs/chat/answer_language_v1_design.md 3절.",
+  "latencySubset": [],
+  "holdoutSubset": [],
+  "languageSubsets": {
+    "vi": ["LE01", "LE03", "LP01", "LC01"],
+    "ko": ["LE01", "LP01"]
+  },
+  "questions": [
+    {
+      "id": "LE01",
+      "category": "e74",
+      "text": "What's my E-7-4 score?",
+      "history": [],
+      "expectedTools": ["calculate_e74_score"],
+      "expectBehavior": "answer_with_tool_values",
+      "source": "v44_questions_v1.json E01, 운영 v4.4 한국어 답변 사례와 같은 질문"
+    },
+    {
+      "id": "LE02",
+      "category": "e74",
+      "text": "Can I apply for the E-7-4 visa now?",
+      "history": [],
+      "expectedTools": ["calculate_e74_score"],
+      "expectBehavior": "answer_with_tool_values",
+      "source": "v44_questions_v1.json E02"
+    },
+    {
+      "id": "LE03",
+      "category": "e74",
+      "text": "What can I do to raise my E-7-4 score?",
+      "history": [],
+      "expectedTools": ["calculate_e74_score"],
+      "expectBehavior": "answer_with_tool_values",
+      "source": "v44_questions_v1.json E03"
+    },
+    {
+      "id": "LR01",
+      "category": "e74_roadmap",
+      "text": "What steps should I take to switch to the E-7-4 visa, and when could I apply?",
+      "history": [],
+      "expectedTools": ["calculate_e74_score"],
+      "expectBehavior": "answer_with_tool_values",
+      "source": "이번 세트. 로드맵 질문(채팅에 로드맵 도구 없음)"
+    },
+    {
+      "id": "LV01",
+      "category": "visa_policy",
+      "text": "How long do I need to have stayed in Korea on E-9 before applying?",
+      "history": [],
+      "expectedTools": ["search_visa_policies"],
+      "expectBehavior": "answer_from_policy",
+      "source": "specs/rag/evaluation.json en-05"
+    },
+    {
+      "id": "LV02",
+      "category": "visa_policy",
+      "text": "Which documents prove my income for the E-7-4 points?",
+      "history": [],
+      "expectedTools": ["search_visa_policies"],
+      "expectBehavior": "answer_from_policy",
+      "source": "specs/rag/evaluation.json en-07"
+    },
+    {
+      "id": "LP01",
+      "category": "finance_policy",
+      "text": "Do I still need a designated bank to send my salary home?",
+      "history": [],
+      "expectedTools": ["search_finance_policy"],
+      "expectBehavior": "answer_from_policy",
+      "source": "specs/rag/finance_policy_questions_v1.json A02"
+    },
+    {
+      "id": "LP02",
+      "category": "finance_policy",
+      "text": "Can I lend my bank account to a friend for money?",
+      "history": [],
+      "expectedTools": ["search_finance_policy"],
+      "expectBehavior": "answer_from_policy",
+      "source": "specs/rag/finance_policy_questions_v1.json A06"
+    },
+    {
+      "id": "LC01",
+      "category": "fx",
+      "text": "How is the PHP rate today?",
+      "history": [],
+      "expectedTools": ["fx_rate_summary"],
+      "expectBehavior": "answer_with_tool_values",
+      "source": "v44_questions_v1.json FX11 (대조군)"
+    },
+    {
+      "id": "LC02",
+      "category": "remit_card",
+      "text": "Send 500,000 won to my mom",
+      "history": [],
+      "expectedTools": ["get_remittance_recipients", "quote_remittance"],
+      "expectBehavior": "confirm_card_no_immediate_send",
+      "source": "v44_questions_v1.json R01 (대조군)"
+    }
+  ]
+}

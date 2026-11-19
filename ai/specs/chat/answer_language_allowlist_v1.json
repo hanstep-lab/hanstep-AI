@@ -1,0 +1,18 @@
+{
+  "version": "v1",
+  "description": "답변 언어 검사(#106) 허용 목록. 사용자 언어가 ko가 아닐 때 답변에 있어도 혼입으로 세지 않는 한글. 측정 전에 고정한다(2026-11-19). 덩어리가 아래 용어 또는 상품명(productNamesFrom 카탈로그의 nameKo)과 같거나 그 일부이면 허용. 조사가 붙은 덩어리는 허용하지 않는다. 사용자 질문에 있는 한글도 허용(scripts/_lang_check.py). 기준: specs/chat/answer_language_v1_design.md 2-2절.",
+  "terms": {
+    "financePolicyDocuments": [
+      "외국환거래규정",
+      "외국환거래법",
+      "외국환거래법 시행령",
+      "전자금융거래법",
+      "외국인근로자의 고용 등에 관한 법률",
+      "외국인고용법"
+    ],
+    "officialServices": [
+      "하이코리아"
+    ]
+  },
+  "productNamesFrom": "specs/rag/product_catalog_v1.json"
+}
