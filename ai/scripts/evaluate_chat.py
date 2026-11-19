@@ -97,12 +97,15 @@ PRODUCT_QUESTIONS = AI_ROOT / "specs" / "chat" / "product_questions_v1.json"
 POLICY_QUESTIONS = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json"
 # 프롬프트 v4.4 전환 측정(#101): 환율 진단(FX)·E-7-4 점수(E)·송금 카드(R) 문항. eval과 같은 형식.
 V44_QUESTIONS = AI_ROOT / "specs" / "chat" / "v44_questions_v1.json"
+# E-7-4 도구 LLM 입력 영어화 측정(#108): 사용자 본인의 E-7-4 점수·신청·개선·서류·가정 계산 문항.
+E74_EN_QUESTIONS = AI_ROOT / "specs" / "chat" / "e74_llm_en_questions_v1.json"
 QUESTION_SETS = {
     "eval": QUESTIONS,
     "remit": REMIT_QUESTIONS,
     "product": PRODUCT_QUESTIONS,
     "policy": POLICY_QUESTIONS,
     "v44": V44_QUESTIONS,
+    "e74en": E74_EN_QUESTIONS,
 }
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
 PROMPT_BASE = {
