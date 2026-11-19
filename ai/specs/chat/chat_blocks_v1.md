@@ -44,7 +44,7 @@
 | 그래프가 tool_call 항목에 blocks를 실음 | `ai/app/chat/graph.py:133` |
 | 턴 전체 blocks 모음·중복 제거·FX 카드 합치기 | `ai/app/chat/stream.py:141`, `:231-235`(`merge_fx_card`) |
 | agent.done에 `blocks or None` | `ai/app/chat/stream.py:272` |
-| E-7-4 카드·재질의 카드 생성 | `ai/app/visa/tools.py:243-280`(모델), `_missing_block`·`_card_question`, `e74_records` |
+| E-7-4 카드·재질의 카드 생성 | `ai/app/visa/tools.py:243-280`(모델), `_missing_block`·`_question_en`, `e74_records` |
 | 채팅 비자 도구 → blocks 전달 | `ai/app/chat/visa_tools.py:265-282`(`_succeeded`) |
 | 송금 확인 카드 생성 | `ai/app/chat/remittance_tools.py` `RemittanceConfirmBlock`·`confirm_block`, `RemittanceTools._quote`, `_quote_matches`(#105에서 줄이 바뀌어 이름으로 적음) |
 | 환율 진단 카드 생성·합치기 | `ai/app/chat/fx_tools.py:188-276`(모델·`summary_block`·`merge_fx_card`), `:336` |
@@ -121,7 +121,7 @@ blocks를 만드는 도구는 `calculate_e74_score`, `quote_remittance`, `fx_rat
 
 ### 3.2 `MISSING_INPUTS` — 추가 입력 요청 카드
 
-- 만들어지는 곳: `ai/app/visa/tools.py:267-280`(모델), `_missing_block`·`_card_question`
+- 만들어지는 곳: `ai/app/visa/tools.py:267-280`(모델), `_missing_block`·`_question_en`
 - 조건: E-7-4 결과의 `missingInputs`가 1개 이상이면 `E74_SCORE_CARD` 바로 뒤에 하나 붙는다. 없으면 붙지 않는다.
 
 | 필드 | 타입 | null | 뜻 |
@@ -135,7 +135,7 @@ blocks를 만드는 도구는 `calculate_e74_score`, `quote_remittance`, `fx_rat
 - `question`은 엔진 결과의 `questionEn`이다. #103 전에 저장돼 재사용된 평가·로드맵(`questionEn` 없음)은 한국어 문구로 같은 질문의 영어 문구를 찾아 넣는다. 문구 목록에 없으면 한국어 그대로다.
 - 숫자 필드 없음.
 - 감점·제외 6문항(`legalDeclaration.*`)은 저장하지 않는 자기신고 항목이라, 프로필이 비어 있으면 거의 항상 목록에 들어간다.
-- LLM에 주는 도구 결과의 `missingInputs`는 #101에서 잰 모양 그대로다(`{field, question(한국어), ruleCodes}`, `questionEn` 없음).
+- LLM에 주는 도구 결과의 `missingInputs`는 #101에서 잰 모양 그대로(`{field, question, ruleCodes}`)이고, #108부터 `question`에 카드와 같은 영어 문구를 넣는다. 3.2.1절 참고.
 
 #### E-7-4 결과·로드맵 응답의 `missingInputs` (채팅 카드가 아닌 쪽)
 
@@ -150,6 +150,21 @@ Spring 비자 API(E-7-4 평가 `result`, 로드맵 `roadmap`)는 AI 엔진 결�
 
 - 로드맵 화면(VS-001) 규칙(**임시**): 앱 언어가 `ko`면 `question`, 그 밖이면 `questionEn`. `questionEn`이 없으면 `question`.
 - 문구는 `ai/app/visa/e74/questions.py`의 `QUESTIONS`에 질문 키별로 한곳에 있다(27개, 감점·제외 6개 포함. 근무지 인구감소지역 질문은 근무 중·종료로 둘).
+
+#### 3.2.1 E-7-4 도구가 LLM에 주는 값 (#108, 카드 아님)
+
+`calculate_e74_score`의 도구 정의와 도구 결과(`llmOutput`)는 영어다. 엔진 결과의 한국어 필드는 그대로 두고(로드맵 화면·저장용), LLM에만 같은 key의 영어 문구를 준다. 문구는 `ai/app/visa/e74/texts.py` 한곳에 key별 한국어·영어로 있다.
+
+| LLM 결과 경로 | 넣는 값 | 엔진 결과(Spring `result_json`) |
+|---|---|---|
+| `missingInputs[].question` | `questionEn`(카드와 같음) | `question`(한국어)·`questionEn` 그대로 |
+| `improvements[].description` | `descriptionEn` | `description`(한국어) 그대로 + `descriptionEn`(#108, 전 저장분은 키 없음) |
+| `improvements[].documents` | `documentsEn` | `documents`(한국어) 그대로 + `documentsEn`(#108, 전 저장분은 키 없음) |
+| `reviewNotices[]` `{code, ruleCodes, text}` | 검토 메모 key와 영어 안내. `reviewNotes`(사람 확인용 한국어 메모)는 LLM에 주지 않는다 | `reviewNotes` 그대로 |
+
+- `descriptionEn`·`documentsEn`·`questionEn`이 없는 재사용 평가(#108·#103 전 저장분)는 한국어 문구로 같은 문구의 영어를 찾는다. 찾지 못한 개선 방안의 `description`·`documents`는 한국어 대신 null이다.
+- `reviewNotices[].code`: `NO_APPROVED_RULES`, `AGE_OUTSIDE_SCORE_TABLE`, `INCOME_FROM_EARLIER_YEARS`, `KOREAN_LEVEL_UNREADABLE`, `CERTIFICATE_GRADE_NOT_LISTED`, `STAY_SPECIAL_RULE_CHECK`, `REQUIRED_TOTAL_UNKNOWN`, 그 밖의 메모는 `MANUAL_CHECK`. 같은 안내는 하나로 합친다(소득 대체 연도 메모는 소득 점수·최소 소득 요건 두 항목).
+- 사용자 입력 원문(예: 자격증 이름 `'용접기능사'`)은 영어 문구 안에 그대로 들어갈 수 있다.
 
 ### 3.3 `REMITTANCE_CONFIRM` — 송금 확인 카드
 
