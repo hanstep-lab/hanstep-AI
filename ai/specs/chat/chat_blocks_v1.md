@@ -149,7 +149,7 @@ Spring 비자 API(E-7-4 평가 `result`, 로드맵 `roadmap`)는 AI 엔진 결�
 | `ruleCodes` | string[] | 아니오 | 이 입력이 필요한 규칙 코드(전체 `missingInputs`에만. 항목별 `items[].missingInputs`에는 없음) |
 
 - 로드맵 화면(VS-001) 규칙(**임시**): 앱 언어가 `ko`면 `question`, 그 밖이면 `questionEn`. `questionEn`이 없으면 `question`.
-- 문구는 `ai/app/visa/e74/questions.py`의 `QUESTIONS`에 질문 키별로 한곳에 있다(26개, 감점·제외 6개 포함).
+- 문구는 `ai/app/visa/e74/questions.py`의 `QUESTIONS`에 질문 키별로 한곳에 있다(27개, 감점·제외 6개 포함. 근무지 인구감소지역 질문은 근무 중·종료로 둘).
 
 ### 3.3 `REMITTANCE_CONFIRM` — 송금 확인 카드
 
