@@ -116,7 +116,8 @@ A가 "영어로 고정"하지 않는지 보는 용도다.
   - 설정: `FINANCE_POLICY_CORPUS_DIR=C:\Projects\hanstep\rag-data\finance-policy`, `FINANCE_POLICY_LABELS=true`, `FINANCE_POLICY_ANSWER_GUARD=replace`(기본값)
   - 채점: `scripts/finance_policy_review.py`의 기존 절차와 채점 기준을 그대로 쓴다.
   - 위험 오답·적용 대상 오류 0을 본다.
-- 회귀 측정은 후보 구현 뒤에 한다(6절 순서 3). 기준선에는 넣지 않는다.
+- 회귀 측정은 후보 구현 뒤에 한다(6절 순서 4). 기준선에는 넣지 않는다.
+- #101 저장 결과와 직접 비교하지 않는다. 같은 DB 상태(5-5)에서 v4.4와 후보를 함께 돌려 비교한다(2026-11-19 결정). #101과 환율 데이터 조건이 달라 환율 문항이 거짓 회귀로 잡힐 수 있기 때문이다.
 
 ### 2-5. LE03 보조 지표: 개선 방안 언급 (결정 3)
 
@@ -128,6 +129,7 @@ A가 "영어로 고정"하지 않는지 보는 용도다.
 - vi·ko 답변은 자동 판정하지 않는다(`mentioned` = null). 사람이 표에서 본다.
 - 사람 확인용 표는 측정 요약 .md의 "개선 방안 언급(LE03 보조 지표)" 절에 있다. 회차, 자동 판정, 세 항목, 빈 사람 확인 칸, 답변 원문을 적는다.
 - 기준: 후보의 LE03 언급 회차가 기준선보다 적지 않아야 한다(사람 확인 반영). 4절 기준 2(회귀)에 포함해 본다.
+
 ## 3. 질문 세트 (`specs/chat/answer_language_questions_v1.json`, 10문항)
 
 | id | 분류 | 질문 | 기대 도구(v4.4) | 출처 |
@@ -246,6 +248,18 @@ uv run python scripts/evaluate_chat.py --llm-mode anthropic --question-set lang 
 - vi·ko는 같은 명령에 `--language vi --questions LE01,LE03,LP01,LC01 --repeats 3 --max-usd 0.045` 또는
   `--language ko --questions LE01,LP01 --repeats 3 --max-usd 0.025`를 주고 출력 파일 이름을 바꾼다.
   - 상한은 세 run을 합쳐 $0.40이다(결정 5).
+
+### 5-5. 측정 DB 조건 (환율, 2026-11-19 고정)
+
+- 운영 덤프의 Mock 환율 738행(USD·VND·PHP 각 246)을 지웠다. 운영 #119와 같은 절차다(`deploy/migrations/manual/2026-11-17-delete-mock-exchange-rates.sql`, 지울 행을 가리키는 알림 0 확인 뒤 실행).
+- PHP: MARKET_REF 실데이터 290행(2025-10-01 ~ 2026-11-18)으로 정상이다. 평균 영업일은 1M 23, 3M 67, 6M 133, 1Y 256이다.
+- USD: KOREAEXIM 실데이터는 일부 기간뿐이다(157행, 최신 2026-11-19).
+  - 2026-05-14 ~ 2026-11-08이 비어 있다. 수출입은행 일일 호출 한도 때문이다.
+  - 그래서 1M·3M·6M 평균은 9영업일로 계산되고 1Y는 127영업일이다.
+- 송금 견적(MOTHER, 700,000 KRW)은 200이다. appliedRate는 PHP 참고값이고 실제 계산은 `quotes[].usdAppliedRate`(설계대로, 운영과 같음)를 쓴다.
+- #106 측정이 끝날 때까지 환율 백필 등 DB 쓰기와 수출입은행 호출은 하지 않는다. 기준선·A·A+B·회귀를 모두 이 DB 상태에서 잰다.
+- 로컬 Spring 환율 스케줄러가 새 행을 넣을 수 있다. 그래서 측정 실행마다 전후로 `exchange_rates`의 통화별 행 수와 최신 날짜를 기록한다. 바뀌면 멈춘다.
+- 주 지표(한글 혼입)는 USD 평균 기간 수와 관계없다.
 
 ## 6. 측정 순서와 비용
 
