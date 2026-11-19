@@ -27,8 +27,10 @@ COPY specs ./specs
 # 대안신용 서빙 모델(계수·가정 JSON). 원본 v9_source.py는 학습용이라 넣지 않는다.
 COPY models/alt_credit/alt_credit_v9.json ./models/alt_credit/alt_credit_v9.json
 
+# 임베딩 캐시 폴더는 이미지에 미리 만든다. 볼륨을 붙일 때 Docker가 root 소유로 만들면
+# hanstep 사용자가 캐시를 쓰지 못해 재시작마다 검색기를 처음부터 만든다(#98).
 RUN useradd --create-home --uid 10001 hanstep \
-    && mkdir -p /models/huggingface \
+    && mkdir -p /models/huggingface /app/artifacts/rag/embedding-cache \
     && chown -R hanstep:hanstep /models /app
 USER hanstep
 
