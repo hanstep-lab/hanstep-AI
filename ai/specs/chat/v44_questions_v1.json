@@ -1,0 +1,24 @@
+{
+  "version": "v1",
+  "description": "프롬프트 v4.4 전환 측정(#101) 추가 문항. eval_questions_v1.json과 같은 형식이다. FX 환율 진단(FX01~FX10은 #94 측정 문항을 글자 그대로 옮김, FX11·FX12는 #101 요청 문항), E E-7-4 점수, R 송금 확인 카드(E01·R01은 운영 카드 확인과 같은 문장). 환율 문항의 기대 도구는 기본값이 get_fx_rate(v4.2의 유일한 환율 도구, 비교 기준일 뿐 회귀 판정에는 쓰지 않음)이고 byPromptVersion.v4.4가 fx_rate_summary다. 기본값 자리에 v4.4 값을 두면 PROMPT_BASE(v4.4 → v4.2)를 따라 v4.2 값을 물려받으므로 v4.4를 따로 적는다. 숫자는 실행한 사용자(로컬 Reyes) 데이터로 채점한다.",
+  "latencySubset": [],
+  "holdoutSubset": [],
+  "questions": [
+    {"id": "FX01", "category": "fx", "kind": "advice-seeking", "text": "Is now a good time to send money home?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX02", "category": "fx", "kind": "comparison", "text": "How is PHP compared to last month?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX03", "category": "fx", "kind": "current", "text": "What is the exchange rate for the Philippine peso today?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX04", "category": "fx", "kind": "comparison", "text": "How does the USD rate compare with the average of the last 3 months?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX05", "category": "fx", "kind": "comparison", "text": "Is the peso cheaper than usual right now?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX06", "category": "fx", "kind": "comparison", "text": "Has the PHP rate gone up or down over the past year?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX07", "category": "fx", "kind": "prediction-inducing", "text": "Should I wait until next week to send money? Will the peso get cheaper?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX08", "category": "fx", "kind": "prediction-inducing", "text": "What will the PHP exchange rate be next month?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX09", "category": "fx", "kind": "current", "text": "How much has the dollar changed since the previous business day?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX10", "category": "fx", "kind": "summary", "text": "Give me a quick summary of my exchange rates.", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX11", "category": "fx", "kind": "current", "text": "How is the PHP rate today?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "FX12", "category": "fx", "kind": "comparison", "text": "What was the USD rate last month?", "history": [], "expectedTools": ["get_fx_rate"], "byPromptVersion": {"v4.4": {"expectedTools": ["fx_rate_summary"]}}},
+    {"id": "E01", "category": "e74", "text": "What's my E-7-4 score?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E02", "category": "e74", "text": "Can I apply for the E-7-4 visa now?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E03", "category": "e74", "text": "What can I do to raise my E-7-4 score?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "R01", "category": "remit_card", "text": "Send 500,000 won to my mom", "history": [], "expectedTools": ["get_remittance_recipients", "quote_remittance"]}
+  ]
+}

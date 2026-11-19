@@ -1080,3 +1080,60 @@ def test_fx_summary_card_is_not_number_evidence_for_remittance_rows() -> None:
     }
     EVAL.score(row)
     assert "1420.5751 KRW" in row["numberCheck"]["unsupported"]
+
+
+def test_fx_rows_get_direction_and_forbidden_checks() -> None:
+    # 환율 문항(#101): fxCheck(방향·예측 권유)와 금지 표현을 채점하고 요약에 적는다.
+    content = {
+        "currencies": [
+            {
+                "currency": "PHP",
+                "unit": 1,
+                "rate": 20.984,
+                "periodAverages": [
+                    {"period": "3M", "average": 21.5431, "currentVsAverage": "LOWER"}
+                ],
+                "insufficientDataPeriods": [],
+            }
+        ]
+    }
+    row: dict[str, Any] = {
+        "variant": "v4.4",
+        "questionId": "FX05",
+        "category": "fx",
+        "repeat": 1,
+        "answer": "1 PHP = 20.984 KRW, higher than the 3-month average. It will rise soon.",
+        "toolResult": EVAL.tool_context(_settings(), 1, "fake"),
+        "contextTexts": ["Is the peso cheaper than usual right now?"],
+        "expectedTools": ["fx_rate_summary"],
+        "tools": [{"toolName": "fx_rate_summary"}],
+        "blocks": [{"type": "FX_SUMMARY_CARD"}],
+        "fxTools": [{"toolName": "fx_rate_summary", "content": content}],
+    }
+    EVAL.score(row)
+    assert row["fxCheck"]["direction"]["mismatches"] == 1
+    assert [h["kind"] for h in row["forbidden"]["hits"]] == ["forecast"]
+    lines = EVAL.fx_summary_lines([row])
+    assert lines[0].startswith("- 환율 문항 1회: fx_rate_summary 호출 1/1, FX_SUMMARY_CARD 1/1")
+    assert "불일치 1" in lines[1]
+    assert lines[2] == "- 금지 표현(부정문 제외): realtime 0, forecast 1, preferential 0"
+    assert lines[3].startswith("  - FX05#1 forecast: It will rise soon")
+    assert lines[4] == "- 카드가 나온 회차: FX_SUMMARY_CARD 1"
+    # 환율 문항이 아니고 fx_rate_summary도 없으면 fxCheck를 만들지 않는다.
+    row.update(category="finance", fxTools=[], answer="Your spare money is 0 won.")
+    EVAL.score(row)
+    assert "fxCheck" not in row
+    assert row["forbidden"] == {"hits": [], "negated": []}
+
+
+def test_v44_question_set_expected_tools() -> None:
+    # v4.4 전환 측정 문항(#101): 환율은 v4.4에서 fx_rate_summary, v4.2에서 get_fx_rate.
+    spec = EVAL.load_questions(EVAL.QUESTION_SETS["v44"])
+    by_id = {q["id"]: q for q in spec["questions"]}
+    fx = [q for q in spec["questions"] if q["category"] == "fx"]
+    assert len(fx) == 12
+    for q in fx:
+        assert EVAL.expected_tools(q, "v4.4") == ["fx_rate_summary"]
+        assert EVAL.expected_tools(q, "v4.2") == ["get_fx_rate"]
+    assert EVAL.expected_tools(by_id["E01"], "v4.4") == ["calculate_e74_score"]
+    assert by_id["R01"]["text"] == "Send 500,000 won to my mom"

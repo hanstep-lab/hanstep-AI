@@ -68,6 +68,7 @@ from pathlib import Path
 from typing import Any
 
 import _bootstrap  # noqa: F401
+import _fx_check
 import _product_check
 import httpx
 
@@ -94,11 +95,14 @@ REMIT_QUESTIONS = AI_ROOT / "specs" / "chat" / "remit_questions_v1.json"
 PRODUCT_QUESTIONS = AI_ROOT / "specs" / "chat" / "product_questions_v1.json"
 # 금융 정책 RAG(#88) 기준선: 해외송금 규정 질문. 답변 채점은 scripts/finance_policy_review.py.
 POLICY_QUESTIONS = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json"
+# 프롬프트 v4.4 전환 측정(#101): 환율 진단(FX)·E-7-4 점수(E)·송금 카드(R) 문항. eval과 같은 형식.
+V44_QUESTIONS = AI_ROOT / "specs" / "chat" / "v44_questions_v1.json"
 QUESTION_SETS = {
     "eval": QUESTIONS,
     "remit": REMIT_QUESTIONS,
     "product": PRODUCT_QUESTIONS,
     "policy": POLICY_QUESTIONS,
+    "v44": V44_QUESTIONS,
 }
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
 PROMPT_BASE = {
@@ -1131,6 +1135,16 @@ def score(row: dict[str, Any]) -> None:
         fx_results=fx_results,
     )
     row["numberCheck"] = check.to_json()
+    if fx_results or row.get("category") == "fx":
+        # 환율 진단 답변(#91): 기간 평균과의 방향, 예측·권유 문장(scripts/_fx_check.py).
+        row["fxCheck"] = {
+            "direction": _fx_check.direction_check(answer, fx_results),
+            "advice": _fx_check.advice_sentences(answer),
+        }
+    else:
+        row.pop("fxCheck", None)
+    # 금지 표현(실시간·환율 예측·근거 없는 우대율, #101)은 모든 답변에서 본다.
+    row["forbidden"] = _fx_check.forbidden_phrases(answer)
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
     called = sorted({t.get("toolName") for t in row.get("tools", [])})
@@ -1318,6 +1332,7 @@ def render_summary(
                     "no_value": "값 없음",
                 }[check["verdict"]]
                 out.append(f"  - {r['questionId']} #{r['repeat']}: {detail}")
+        out += fx_summary_lines(mine)
         out += source_split_table(mine)
         out += _product_check.summary_lines(mine)
         out += _product_check.tool_summary_lines(mine)
@@ -1341,6 +1356,49 @@ def render_summary(
     elif any(is_graded(r) and not r["warmup"] for r in rows):
         out += ["", "판단형 답변 전문은 요약 .md 파일에만 남긴다."]
     return "\n".join(out) + "\n"
+
+
+def row_block_types(row: dict[str, Any]) -> list[str]:
+    """이 행(송금 2턴이면 두 턴)의 done.blocks 종류."""
+    follow = row.get("followUp") or {}
+    blocks = [*(row.get("blocks") or []), *(follow.get("blocks") or [])]
+    return [str(b.get("type")) for b in blocks]
+
+
+def fx_summary_lines(mine: list[dict[str, Any]]) -> list[str]:
+    """환율 문항(category fx)의 도구·카드·방향, 모든 행의 금지 표현과 카드 종류(#101)."""
+    out: list[str] = []
+    fx_rows = [r for r in mine if r.get("category") == "fx"]
+    if fx_rows:
+        n = len(fx_rows)
+        called = sum(
+            1 for r in fx_rows if any(t.get("toolName") == FX_RATE_SUMMARY for t in r["tools"])
+        )
+        legacy = sum(
+            1 for r in fx_rows if any(t.get("toolName") == "get_fx_rate" for t in r["tools"])
+        )
+        cards = sum(1 for r in fx_rows if FX_SUMMARY_CARD in row_block_types(r))
+        clean = sum(1 for r in fx_rows if not r["numberCheck"]["unsupported"])
+        direction = [(r.get("fxCheck") or {}).get("direction") or {} for r in fx_rows]
+        advice = [s for r in fx_rows for s in (r.get("fxCheck") or {}).get("advice") or []]
+        out += [
+            f"- 환율 문항 {n}회: fx_rate_summary 호출 {called}/{n}, FX_SUMMARY_CARD {cards}/{n}, "
+            f"get_fx_rate 호출 {legacy}/{n}, 근거 없는 숫자 없음 {clean}/{n}",
+            f"- 환율 방향: 불일치 {sum(d.get('mismatches', 0) for d in direction)}, "
+            f"일치 {sum(d.get('matches', 0) for d in direction)}, "
+            f"방향 낱말 없음 {sum(d.get('noDirection', 0) for d in direction)}, "
+            f"예측·권유 자동 표시 {len(advice)}",
+        ]
+    hits = [(r, h) for r in mine for h in (r.get("forbidden") or {}).get("hits") or []]
+    kinds = {k: sum(1 for _, h in hits if h["kind"] == k) for k in _fx_check.FORBIDDEN_KINDS}
+    out.append("- 금지 표현(부정문 제외): " + ", ".join(f"{k} {v}" for k, v in kinds.items()))
+    out += [f"  - {r['questionId']}#{r['repeat']} {h['kind']}: {h['text']}" for r, h in hits]
+    types = [t for r in mine for t in set(row_block_types(r))]
+    if types:
+        out.append(
+            "- 카드가 나온 회차: " + ", ".join(f"{t} {types.count(t)}" for t in sorted(set(types)))
+        )
+    return out
 
 
 REMIT_OUTCOMES = {
@@ -1606,7 +1664,8 @@ def main(
         default="eval",
         help="eval: eval_questions_v1.json, remit: remit_questions_v1.json (prompt v3), "
         "product: product_questions_v1.json (product tool, #65), "
-        "policy: specs/rag/finance_policy_questions_v1.json (finance policy RAG, #88)",
+        "policy: specs/rag/finance_policy_questions_v1.json (finance policy RAG, #88), "
+        "v44: v44_questions_v1.json (FX summary, E-7-4 and remittance cards, #101)",
     )
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--warmup", type=int, default=0, help="calls per variant, not summarized")
