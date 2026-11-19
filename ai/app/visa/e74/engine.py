@@ -47,6 +47,7 @@ from app.visa.e74.rules import (
     select_rule_set,
 )
 from app.visa.e74.schemas import E74Profile, E74Scenario
+from app.visa.e74.texts import review_text
 
 BASE_CATEGORIES = (RuleCategory.BASE_INCOME, RuleCategory.BASE_KOREAN, RuleCategory.BASE_AGE)
 GATE_CATEGORIES = (RuleCategory.REQUIREMENT, RuleCategory.EXCLUSION)
@@ -324,7 +325,7 @@ def assess_e74(
         review_notes=(
             ReviewNote(
                 rule_code=None,
-                note=f"{as_of.isoformat()}에 적용할 승인된 규칙 버전이 없음(Q9)",
+                note=review_text("NO_APPROVED_RULES", date=as_of.isoformat()),
             ),
         ),
         score_gap=EMPTY_ANALYSIS.score_gap,
