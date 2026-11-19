@@ -898,6 +898,7 @@ def run_follow_up(
         "answer": "".join(result["deltas"]),
         "tools": result["tools"],
         "blocks": done.get("blocks"),
+        "remitTools": remit_tool_results(metrics),
         "usage": usage,
         "model": model,
         "costUsd": round(cost_usd(usage, model), 6),
@@ -1063,6 +1064,18 @@ def policy_tool_results(metrics: dict[str, Any] | None) -> list[dict[str, Any]]:
     ]
 
 
+def remit_tool_results(metrics: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """agent.metrics의 송금 견적 도구(quote_remittance) 측정 값(호출마다, #105).
+
+    인자와 LLM에 준 결과(content: 수수료·USD 송금 환율·출금 총액 등)가 있다. 숫자 검사 근거다.
+    """
+    return [
+        dict(tool)
+        for tool in (metrics or {}).get("tools") or []
+        if tool.get("toolName") == QUOTE_REMITTANCE
+    ]
+
+
 def fx_tool_results(metrics: dict[str, Any] | None) -> list[dict[str, Any]]:
     """agent.metrics의 환율 진단 도구(fx_rate_summary, #91) 측정 값(호출마다).
 
@@ -1115,6 +1128,12 @@ def score(row: dict[str, Any]) -> None:
                 b
                 for b in [*(row.get("blocks") or []), *(follow.get("blocks") or [])]
                 if b.get("type") != FX_SUMMARY_CARD
+            ),
+            # 견적이 LLM에 준 값(#105): 카드에 없는 USD 금액·1년 송금 횟수 등도 근거다.
+            *(
+                t["content"]
+                for t in [*(row.get("remitTools") or []), *(follow.get("remitTools") or [])]
+                if t.get("content")
             ),
         ]
     product_tool = row.get("productTool")
@@ -1932,6 +1951,7 @@ def main(
                 "productTool": product_tool_result(metrics),
                 "policyTools": policy_tool_results(metrics),
                 "fxTools": fx_tool_results(metrics),
+                "remitTools": remit_tool_results(metrics),
                 # Listed for a person to grade: judgment questions and humanGraded ones only
                 # (other calculation questions keep their conclusion in the spec, not here).
                 "expectedConclusion": (
