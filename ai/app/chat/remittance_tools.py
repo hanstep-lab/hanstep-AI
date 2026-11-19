@@ -9,6 +9,13 @@
 - LLM에는 isMock을 주지 않는다(금융 도구와 같은 원칙).
 - LLM에 주는 환율(get_fx_rate, quote_remittance의 appliedRate)에는 방향이 분명한 rateText
   ("1 PHP = 22.32 KRW")를 코드가 붙인다. 확인 카드 형식은 그대로다.
+- Spring 견적(INT-18)은 기본 상품(defaultProduct, 지금은 쏠편한) 하나를 기준으로 쓴다(#105).
+  - 수수료·환전 마진·출금 총액·우대율·USD 송금 환율·안내 코드는 Spring 값 그대로 쓰고, AI는
+    계산하지 않는다.
+  - LLM에는 영어 답변 안내(answerGuide)를 붙인다. 송금 환율은 1 USD = … KRW이고, PHP 환율은
+    참고 금액용이다.
+  - 카드에는 코드·숫자만 더한다(fees, rateSources). 한국어 출처 문구(sources)는 LLM에만 준다.
+  - 기본 상품이 보낼 수 없는 금액이면(available=false) 카드 없이 이유를 돌려준다.
 """
 
 from __future__ import annotations
@@ -78,12 +85,14 @@ TOOL_SCHEMAS: tuple[dict[str, Any], ...] = (
     {
         "name": QUOTE_REMITTANCE,
         "description": (
-            "Get a quote for sending money to one saved recipient: the KRW amount to send, the "
-            "amount the recipient receives and the applied rate. currency KRW means the user "
-            "sends `amount` won; the recipient's currency (e.g. PHP) means the recipient "
-            "receives `amount`. Does not send money: the user checks the confirmation card and "
-            "sends on the transfer screen. "
-            "appliedRate.rateText states the rate as '<unit> <currency> = <rate> KRW'."
+            "Get a quote for sending money to one saved recipient. currency KRW means `amount` "
+            "won leave the user's account in total, fees included; the recipient's currency "
+            "(e.g. PHP) means the recipient receives `amount`. The money is sent in USD: the "
+            "result has the USD amount, the remittance rate (1 USD = ... KRW), the fees, the "
+            "reference amount in the recipient's currency, notice codes and answerGuide. "
+            "Follow answerGuide when you reply. Does not send money: the user checks the "
+            "confirmation card and sends on the transfer screen. "
+            "Rates are stated as '<unit> <currency> = <rate> KRW' (rateText)."
         ),
         "input_schema": {
             "type": "object",
@@ -118,6 +127,17 @@ CurrencyCode = Annotated[str, Field(pattern=r"^[A-Z]{3}$")]
 Rate = Annotated[Decimal, Field(gt=0), PlainSerializer(float, return_type=float, when_used="json")]
 
 
+def _plain_number(value: Decimal) -> int | float:
+    """정수면 정수(70), 아니면 소수(370.81)로. Spring JSON과 같은 모양으로 낸다."""
+    return int(value) if value == value.to_integral_value() else float(value)
+
+
+# 퍼센트·USD 금액처럼 0일 수 있는 소수(Spring BigDecimal).
+Number = Annotated[
+    Decimal, PlainSerializer(_plain_number, return_type=int | float, when_used="json")
+]
+
+
 class Recipient(Contract):
     recipient_id: int = Field(ge=1)
     name_en: str = Field(min_length=1, max_length=100)
@@ -148,16 +168,99 @@ class Money(Contract):
     currency: CurrencyCode
 
 
+class QuoteRates(Contract):
+    """견적에 쓴 환율(1 외화 당 원). PHP 참고 환율이 없으면 php* 값이 모두 null이다."""
+
+    usd_base_rate: Rate
+    usd_rate_date: date
+    usd_source: str = Field(min_length=1)
+    php_ref_rate: Rate | None = None
+    php_rate_date: date | None = None
+    php_source: str | None = None
+    usd_php_ref_rate: Rate | None = None
+
+
+class QuoteSource(Contract):
+    """값 하나의 출처. title·approvalNo는 한국어라 LLM에만 주고 카드에는 넣지 않는다."""
+
+    item: str
+    title: str
+    approval_no: str | None = None
+    checked_on: date
+
+
+class ProductQuote(Contract):
+    """상품 하나의 견적(Spring RemittanceProductQuote). available=false면 금액 칸은 null."""
+
+    product: str = Field(min_length=1)
+    available: bool
+    unavailable_reason: str | None = None
+    send_amount_usd: Number | None = None
+    spread_pct: Number
+    preferential_pct: Number
+    # to_camel은 1y를 1Y로 바꾸므로 별칭을 직접 둔다.
+    remittance_count_1y: int | None = Field(default=None, alias="remittanceCount1y")
+    usd_applied_rate: Rate
+    krw_principal: int | None = None
+    fx_margin_krw: int | None = Field(
+        default=None, description="환전 마진(원). krwPrincipal에 이미 들어 있어 더하지 않는다"
+    )
+    send_fee_krw: int | None = None
+    telegraphic_fee_krw: int | None = None
+    fee_usd: Number | None = None
+    total_withdraw_krw: int | None = None
+    unused_krw: int | None = None
+    recipient_amount_usd: Number | None = None
+    recipient_amount_php_ref: Number | None = None
+    delivery_type: str
+    notices: tuple[str, ...]
+    sources: tuple[QuoteSource, ...]
+
+
 class Quote(Contract):
+    """Spring 견적(RemittanceQuoteResponse) 중 AI가 쓰는 값.
+
+    receiveAmount·appliedRate는 PHP 참고값이다. PHP 참고 환율이 없거나 기본 상품 견적이 없으면
+    null이다. defaultProduct·rates·quotes가 없는 견적(fixture)은 #105 전과 같이 다룬다.
+    """
+
     recipient_id: int = Field(ge=1)
     send_amount: Money
-    receive_amount: Money
-    applied_rate: AppliedRate
+    receive_amount: Money | None
+    applied_rate: AppliedRate | None
+    default_product: str | None = None
+    rates: QuoteRates | None = None
+    quotes: tuple[ProductQuote, ...] = ()
+
+    def product_quote(self) -> ProductQuote | None:
+        """기본 상품의 견적. 상품 견적이 없는 견적(fixture)이면 None."""
+        return next((q for q in self.quotes if q.product == self.default_product), None)
 
 
 TRANSFER_PATH = "/transfer"
 # LLM에 카드가 화면에 나간다는 것만 알린다(카드 내용은 견적 결과와 같다).
 CARD_NOTE = "A confirmation card with these amounts is shown to the user."
+
+
+class RemittanceFees(Contract):
+    """카드의 수수료·환율 값(코드·숫자만). 화면 문구는 앱이 화면 언어로 만든다."""
+
+    product: str
+    send_fee_krw: int | None
+    telegraphic_fee_krw: int | None
+    fee_usd: Number | None
+    fx_margin_krw: int | None
+    total_withdraw_krw: int | None
+    preferential_pct: Number
+    usd_applied_rate: Rate = Field(description="송금 환율(1 USD 당 원)")
+    notices: tuple[str, ...] = Field(description="안내 코드")
+
+
+class RateSources(Contract):
+    """환율 출처 코드. 앱이 코드로 문구를 고른다."""
+
+    usd: str = Field(description="USD 매매기준율 출처(예: KOREAEXIM)")
+    php: str | None = Field(description="PHP 참고 환율 출처(예: frankfurter-ecb). 없으면 null")
 
 
 class RemittanceConfirmBlock(Contract):
@@ -166,20 +269,47 @@ class RemittanceConfirmBlock(Contract):
     type: Literal["REMITTANCE_CONFIRM"] = "REMITTANCE_CONFIRM"
     recipient: Recipient
     send_amount: Money
-    receive_amount: Money
-    applied_rate: AppliedRate
+    receive_amount: Money | None = Field(description="PHP 참고 금액. PHP 참고 환율이 없으면 null")
+    applied_rate: AppliedRate | None = Field(
+        description="PHP 참고 환율(송금 환율 아님). PHP 참고 환율이 없으면 null"
+    )
     transfer_path: str = Field(description="송금 화면 경로. amount는 보낼 원화 금액")
+    fees: RemittanceFees | None = Field(
+        default=None, description="기본 상품 수수료·환율(#105). 상품 견적이 없는 fixture면 null"
+    )
+    rate_sources: RateSources | None = Field(
+        default=None, description="환율 출처 코드(#105). 상품 견적이 없는 fixture면 null"
+    )
 
 
-def confirm_block(recipient: Recipient, quote: Quote) -> dict[str, Any]:
+def confirm_block(
+    recipient: Recipient, quote: Quote, product: ProductQuote | None = None
+) -> dict[str, Any]:
     """견적 결과만으로 확인 카드를 만든다."""
     query = urlencode({"recipientId": recipient.recipient_id, "amount": quote.send_amount.amount})
+    fees = None
+    rate_sources = None
+    if product is not None and quote.rates is not None:
+        fees = RemittanceFees(
+            product=product.product,
+            send_fee_krw=product.send_fee_krw,
+            telegraphic_fee_krw=product.telegraphic_fee_krw,
+            fee_usd=product.fee_usd,
+            fx_margin_krw=product.fx_margin_krw,
+            total_withdraw_krw=product.total_withdraw_krw,
+            preferential_pct=product.preferential_pct,
+            usd_applied_rate=product.usd_applied_rate,
+            notices=product.notices,
+        )
+        rate_sources = RateSources(usd=quote.rates.usd_source, php=quote.rates.php_source)
     block = RemittanceConfirmBlock(
         recipient=recipient,
         send_amount=quote.send_amount,
         receive_amount=quote.receive_amount,
         applied_rate=quote.applied_rate,
         transfer_path=f"{TRANSFER_PATH}?{query}",
+        fees=fees,
+        rate_sources=rate_sources,
     )
     data: dict[str, Any] = block.model_dump(mode="json", by_alias=True)
     return data
@@ -333,6 +463,174 @@ def _rate_for_llm(rate: AppliedRate) -> dict[str, Any]:
     return {**_for_llm(rate), "rateText": rate_text(rate)}
 
 
+# --- 기본 상품 견적 → LLM(#105) ----------------------------------------------------------
+# 문구는 LLM 입력에만 쓴다(답변은 영어). 카드에는 코드만 싣고 앱이 화면 언어로 문구를 고른다.
+
+NOTICE_TEXTS = {
+    "INTERMEDIARY_FEE_MAY_APPLY": (
+        "Intermediary or receiving bank fees may be deducted; the amount is not known in advance."
+    ),
+    "LOCAL_PAYOUT_RATE_BY_AGENT": "The payout agent sets the local payout rate.",
+    "LOCAL_PAYOUT_RATE_DIFFERS": (
+        "The recipient's bank converts the USD at its own rate, so the local amount is only a "
+        "reference."
+    ),
+    "PHP_REF_RATE_UNAVAILABLE": "There is no reference rate for the local currency.",
+    "FEE_TABLE_UNAVAILABLE": "The fee table for this product is not available.",
+    "AMOUNT_CAPPED_AT_FEE_BOUNDARY": (
+        "The amount sent stops at the fee boundary to keep the lower fee; unusedKrw stays in the "
+        "user's account."
+    ),
+    "FOREIGN_EXCHANGE_BANK_DESIGNATION_REQUIRED": (
+        "Overseas remittances need a designated foreign exchange bank."
+    ),
+}
+UNAVAILABLE_TEXTS = {
+    "AMOUNT_TOO_SMALL": "The amount is too small: nothing is left to send after the fees.",
+    "LIMIT_EXCEEDED": "The amount is over this product's per-transfer limit.",
+    "FEE_TABLE_UNAVAILABLE": "This product's fee table is not available now.",
+}
+# 출처(item) → 답변에 쓸 짧은 영어 이름. 한국어 문서 제목·심사필 번호는 답변에 옮기지 않는다.
+SOURCE_NAMES = {
+    "usdBaseRate": "the Export-Import Bank of Korea base rate",
+    "spreadPct": "Shinhan Bank's published exchange rate table",
+    "preferentialPct": "Shinhan's published fee table",
+    "sendFeeKrw": "Shinhan's published fee table",
+    "telegraphicFeeKrw": "Shinhan's published fee table",
+    "feeUsd": "Shinhan's published product terms",
+    "perTransferLimitUsd": "Shinhan's published product terms",
+    "remittanceCount1y": "the user's remittance history",
+    "phpRefRate": "the ECB reference rate",
+}
+INTERMEDIARY_FEE = "INTERMEDIARY_FEE_MAY_APPLY"
+
+
+def _number_text(value: Decimal) -> str:
+    """금액·환율을 답변에 쓰는 모양으로: 1,334.91 / 5,000 / 3.5."""
+    return f"{value.normalize():,f}"
+
+
+def _from_sample(product: ProductQuote) -> bool:
+    """1년 송금 횟수가 Mock 거래내역에서 왔는지(출처 문구에 Mock이 있다)."""
+    return any(s.item == "remittanceCount1y" and "mock" in s.title.lower() for s in product.sources)
+
+
+def _answer_guide(quote: Quote, product: ProductQuote) -> list[str]:
+    """견적 하나에 맞춘 영어 답변 안내. 숫자는 모두 이 견적 값이다."""
+    usd_rate = f"1 USD = {_number_text(product.usd_applied_rate)} KRW"
+    guide = [
+        f"KRW {quote.send_amount.amount:,} is the total that leaves the user's account, fees "
+        "included. Say that the fees come out of it.",
+    ]
+    fees = []
+    if product.send_fee_krw:
+        fees.append(f"a KRW {product.send_fee_krw:,} sending fee")
+    if product.telegraphic_fee_krw:
+        fees.append(f"a KRW {product.telegraphic_fee_krw:,} telegraphic fee")
+    if product.fee_usd:
+        fees.append(f"a USD {_number_text(product.fee_usd)} fee")
+    if fees:
+        guide.append(f"Name each fee with its amount: {', '.join(fees)}.")
+    if product.fx_margin_krw:
+        guide.append(
+            f"Say the exchange margin is about KRW {product.fx_margin_krw:,}. It is built into "
+            "the remittance rate, not an extra charge."
+        )
+    guide.append(
+        f"The money is sent in USD at the remittance rate {usd_rate}. This is the only "
+        "remittance rate."
+    )
+    if quote.receive_amount is not None and quote.applied_rate is not None:
+        received = quote.receive_amount
+        guide.append(
+            f"Say the recipient gets about {received.amount:,} {received.currency} (reference), "
+            f"because the recipient's bank converts the USD at its own rate. "
+            f"{rate_text(quote.applied_rate)} is only a reference rate for that amount: never "
+            "call it the remittance rate or the applied rate."
+        )
+    elif product.recipient_amount_usd is not None:
+        guide.append(
+            "There is no reference amount in the recipient's currency. Say the recipient gets "
+            f"USD {_number_text(product.recipient_amount_usd)} before intermediary bank fees."
+        )
+    if INTERMEDIARY_FEE in product.notices:
+        guide.append("Say that intermediary bank fees may also apply, without an amount.")
+    if product.unused_krw:
+        guide.append(f"Say that KRW {product.unused_krw:,} is not sent and stays in the account.")
+    if product.preferential_pct:
+        basis = (
+            "the user's sample remittance history (an estimate)"
+            if _from_sample(product)
+            else "the user's remittance history"
+        )
+        guide.append(
+            f"If you mention the {_number_text(product.preferential_pct)}% preferential rate, "
+            f"say it is based on {basis}. Do not mention any other discount."
+        )
+    guide += [
+        "If you mention a source, name it briefly in English with sourceName (for example, "
+        "based on Shinhan's published fee table). Never copy source titles or approval numbers.",
+        "Do not call any rate live or real-time. These amounts are estimates from published "
+        "rates and fees.",
+    ]
+    return guide
+
+
+def _quote_for_llm(recipient: Recipient, quote: Quote, product: ProductQuote) -> dict[str, Any]:
+    """기본 상품 견적 → LLM 입력. 값은 Spring 그대로이고, rateText와 안내만 코드가 붙인다."""
+    assert quote.rates is not None
+    data = _for_llm(product)
+    reference = None
+    if quote.receive_amount is not None and quote.applied_rate is not None:
+        reference = {
+            "amount": quote.receive_amount.amount,
+            "currency": quote.receive_amount.currency,
+            "rate": {**_rate_for_llm(quote.applied_rate), "source": quote.rates.php_source},
+            "note": "Reference only, not the amount the recipient is sure to get.",
+        }
+    return {
+        "recipient": _for_llm(recipient),
+        "sendAmount": _for_llm(quote.send_amount),
+        "product": product.product,
+        "deliveryType": product.delivery_type,
+        "sendCurrency": "USD",
+        "sendAmountUsd": data["sendAmountUsd"],
+        "remittanceRate": {
+            "rate": data["usdAppliedRate"],
+            "rateText": f"1 USD = {_number_text(product.usd_applied_rate)} KRW",
+        },
+        "usdBaseRate": {
+            "rate": _for_llm(quote.rates)["usdBaseRate"],
+            "source": quote.rates.usd_source,
+            "asOf": quote.rates.usd_rate_date.isoformat(),
+        },
+        "fees": {
+            key: data[key]
+            for key in (
+                "sendFeeKrw",
+                "telegraphicFeeKrw",
+                "feeUsd",
+                "fxMarginKrw",
+                "totalWithdrawKrw",
+                "unusedKrw",
+            )
+        },
+        "preferentialPct": data["preferentialPct"],
+        "remittanceCount1y": data["remittanceCount1y"],
+        "recipientAmountUsd": data["recipientAmountUsd"],
+        "referenceAmount": reference,
+        "notices": [
+            {"code": code, "text": NOTICE_TEXTS.get(code, code)} for code in product.notices
+        ],
+        "sources": [
+            {**s, "sourceName": SOURCE_NAMES.get(s["item"], "Shinhan's published information")}
+            for s in data["sources"]
+        ],
+        "answerGuide": _answer_guide(quote, product),
+        "note": CARD_NOTE,
+    }
+
+
 # Spring 4xx 중 인자를 고치거나 사용자에게 물어야 하는 것: LLM에 알려 줄 문장.
 REJECTIONS = {
     "RECIPIENT_NOT_FOUND": (
@@ -449,22 +747,61 @@ class RemittanceTools:
         )
         if not _quote_matches(quote, recipient, parsed):
             return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
-        content = {
-            "recipient": _for_llm(recipient),
-            **_for_llm(quote),
-            "appliedRate": _rate_for_llm(quote.applied_rate),
-            "note": CARD_NOTE,
-        }
-        return outcome("SUCCEEDED", content, blocks=[confirm_block(recipient, quote)])
+        product = quote.product_quote()
+        if product is None and quote.default_product is not None:
+            return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
+        if product is None:
+            # 상품 견적이 없는 견적(fixture): #105 전과 같은 모양.
+            if quote.receive_amount is None or quote.applied_rate is None:
+                return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
+            content = {
+                "recipient": _for_llm(recipient),
+                "recipientId": quote.recipient_id,
+                "sendAmount": _for_llm(quote.send_amount),
+                "receiveAmount": _for_llm(quote.receive_amount),
+                "appliedRate": _rate_for_llm(quote.applied_rate),
+                "note": CARD_NOTE,
+            }
+            return outcome("SUCCEEDED", content, blocks=[confirm_block(recipient, quote)])
+        if not product.available:
+            reason = product.unavailable_reason or "UNAVAILABLE"
+            content = {
+                "available": False,
+                "product": product.product,
+                "sendAmount": _for_llm(quote.send_amount),
+                "unavailableReason": reason,
+                "reason": UNAVAILABLE_TEXTS.get(reason, "This amount cannot be sent."),
+            }
+            return outcome(
+                "REJECTED",
+                content,
+                error_code="QUOTE_UNAVAILABLE",
+                measurement={"arguments": parsed.model_dump(), "content": content},
+            )
+        if quote.rates is None:
+            return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
+        content = _quote_for_llm(recipient, quote, product)
+        return outcome(
+            "SUCCEEDED",
+            content,
+            blocks=[confirm_block(recipient, quote, product)],
+            # 측정(evaluate_chat)의 숫자 검사 근거: LLM에 준 견적 값.
+            measurement={"arguments": parsed.model_dump(), "content": content},
+        )
 
 
 def _quote_matches(quote: Quote, recipient: Recipient, parsed: QuoteInput) -> bool:
-    """Spring 견적이 요청한 받는 분·통화·금액과 맞는지(다르면 카드를 내지 않는다)."""
+    """Spring 견적이 요청한 받는 분·통화·금액과 맞는지(다르면 카드를 내지 않는다).
+
+    receiveAmount·appliedRate는 PHP 참고 환율이 없거나 기본 상품이 보낼 수 없을 때 null이다.
+    있을 때만 통화를 본다.
+    """
     asked = quote.send_amount if parsed.currency == SEND_CURRENCY else quote.receive_amount
     return (
         quote.recipient_id == recipient.recipient_id
         and quote.send_amount.currency == SEND_CURRENCY
-        and quote.receive_amount.currency == recipient.currency
-        and quote.applied_rate.currency == recipient.currency
+        and (quote.receive_amount is None or quote.receive_amount.currency == recipient.currency)
+        and (quote.applied_rate is None or quote.applied_rate.currency == recipient.currency)
+        and asked is not None
         and asked.amount == parsed.amount
     )
