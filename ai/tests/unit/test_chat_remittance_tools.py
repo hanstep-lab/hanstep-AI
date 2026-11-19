@@ -128,6 +128,9 @@ def test_quote_from_fixture(arguments: dict[str, Any], send: int, receive: int) 
             "receiveAmount": {"amount": receive, "currency": "PHP"},
             "appliedRate": RATE,
             "transferPath": f"/transfer?recipientId={arguments['recipientId']}&amount={send}",
+            # fixture 견적에는 상품 견적이 없어 수수료·환율 출처가 없다(#105, 운영은 늘 있음).
+            "fees": None,
+            "rateSources": None,
         }
     ]
 
@@ -367,8 +370,11 @@ def test_rate_text_format(currency: str, unit: int, rate: str, text: str) -> Non
 def test_quote_description_explains_rate_text() -> None:
     (quote,) = [s for s in _fixture_tools().schemas if s["name"] == QUOTE_REMITTANCE]
     assert quote["description"].endswith(
-        "appliedRate.rateText states the rate as '<unit> <currency> = <rate> KRW'."
+        "Rates are stated as '<unit> <currency> = <rate> KRW' (rateText)."
     )
+    # #105: 송금은 USD로 나가고, 답변은 견적의 answerGuide를 따른다.
+    assert "remittance rate (1 USD = ... KRW)" in quote["description"]
+    assert "Follow answerGuide" in quote["description"]
 
 
 def test_card_keeps_its_rate_without_rate_text() -> None:

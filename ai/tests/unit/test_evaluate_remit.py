@@ -314,6 +314,18 @@ def test_remittance_tool_numbers_are_supported_in_the_eval_set() -> None:
     assert row["numberCheck"]["unsupported"] == ["22,401", "22.32 KRW"]
 
 
+def test_quote_tool_content_is_number_evidence() -> None:
+    # 견적이 LLM에 준 값(#105, agent.metrics의 quote_remittance content)도 근거다.
+    # 카드에 없는 USD 금액·1년 송금 횟수가 여기서만 나온다.
+    answer = f"{O03_ANSWER} You send USD 370.81 at 1 USD = 1,334.91 KRW (23 remittances)."
+    content = {"sendAmountUsd": 370.81, "remittanceRate": {"rate": 1334.91}, "count": 23}
+    tools = ["get_remittance_recipients", "quote_remittance"]
+    without = _eval_row(tools, answer=answer)
+    assert without["numberCheck"]["unsupported"] == ["370.81", "1,334.91 KRW", "23"]
+    row = _eval_row(tools, answer=answer, remitTools=[{"content": content}])
+    assert row["numberCheck"]["unsupported"] == []
+
+
 def test_saved_remittance_data_is_used_before_the_fixture() -> None:
     other = {"recipients": [], "fxRates": [{"currency": "PHP", "rate": 23.5}]}
     row = _eval_row(["get_fx_rate"], remitContext=other)
