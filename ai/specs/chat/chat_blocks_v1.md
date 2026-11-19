@@ -17,7 +17,7 @@
 |---|---|---|---|
 | `E74_SCORE_CARD` | `calculate_e74_score` SUCCEEDED. 프롬프트 v2 이상. Spring이 설정돼 있어야 한다(fake 모드에서는 도구가 FAILED라 안 나옴) | `assessmentId` int · `status` enum · `total` int · `potentialTotal` int · `required` int\|null · `ruleVersion` string\|null · `ruleStatus` enum\|null · `isScenario` bool | `E74ScoreCard` |
 | `MISSING_INPUTS` | 같은 E-7-4 결과에 `missingInputs`가 1개 이상이면 `E74_SCORE_CARD` 바로 뒤 | `fields`(1개 이상) `{field: string, question: string}`. `question`은 **영어**(#103). null 없음 | `MissingInputsCard`(`question` 그대로, 3개까지) |
-| `REMITTANCE_CONFIRM` | `quote_remittance` SUCCEEDED이고 견적이 요청과 맞을 때. 프롬프트 v3 이상. fake 모드에서도 fixture로 나온다 | `recipient`{…} · `sendAmount` · `receiveAmount` · `appliedRate`{…} · `transferPath`. null 없음 | `RemittanceConfirmCard` |
+| `REMITTANCE_CONFIRM` | `quote_remittance` SUCCEEDED이고 견적이 요청과 맞을 때. 기본 상품이 보낼 수 없는 금액이면 없다. 프롬프트 v3 이상. fake 모드에서도 fixture로 나온다 | `recipient`{…} · `sendAmount` · `receiveAmount`\|null · `appliedRate`{…}\|null · `transferPath` · `fees`{…} · `rateSources`{…}(#105, 코드·숫자만) | `RemittanceConfirmCard`(`fees`·`rateSources`는 아직 안 씀) |
 | `FX_SUMMARY_CARD` | `fx_rate_summary` SUCCEEDED이고 통화가 1개 이상. 프롬프트 v4.4만. 한 턴에 1개(통화별로 합침) | `currencies`(1개 이상) · `unavailableCurrencies`. 3.5절 | `FxSummaryCard` |
 | `VISA_ROADMAP_LINK` | **채팅에서 안 나온다.** 형식만 있다(`get_visa_roadmap`이 채팅 도구가 아님) | `roadmapId` int · `stepCount` int · `applicableFrom` date\|null · `ruleStatus` enum\|null | 모르는 type이라 버린다 |
 
@@ -46,7 +46,7 @@
 | agent.done에 `blocks or None` | `ai/app/chat/stream.py:272` |
 | E-7-4 카드·재질의 카드 생성 | `ai/app/visa/tools.py:243-280`(모델), `_missing_block`·`_card_question`, `e74_records` |
 | 채팅 비자 도구 → blocks 전달 | `ai/app/chat/visa_tools.py:265-282`(`_succeeded`) |
-| 송금 확인 카드 생성 | `ai/app/chat/remittance_tools.py:163-185`(모델·`confirm_block`), `:458`, `:461`(`_quote_matches`) |
+| 송금 확인 카드 생성 | `ai/app/chat/remittance_tools.py` `RemittanceConfirmBlock`·`confirm_block`, `RemittanceTools._quote`, `_quote_matches`(#105에서 줄이 바뀌어 이름으로 적음) |
 | 환율 진단 카드 생성·합치기 | `ai/app/chat/fx_tools.py:188-276`(모델·`summary_block`·`merge_fx_card`), `:336` |
 | 로드맵 카드(채팅 미연결) | `ai/app/visa/tools.py:257-264`, `roadmap_records`. 채팅 도구 목록 `ai/app/chat/visa_tools.py:54`에 `get_visa_roadmap` 없음 |
 | 프롬프트 버전별 도구 연결 | `ai/app/api/routes/chat.py:60-74`, `:227-278` |
@@ -153,13 +153,15 @@ Spring 비자 API(E-7-4 평가 `result`, 로드맵 `roadmap`)는 AI 엔진 결�
 
 ### 3.3 `REMITTANCE_CONFIRM` — 송금 확인 카드
 
-- 만들어지는 곳: `ai/app/chat/remittance_tools.py:163-185`, `:458`. 계약 문서 `ai/specs/chat/remittance_contract_v1.md` "확인 카드(chat.done blocks)" 절
+- 만들어지는 곳: `ai/app/chat/remittance_tools.py` `RemittanceConfirmBlock`·`confirm_block`, `RemittanceTools._quote`. 계약 문서 `ai/specs/chat/remittance_contract_v1.md` "확인 카드(chat.done blocks)" 절
 - 조건: `quote_remittance` SUCCEEDED. 다음이면 카드가 없다.
   - 받는 분이 사용자의 저장된 받는 분이 아님(REJECTED `UNKNOWN_RECIPIENT`)
   - 통화가 KRW나 받는 분 통화가 아님(REJECTED `UNSUPPORTED_CURRENCY`)
   - Spring 견적의 받는 분·통화·금액이 요청과 다름(FAILED `INVALID_RESPONSE`, `_quote_matches`)
+  - 기본 상품(`defaultProduct`, 지금은 쏠편한)이 보낼 수 없는 금액(REJECTED `QUOTE_UNAVAILABLE`, 예: 4,700원 `AMOUNT_TOO_SMALL`)
   - Spring 오류·시간 초과
 - 송금을 실행하지 않는다. 사용자는 카드에서 송금 화면으로 가서 확인하고 보낸다.
+- **카드에는 코드·숫자만 넣는다(#105).** 제목·항목 이름·안내 문구·출처 문구는 앱이 화면 언어로 만든다. 한국어로만 있는 출처 제목·심사필 번호는 카드에 없다(LLM 입력에만 있다).
 
 | 필드 | 타입 | null | 뜻 |
 |---|---|---|---|
@@ -173,18 +175,35 @@ Spring 비자 API(E-7-4 평가 `result`, 로드맵 `roadmap`)는 AI 엔진 결�
 | `recipient.accountLast4` | string (숫자 4자리) | 아니오 | 계좌 끝 4자리(문자열) |
 | `sendAmount.amount` | int (≥0) | 아니오 | 보낼 금액. 단위: **원**(KRW 정수) |
 | `sendAmount.currency` | `"KRW"` | 아니오 | 항상 KRW |
-| `receiveAmount.amount` | int (≥0) | 아니오 | 받을 금액. 단위: **받는 분 통화의 정수**(소수 없음, 예: 22401 PHP) |
+| `receiveAmount` | 객체 | **예**(#105) | PHP 참고 금액. PHP 참고 환율이 없을 때만 null |
+| `receiveAmount.amount` | int (≥0) | 아니오 | 받을 금액(**참고값**, 현지 환율로 바뀜). 단위: **받는 분 통화의 정수**(소수 없음, 예: 23587 PHP) |
 | `receiveAmount.currency` | string (3자) | 아니오 | `recipient.currency`와 같음 |
+| `appliedRate` | 객체 | **예**(#105) | PHP **참고** 환율(송금 환율 아님). PHP 참고 환율이 없을 때만 null |
 | `appliedRate.currency` | string (3자) | 아니오 | |
 | `appliedRate.unit` | int (≥1) | 아니오 | `unit` 외화 = `rate` 원. 보통 1, VND 같은 통화는 100일 수 있음 |
 | `appliedRate.rate` | number (>0, 소수) | 아니오 | `unit` 외화당 원화. 예: 22.32 → "1 PHP = 22.32 KRW" |
-| `appliedRate.sourceLabel` | string (1~100자) | 아니오 | 환율 출처 문구(예: `ECB 기준환율 기반 참고값`). Spring이 준 한국어 문자열 |
+| `appliedRate.sourceLabel` | string (1~100자) | 아니오 | 환율 출처 문구(예: `ECB 기준환율 기반 참고값`). Spring이 준 한국어 문자열. 하위 호환으로 둔다. **앱은 이 값 대신 `rateSources`로 문구를 만든다** |
 | `appliedRate.asOf` | date `YYYY-MM-DD` | 아니오 | 환율 기준일 |
 | `appliedRate.isMock` | bool | 아니오 | true면 참고·데모 값. LLM에는 주지 않고 카드에만 실린다 |
 | `transferPath` | string | 아니오 | 송금 화면 경로 `/transfer?recipientId={id}&amount={sendAmount.amount}`. `amount`는 보낼 원화 금액 |
+| `fees` | 객체 | 예(fake 모드만) | 기본 상품 수수료·환율(#105). Spring 값 그대로 |
+| `fees.product` | `SOL_EASY` \| `SOL_FAST` | 아니오 | 상품 코드 |
+| `fees.sendFeeKrw` | int | 예(쏠빠른) | 송금수수료(원). 쏠편한은 USD 5,000 이하 0원 |
+| `fees.telegraphicFeeKrw` | int | 예(쏠빠른) | 전신료(원) |
+| `fees.feeUsd` | number | 예(쏠편한) | 송금수수료(USD). 쏠빠른 3.5 |
+| `fees.fxMarginKrw` | int | 아니오 | 환전 마진(원). 송금 환율에 이미 들어 있어 출금 총액에 더하지 않는다 |
+| `fees.totalWithdrawKrw` | int | 아니오 | 출금 총액(원). `sendAmount.amount`를 넘지 않는다 |
+| `fees.preferentialPct` | number | 아니오 | 환율 우대율(%). 쏠빠른 0 |
+| `fees.usdAppliedRate` | number | 아니오 | **송금 환율**(1 USD 당 원). 송금은 USD로 나간다 |
+| `fees.notices` | string[] | 아니오 | 안내 코드. 목록은 `remittance_contract_v1.md` 확인 카드 절 |
+| `rateSources` | 객체 | 예(fake 모드만) | 환율 출처 코드(#105). 앱이 코드로 문구를 고른다 |
+| `rateSources.usd` | string(`KOREAEXIM`) | 아니오 | USD 매매기준율 출처 |
+| `rateSources.php` | string(`frankfurter-ecb`, 로컬 Mock만 `MOCK`) | 예 | PHP 참고 환율 출처. PHP 참고 환율이 없으면 null |
 
 - 숫자: 견적 결과 그대로다. 운영에서는 Spring이 계산하고 AI는 요청과 맞는지만 확인한다. fake 모드는 fixture 규칙(보낼 KRW → 받을 금액 내림, 받을 금액 → 보낼 KRW 올림)으로 계산한다.
-- LLM에 주는 `rateText`("1 PHP = 22.32 KRW")는 카드에 없다. 화면에서 `unit`·`currency`·`rate`로 만든다.
+- LLM에 주는 `rateText`("1 PHP = 22.32 KRW", "1 USD = 1,334.91 KRW")는 카드에 없다. 화면에서 `unit`·`currency`·`rate`, `fees.usdAppliedRate`로 만든다.
+- 화면 용어는 TR-001 송금 화면(FE #33)과 맞춘다: 받는 금액은 참고(reference), 송금 환율은 1 USD = … KRW, PHP 환율은 참고 환율.
+- fake 모드(fixture 견적)는 상품 견적이 없어 `fees`·`rateSources`가 null이다. 운영(Spring)에서는 늘 있다.
 - 개인정보: 받는 분 영문 이름·은행·계좌 끝 4자리가 카드와 `blocks_json`에 들어간다(전체 계좌번호는 없음).
 
 ### 3.4 `VISA_ROADMAP_LINK` — 로드맵 화면 이동 카드 (채팅에서 안 나옴)
@@ -281,7 +300,22 @@ Reyes 데모 프로필(`ai/tests/fixtures/e74/profiles/P05_reyes.json`)을 기�
 
 ### 4.3 `REMITTANCE_CONFIRM`
 
-INT-05 라우트를 fake 모드로 호출한 실제 `agent.done` 원문(`CHAT_PROMPT_VERSION=v4.1`, 질문 "send 500k won to mama pls", 송금 fixture 값). blocks는 v4.4에서도 같다.
+운영 실제 견적(Reyes, 500,000원, 2026-11-19, `tests/fixtures/chat/remittance_quote_reyes_500000.json`)으로 만든 카드(#105):
+
+```json
+{
+  "type": "REMITTANCE_CONFIRM",
+  "recipient": {"recipientId": 1, "nameEn": "LORNA REYES", "relationship": "MOTHER", "countryCode": "PH", "currency": "PHP", "bankName": "BDO", "accountLast4": "5566"},
+  "sendAmount": {"amount": 500000, "currency": "KRW"},
+  "receiveAmount": {"amount": 23587, "currency": "PHP"},
+  "appliedRate": {"currency": "PHP", "unit": 1, "rate": 20.926, "sourceLabel": "ECB 기준환율 기반 참고값", "asOf": "2026-11-18", "isMock": false},
+  "transferPath": "/transfer?recipientId=1&amount=500000",
+  "fees": {"product": "SOL_EASY", "sendFeeKrw": 0, "telegraphicFeeKrw": 5000, "feeUsd": null, "fxMarginKrw": 1413, "totalWithdrawKrw": 499998, "preferentialPct": 70, "usdAppliedRate": 1334.91, "notices": ["INTERMEDIARY_FEE_MAY_APPLY", "LOCAL_PAYOUT_RATE_DIFFERS", "FOREIGN_EXCHANGE_BANK_DESIGNATION_REQUIRED"]},
+  "rateSources": {"usd": "KOREAEXIM", "php": "frankfurter-ecb"}
+}
+```
+
+아래는 #105 전에 INT-05 라우트를 fake 모드로 호출한 `agent.done` 원문이다(`CHAT_PROMPT_VERSION=v4.1`, 질문 "send 500k won to mama pls", 송금 fixture 값). #105 뒤 fake 모드 카드에는 `"fees": null, "rateSources": null`이 더 붙는다.
 
 ```
 event: agent.done
@@ -405,14 +439,15 @@ AI `agent.done`과 Spring `chat.done`의 차이
 |---|---|---|
 | `E74_SCORE_CARD` | `E74ScoreCard` | `status`, `total`, `required`, `potentialTotal`, `isScenario`(`ruleStatus`·`ruleVersion`은 안 씀). 버튼 `visa_tab` |
 | `MISSING_INPUTS` | `MissingInputsCard` | `fields[].question`을 그대로(`MissingInputsCard.tsx:21`), 3개까지 보이고 나머지는 "외 N개". 제목 '판정에 더 필요한 정보'는 한국어 고정 |
-| `REMITTANCE_CONFIRM` | `RemittanceConfirmCard` | `sendAmount` 표시, `transferPath`가 `/transfer`로 시작할 때만 '송금하기' |
+| `REMITTANCE_CONFIRM` | `RemittanceConfirmCard` | `sendAmount` 표시, `transferPath`가 `/transfer`로 시작할 때만 '송금하기'. `fees`·`rateSources`(#105)는 아직 안 쓴다. `receiveAmount`·`appliedRate`가 null인 경우(PHP 참고 환율 없음)도 처리해야 한다 |
 | `FX_SUMMARY_CARD` | `FxSummaryCard` | `currency`, `unit`, `rate`, `sendRate`, `receiveRate`, `change`, `changeRate`, `source`, `asOf`, `isMock`, `stale`. `periodAverages`·`unavailableCurrencies`·`fetchedAt`은 안 씀. 버튼(`fx`, `fx_alert`, `transfer`)은 앱 고정 |
 | `VISA_ROADMAP_LINK` | 없음 | 파서에서 버린다 |
 
 ### 6.3 언어
 - `MISSING_INPUTS.question`은 #103부터 영어다. 앱 언어(`ko`·`en`·`vi`·`zh`)와 상관없이 영어로 온다.
 - 로드맵 화면(VS-001)은 지금 `missingInputs`의 `question`을 보여 주지 않는다(`field` 접두사만 보고 고정 문구 한 줄, `src/api/visa.ts:313`). 질문을 보여 줄 때는 3.2절의 임시 규칙(`ko`면 `question`, 그 밖이면 `questionEn`)을 따른다.
-- `appliedRate.sourceLabel`은 Spring이 준 한국어다. 나머지는 코드·숫자다.
+- `appliedRate.sourceLabel`은 Spring이 준 한국어다. 화면에 쓰지 않고 `rateSources` 코드로 문구를 만든다(예: `KOREAEXIM` → "Export-Import Bank of Korea", `frankfurter-ecb` → "ECB reference rate").
+- `fees.notices` 코드도 앱이 화면 언어로 바꾼다(예: `INTERMEDIARY_FEE_MAY_APPLY` → "Intermediary bank fees may apply"). 나머지는 코드·숫자다.
 
 ---
 
