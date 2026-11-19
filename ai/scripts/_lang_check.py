@@ -9,8 +9,11 @@
   조사가 붙은 덩어리("외국환거래규정에")는 허용하지 않는다(한국어 문장의 일부이므로).
 - en: 허용 안 된 한글 덩어리가 하나라도 있으면 혼입(mixed). 글자 중 한글 비율이 0.5 이상이면
   본문 대부분 한글(mostlyKorean). 허용 목록 전 값(mixedRaw)도 같이 남긴다.
-- 병기 제외 혼입(mixedBare): 같은 문장 안 괄호·큰따옴표 안의 한글, 또는 바로 뒤 괄호에 영어가
-  붙은 한글("외국인거주자 (foreign resident)")은 뺀 혼입.
+- 병기 제외 혼입(mixedBare): 괄호 안이 한글 용어 하나뿐이고(한글 20자 이하) 조사·문장 끝이
+  없을 때만 병기로 보고 뺀 혼입. 따옴표 안, 한글 뒤 괄호에 영어("외국인거주자 (foreign resident)")는
+  병기로 보지 않는다(2026-11-19 확정).
+- LE03 보조 지표(improvementCheck): 개선 방안(한국어 능력·점수 증가·필요 서류) 언급 여부.
+  en 답변만 자동 판정하고, 사람 확인용 표를 요약 .md에 남긴다.
 - vi: 혼입이 없고 베트남어 글자(성조·모음 부호) 비율이 라틴 글자의 0.05 이상이면 그 언어로 답함.
 - ko: 한글 비율 0.5 이상이면 그 언어로 답함. zh: 한자 비율 0.3 이상.
 
@@ -64,10 +67,16 @@ def allowed_terms(path: Path = ALLOWLIST) -> tuple[str, ...]:
     return tuple(dict.fromkeys(_norm(t) for t in terms))
 
 
-# 병기로 보는 묶음 기호. 작은따옴표는 영어 축약(don't)과 섞여 쓰지 않는다.
-_PAIRS = {"(": ")", "（": "）", "[": "]", "「": "」", "“": "”", "‘": "’"}
-_SENTENCE_END = re.compile(r"[.!?\n](?=\s|$)")
-_ENGLISH_AFTER = re.compile(rf"[ \t]?\((?=[^()]*[A-Za-z])[^(){_HANGUL}]+\)")
+# 병기로 보는 괄호(2026-11-19 확정, 설계 2-1). 따옴표·반대 순서 병기는 인정하지 않는다.
+_PAIRS = {"(": ")", "（": "）", "[": "]", "「": "」"}
+GLOSS_MAX_HANGUL = 20
+# 조사·문장 끝: 낱말(공백으로 나눈 것) 하나라도 이것으로 끝나면 병기가 아니라 혼입이다.
+# 명사 끝과 겹치는 한 글자(가·도·로·요 등)는 넣지 않는다(예: 한도, 필요).
+_PARTICLE_ENDINGS = (
+    "은", "는", "을", "를", "에", "의",
+    "에서", "으로", "에게", "까지", "부터",
+    "니다", "한다", "된다", "있다", "없다", "이다", "세요", "해요", "어요", "아요", "네요",
+)  # fmt: skip
 
 
 def hangul_runs(text: str) -> list[str]:
@@ -75,18 +84,16 @@ def hangul_runs(text: str) -> list[str]:
 
 
 def _glossed(text: str, start: int, end: int) -> bool:
-    """덩어리가 같은 문장 안의 괄호·따옴표 안에 있는지(영어 뒤에 원어를 병기한 경우)."""
-    ends_before = [m.end() for m in _SENTENCE_END.finditer(text, 0, start)]
-    head = text[ends_before[-1] if ends_before else 0 : start]
-    found = _SENTENCE_END.search(text, end)
-    tail = text[end : found.start() + 1 if found else len(text)]
-    for opening, closing in _PAIRS.items():
-        if head.count(opening) > head.count(closing) and closing in tail:
-            return True
-    if head.count('"') % 2 == 1 and '"' in tail:
-        return True
-    # 반대 순서 병기: 한글 바로 뒤 괄호 안에 영어("외국인거주자 (foreign resident)").
-    return bool(_ENGLISH_AFTER.match(text, end))
+    """괄호 안이 이 한글 덩어리 하나뿐이고(앞뒤 공백만 허용), 한글 20자 이하이며
+    조사·문장 끝이 없을 때만 병기로 본다(예: "designated bank (지정거래외국환은행)")."""
+    before = text[:start].rstrip()
+    after = text[end:].lstrip()
+    if not before or not after or _PAIRS.get(before[-1]) != after[0]:
+        return False
+    run = text[start:end]
+    if len(_HANGUL_CHAR.findall(run)) > GLOSS_MAX_HANGUL:
+        return False
+    return not any(word.endswith(_PARTICLE_ENDINGS) for word in run.split())
 
 
 def _is_allowed(run: str, terms: Sequence[str], context: str) -> bool:
@@ -208,5 +215,68 @@ def summary_lines(rows: Sequence[Mapping[str, Any]]) -> list[str]:
             f"{_ratio([c.get('mixedBare', c['mixed']) for c in mine])} | "
             f"{_ratio([c['mostlyKorean'] for c in mine])} | "
             f"{_ratio([c['inLanguage'] for c in mine])} | {shown} |"
+        )
+    return out
+
+
+# --- LE03 보조 지표(#106 결정 3): 개선 방안 언급 -------------------------------------------
+# B(v4.5b)는 improvements[].description을 빼므로, 개선 방법 질문에 방안을 말했는지 따로 본다.
+# 자동 판정은 en 답변만(영어 정규식). 다른 언어는 None으로 두고 사람이 표에서 본다.
+IMPROVEMENT_PATTERNS = {
+    "korean": re.compile(
+        r"\bTOPIK\b|\bKIIP\b|social integration|\bKorean[- ](?:language|level|skills?|test|"
+        r"proficiency|score)\b|Korean ability",
+        re.IGNORECASE,
+    ),
+    "points": re.compile(
+        r"\+\s?\d+\s*(?:points?|pts)\b|\b\d+\s+(?:more|extra|additional)\s+points?\b"
+        r"|\b(?:gain|earn|add|raise|increase|boost|improve)\w*\b[^.\n]{0,60}?\bpoints?\b",
+        re.IGNORECASE,
+    ),
+    "documents": re.compile(
+        r"\b(?:documents?|certificates?|proof|evidence|paperwork|submit\w*)\b", re.IGNORECASE
+    ),
+}
+
+
+def improvement_check(answer: str, language: str) -> dict[str, Any]:
+    """개선 방안(한국어 능력·점수 증가·필요 서류 중 하나 이상) 언급. en만 자동 판정."""
+    if language != "en":
+        return {"auto": False, "mentioned": None, **dict.fromkeys(IMPROVEMENT_PATTERNS)}
+    found = {name: bool(p.search(answer)) for name, p in IMPROVEMENT_PATTERNS.items()}
+    return {"auto": True, "mentioned": any(found.values()), **found}
+
+
+def _mark(value: bool | None) -> str:
+    return "-" if value is None else ("O" if value else "X")
+
+
+def improvement_lines(rows: Sequence[Mapping[str, Any]], *, answers: bool) -> list[str]:
+    """LE03 보조 지표 요약과 사람 확인용 표(answers=True일 때만 답변 원문)."""
+    mine = [r for r in rows if r.get("improvementCheck") and not r.get("warmup")]
+    if not mine:
+        return []
+    auto = [r["improvementCheck"]["mentioned"] for r in mine if r["improvementCheck"]["auto"]]
+    out = [
+        "",
+        "### 개선 방안 언급(LE03 보조 지표, #106)",
+        "",
+        f"- 자동 판정(en): 언급 {_ratio([bool(v) for v in auto])}, "
+        f"자동 판정 안 함(en 아님) {len(mine) - len(auto)}",
+    ]
+    if not answers:
+        return [*out, "- 사람 확인용 표는 요약 .md 파일에만 남긴다."]
+    out += [
+        "",
+        "| 회차 | 언어 | 자동 | 한국어 능력 | 점수 증가 | 필요 서류 | 사람 확인 | 답변 |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for r in mine:
+        c = r["improvementCheck"]
+        answer = " ".join((r.get("answer") or "(빈 답변)").split()).replace("|", "\\|")
+        out.append(
+            f"| {r['variant']} {r['questionId']}#{r['repeat']} | {r.get('language') or 'en'} | "
+            f"{_mark(c['mentioned'])} | {_mark(c['korean'])} | {_mark(c['points'])} | "
+            f"{_mark(c['documents'])} |  | {answer} |"
         )
     return out

@@ -63,24 +63,25 @@ develop `395d3e5` 기준이다. "LLM에 감"은 `ToolOutcome` 본문(tool_result
 - **한글 혼입 회차**: 허용 안 된 한글 덩어리가 하나라도 있는 회차 수(`mixed`).
   - 한글 덩어리 = 한글 글자가 이어진 부분이다. 사이에 공백·가운뎃점 하나가 있으면 한 덩어리로 본다.
 - **본문 대부분 한글 회차**: 글자(한글+라틴+한자) 중 한글 비율이 0.5 이상인 회차 수(`mostlyKorean`). 허용 목록과 관계없다.
-- **병기 제외 혼입 회차**(`mixedBare`): 혼입 덩어리 중 영어와 함께 적은 병기를 뺀 값이다.
-  - 같은 문장 안의 괄호·큰따옴표 안에 있는 한글은 뺀다(예: "designated foreign exchange bank (지정거래외국환은행)").
-  - 바로 뒤 괄호에 영어가 붙은 한글도 뺀다(예: "외국인거주자 (foreign resident)").
+- **병기 제외 혼입 회차**(`mixedBare`): 혼입 덩어리 중 원어 병기를 뺀 값이다. 병기 인정 범위는 다음과 같다(2026-11-19 확정, 측정 전).
+  - 괄호(`()`, `（）`, `[]`, `「」`) 안이 한글 용어 하나뿐일 때만 병기로 본다(앞뒤 공백만 허용). 예: "designated foreign exchange bank (지정거래외국환은행)".
+  - 한글은 20자 이하여야 한다(공백 제외).
+  - 낱말 하나라도 조사·문장 끝으로 끝나면 병기가 아니라 혼입이다.
+    - 조사·문장 끝 목록: 은·는·을·를·에·의·에서·으로·에게·까지·부터·니다·한다·된다·있다·없다·이다·세요·해요·어요·아요·네요.
+    - 명사 끝과 겹치는 한 글자(가·도·로·요 등. 예: 한도, 필요)는 넣지 않았다.
+  - 병기로 보지 않는 것: 따옴표 안의 한글, 한글 뒤 괄호에 영어("외국인거주자 (foreign resident)"), 괄호 안에 다른 글자가 함께 있는 경우("(Article 2, 외국인거주자)").
 - 참고로 허용 목록을 적용하기 전 값(`mixedRaw`, 한글이 하나라도 있음)도 남긴다.
-- 기존 결과로 검사기만 다시 돌린 값(호출 없음, 모두 사용자 언어 en):
+- **선택 기준 1(4절)은 `mixedBare` 0 + `mostlyKorean` 0이다**(2026-11-19 확정). `mixed`(엄격 혼입)는 함께 보고한다.
+- 기존 결과로 검사기만 다시 돌린 값(호출 없음, 모두 사용자 언어 en, 위 병기 규칙):
 
   | 결과 파일 | 회차 | mixed | mixedBare | mixedRaw | mostlyKorean |
   |---|---|---|---|---|---|
-  | `policy_guard_replace_v4_2.jsonl`(금융 정책 46 × 3, v4.2) | 138 | 26 | 1 | 30 | 0 |
-  | `policy_merged_labels_v4_2.jsonl`(같은 세트, 라벨 on) | 138 | 20 | 0 | 24 | 0 |
+  | `policy_guard_replace_v4_2.jsonl`(금융 정책 46 × 3, v4.2) | 138 | 26 | 5 | 30 | 0 |
+  | `policy_merged_labels_v4_2.jsonl`(같은 세트, 라벨 on) | 138 | 20 | 2 | 24 | 0 |
   | 운영 v4.4 앱 스모크(11/19, 5문항) | 5 | 2 | 0 | 2 | 0 |
 
   - 금융 정책 답변은 법률 용어를 괄호로 병기하는 일이 흔하다(지정거래외국환은행 8~9회, 외국인거주자 7~11회).
-  - 그래서 `mixed`를 선택 기준으로 쓰면 금융 정책 문항 때문에 어느 후보도 0을 넘기 어렵다.
-  - 남은 `mixedBare` 1회는 A04v의 FINE 메뉴 이름("under 소액해외송금업 등록업체 조회")이다.
-- **선택 기준 1(4절)에 쓰는 값은 `mixedBare` + `mostlyKorean`으로 제안한다**(기준선 전 확정 필요).
-  - `mixed`는 같이 보고한다.
-  - 프롬프트 규칙("Keep official names ... as they are")이 원어 병기를 막지 않는다. 운영 사례(본문 전체 한국어)는 `mostlyKorean`과 `mixedBare` 둘 다에 걸린다.
+  - 남은 `mixedBare`는 반대 순서 병기(외국인거주자 (foreign resident)), FINE 메뉴 이름, "미화", "만불 이내"다.
 
 ### 2-2. 허용 목록 (`specs/chat/answer_language_allowlist_v1.json`)
 
@@ -117,6 +118,16 @@ A가 "영어로 고정"하지 않는지 보는 용도다.
   - 위험 오답·적용 대상 오류 0을 본다.
 - 회귀 측정은 후보 구현 뒤에 한다(6절 순서 3). 기준선에는 넣지 않는다.
 
+### 2-5. LE03 보조 지표: 개선 방안 언급 (결정 3)
+
+- B는 `improvements[].description`을 뺀다. 그래서 개선 방법 질문(LE03)에 답이 개선 방안을 말하는지 따로 본다.
+- 자동 판정(`improvementCheck`, en 답변만): 아래 셋 중 하나 이상이 있으면 언급으로 본다.
+  - 한국어 능력: TOPIK, KIIP, social integration, Korean language/level/skills/test/proficiency/score, Korean ability
+  - 점수 증가: "+40 points", "10 more points", gain/earn/add/raise/increase/boost/improve 뒤 60자 안의 points
+  - 필요 서류: document(s), certificate(s), proof, evidence, paperwork, submit
+- vi·ko 답변은 자동 판정하지 않는다(`mentioned` = null). 사람이 표에서 본다.
+- 사람 확인용 표는 측정 요약 .md의 "개선 방안 언급(LE03 보조 지표)" 절에 있다. 회차, 자동 판정, 세 항목, 빈 사람 확인 칸, 답변 원문을 적는다.
+- 기준: 후보의 LE03 언급 회차가 기준선보다 적지 않아야 한다(사람 확인 반영). 4절 기준 2(회귀)에 포함해 본다.
 ## 3. 질문 세트 (`specs/chat/answer_language_questions_v1.json`, 10문항)
 
 | id | 분류 | 질문 | 기대 도구(v4.4) | 출처 |
@@ -152,12 +163,13 @@ A가 "영어로 고정"하지 않는지 보는 용도다.
   - `reviewNotes`·`documents`는 그대로 둔다(요청 범위 밖). 기준선·A에서 이 필드가 혼입 원인으로 보이면 결과 문서에 따로 적는다.
   - 로드맵은 채팅 미연결이라 B 대상이 아니다(1-1).
 - 고르는 기준(순서대로):
-  1. en 한글 혼입 0(10문항 × 10회): `mixedBare` 0이고 `mostlyKorean` 0(2-1 제안, 기준선 전 확정)
-  2. 회귀 유지(2-4, 금융 정책 위험 오답·적용 대상 오류 0 포함)
+  1. en 한글 혼입 0(10문항 × 10회): `mixedBare` 0이고 `mostlyKorean` 0(2-1, 2026-11-19 확정)
+  2. 회귀 유지(2-4, 금융 정책 위험 오답·적용 대상 오류 0 포함), LE03 개선 방안 언급이 기준선보다 적지 않음(2-5)
   3. vi·ko 확인 통과(2-3)
   4. 변경 범위가 작은 쪽(A가 A+B보다 작다)
 - 둘 다 1을 못 넘으면 고르지 않고 결과와 남은 혼입 덩어리를 보고한다.
-- 고른 쪽이 A면 운영 전환 대상은 `v4.5`, A+B면 `v4.5b`다(이름을 바꾸지 않는다).
+- 고른 쪽이 A면 운영 전환 대상은 `v4.5`, A+B면 `v4.5b`다(이름을 바꾸지 않는다). 2026-11-19 확정: A+B 이름 `v4.5b`, B는 E-7-4만.
+- 구현 전 멈춤 조건(결정 6): 기준선 en에서 LE01~LE03의 `mostlyKorean`이 0이면 이 지표로 A와 B를 구분할 수 없다. 그러면 후보를 구현하지 않고 보고한다.
 
 ## 5. 측정 경로 (로컬, 앱 경로)
 
@@ -178,11 +190,11 @@ A가 "영어로 고정"하지 않는지 보는 용도다.
 
 ### 5-2. 로컬 환경 상태 (2026-11-19 확인, 읽기만 함)
 
-- 8081: 지금 Expo(Metro, `hanstep-frontend`, `expo start -c`)가 쓰고 있다. Spring 8081을 띄우려면 먼저 Expo를 끄거나 Expo를 다른 포트로 옮겨야 한다.
-- 8000·8001: 비어 있다.
-- MySQL: 3306에 `MySQL80` 서비스, 3307에 공용 컨테이너 `hanstep-mysql`이 있다.
-  Spring 기본 포트가 3307이므로 운영 덤프가 든 로컬 MySQL(3306)을 쓰려면 `MYSQL_PORT=3306`을 줘야 한다.
-  DB 이름·비밀번호가 `.env` 값과 다르면 같은 탭에서 준다.
+- 처음 확인 때 8081은 Expo(Metro)가 쓰고 있었다. 기준선 직전(2026-11-19)에는 사용자가 Spring을 8081로 띄웠고(`--server.port=8081`, `AI_INTERNAL_API_URL=http://localhost:8001`), 8001은 uvicorn이 떠 있다.
+  - `/health/ready`: ready=true, model loaded, mongodb ok, financePolicySearch ready.
+- 8000: 비어 있다.
+- MySQL: 운영 덤프(11/18 00:39)는 Docker `hanstep-mysql`(3307)에 있다(2026-11-19 사용자 정정). Spring 기본 포트(3307)를 그대로 쓴다.
+  3306의 `MySQL80` 서비스는 쓰지 않는다. Reyes는 userId 1이다.
 - Mongo 27017, RabbitMQ 5672: 공용 컨테이너(읽기·연결만).
 
 ### 5-3. 덤프 뒤 마이그레이션
@@ -192,8 +204,7 @@ A가 "영어로 고정"하지 않는지 보는 용도다.
   - 적용 SQL은 `deploy/migrations/2026-11-18-fx-alerts-notified-at.sql`이다(여러 번 실행해도 안전).
   - 이 컬럼은 목표 환율 알림 조회(`FxAlertRepository`)에서 쓴다. 채팅 측정 경로는 쓰지 않지만, 서버를 띄우기 전에 적용하는 것을 권한다.
 - 그 밖의 `deploy/migrations` 파일은 날짜가 11/17이다. 덤프의 정책 문서 상태(APPROVED 6)와 맞으므로 덤프에 이미 반영된 것으로 본다.
-- 로컬 DB에 실제로 컬럼이 있는지는 확인하지 않았다(접속 정보가 `.env`에 있음).
-  - 확인 SQL: `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='fx_alerts' AND COLUMN_NAME='notified_at';`
+- 로컬 DB(3307)에는 사용자가 적용했다(2026-11-19).
 - Spring 로컬 브랜치는 `develop f6e002f`로 origin(`f6f3623`)보다 1커밋 뒤다. 차이는 `deploy/`의 운영 프롬프트 기본값(v4.4)뿐이라 로컬 기동에는 영향이 없다.
 
 ### 5-4. 기동 (PowerShell, 탭별)
@@ -201,10 +212,8 @@ A가 "영어로 고정"하지 않는지 보는 용도다.
 탭 1 Spring 8081 (`C:\Projects\hanstep\hanstep-backend`):
 
 ```powershell
-$env:SERVER_PORT = "8081"
-$env:MYSQL_PORT = "3306"                         # 운영 덤프가 든 로컬 MySQL80 (3307 공용 컨테이너 아님)
-$env:AI_INTERNAL_API_URL = "http://localhost:8001" # 5-1 502 원인
-.\gradlew.bat bootRun
+$env:AI_INTERNAL_API_URL = "http://localhost:8001"   # 5-1 502 원인
+.\gradlew.bat bootRun --args="--server.port=8081"
 ```
 
 탭 2 AI 8001 (`C:\Projects\hanstep\hanstep-AI\ai`):
@@ -223,8 +232,7 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
 
 - 서버 탭에는 `SPRING_INTERNAL_API_KEY=CHANGE_ME`를 두지 않는다(`finance_policy_v1_design.md` 16-3).
 - 준비 확인: `GET http://localhost:8001/health/ready`(model loaded, mongodb ok).
-- E-7-4 경로 확인(무료): 기준선 전에 Spring 내부 API(`POST /internal/v1/ai-context/users/<Reyes id>/e74-assessments`, 본문 `{"asOfDate": "<오늘>"}`)가 200인지 본다.
-  LLM 호출은 없고 `e74_assessments`에 행 1개가 저장된다(같은 requestKey면 재사용).
+- E-7-4 경로는 기준선 첫 문항(LE01)의 `calculate_e74_score` 상태로 확인한다. `SPRING_HTTP_502`가 나오면 바로 멈춘다.
 
 탭 3 측정 (`C:\Projects\hanstep\hanstep-AI\ai`):
 
@@ -232,12 +240,12 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
 $env:SPRING_INTERNAL_API_URL = "http://localhost:8081"
 uv run python scripts/evaluate_chat.py --llm-mode anthropic --question-set lang --repeats 10 `
   --variants specs/chat/variants_lang_baseline_v1.json --base-url http://localhost:8001 `
-  --user-id <Reyes id> --language en --max-usd 0.40 --output artifacts/chat/lang_baseline_en.jsonl
+  --user-id 1 --language en --max-usd 0.33 --yes --output artifacts/chat/lang_baseline_en.jsonl
 ```
 
-- vi·ko는 같은 명령에 `--language vi --questions LE01,LE03,LP01,LC01 --repeats 3 --max-usd 0.06` 또는
-  `--language ko --questions LE01,LP01 --repeats 3 --max-usd 0.03`을 주고 출력 파일 이름을 바꾼다.
-- `<Reyes id>`: 덤프의 `users.external_user_key = 'demo-e9-ph-reyes'`의 id. E-7-4 프로필·받는 분(mom)·금융 분석이 있어야 한다.
+- vi·ko는 같은 명령에 `--language vi --questions LE01,LE03,LP01,LC01 --repeats 3 --max-usd 0.045` 또는
+  `--language ko --questions LE01,LP01 --repeats 3 --max-usd 0.025`를 주고 출력 파일 이름을 바꾼다.
+  - 상한은 세 run을 합쳐 $0.40이다(결정 5).
 
 ## 6. 측정 순서와 비용
 
@@ -262,18 +270,18 @@ uv run python scripts/evaluate_chat.py --llm-mode anthropic --question-set lang 
 
 | 순서 | 측정 | 설정 | 회차 | 예상 | 상한(`--max-usd`) |
 |---|---|---|---|---|---|
-| 0 | E-7-4 경로 확인(Spring 내부 API 1건) | - | - | $0 | - |
-| 1 | 기준선 en | v4.4 | 10 × 10 = 100 | 약 $0.26 | 0.40 |
-| 2 | 기준선 vi·ko | v4.4 | 12 + 6 = 18 | 약 $0.05 | 0.06 · 0.03 |
+| 0 | E-7-4 경로 확인(기준선 첫 문항 LE01의 도구 상태) | - | - | $0 | - |
+| 1 | 기준선 en | v4.4 | 10 × 10 = 100 | 약 $0.26 | 0.33 |
+| 2 | 기준선 vi·ko | v4.4 | 12 + 6 = 18 | 약 $0.05 | 0.045 · 0.025 |
 | 3 | 후보 구현 뒤 en·vi·ko | v4.5, v4.5b | 118 × 2 = 236 | 약 $0.60 | 따로 정함 |
 | 4 | 회귀(2-4, 3을 통과한 후보만) | v4.4 + 후보 | #101 세트 × 3회 | 설정 하나에 약 $1.05(#101 실측 $2.11 / 2) | 따로 정함 |
 
-- 이번 단계는 순서 0 직전에 멈춘다. 순서 1·2를 합친 기준선 예상은 약 $0.31다.
+- 순서 1·2를 합친 기준선 예상은 약 $0.31다. 상한은 세 run 합계 $0.40이다(결정 5). 기준선 뒤에는 멈추고 보고한다(결정 7).
 - 순서 3·4는 기준선 결과를 보고 다시 묻는다.
 
 ## 7. 이번 단계에서 바꾼 것 (측정용, 서버 코드 변경 없음)
 
-- `scripts/_lang_check.py`(새 파일): 언어 검사와 요약 표.
+- `scripts/_lang_check.py`(새 파일): 언어 검사와 요약 표. 병기 인정 범위(2-1)와 LE03 보조 지표(2-5)는 결정(2026-11-19)을 반영해 기준선 전에 고쳤다.
 - `scripts/evaluate_chat.py`: `--language`, `--question-set lang`, 행·조건에 `language`, 모든 행에 `languageCheck`, 요약 .md에 언어 절.
 - `scripts/compare_chat_versions.py`: 답변 언어 절(설정 × 사용자 언어). 언어가 어긋난 회차를 실패 사례에 `language`로 적는다.
   회귀 판정 항목에는 넣지 않는다. #106 전 측정 행은 답변으로 다시 계산한다.

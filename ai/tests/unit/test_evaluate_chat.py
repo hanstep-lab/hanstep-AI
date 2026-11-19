@@ -1150,6 +1150,27 @@ def test_lang_question_set_and_subsets() -> None:
     assert EVAL.expected_tools(by_id["LE01"], "v4.4") == ["calculate_e74_score"]
     assert EVAL.expected_tools(by_id["LC01"], "v4.4") == ["fx_rate_summary"]
     assert all(not q["history"] for q in spec["questions"])
+    assert [q["id"] for q in spec["questions"] if q.get("improvementCheck")] == ["LE03"]
+
+
+def test_le03_gets_the_improvement_check(tmp_path: Path) -> None:
+    stream = (
+        'event: agent.delta\ndata: {"text": "Reach TOPIK level 4 to add 40 points."}\n\n'
+        'event: agent.done\ndata: {"blocks": []}\n\n'
+    )
+    output = tmp_path / "run.jsonl"
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, text=stream))
+    code = _run(
+        _settings(),
+        "--question-set", "lang", "--questions", "LE01,LE03", "--output", str(output),
+        client=httpx.Client(transport=transport),
+    )  # fmt: skip
+    assert code == 0
+    le01, le03 = _rows(output)
+    assert "improvementCheck" not in le01
+    assert le03["improvementCheck"]["mentioned"] is True
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    assert "| server-default LE03#1 | en | O | O | O | X |" in summary
 
 
 def test_language_is_sent_and_checked(tmp_path: Path) -> None:

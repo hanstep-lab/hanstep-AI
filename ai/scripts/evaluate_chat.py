@@ -1159,6 +1159,9 @@ def score(row: dict[str, Any]) -> None:
     row["languageCheck"] = _lang_check.language_check(
         answer, row.get("language") or "en", row["contextTexts"]
     )
+    if row.get("wantsImprovementCheck"):
+        # LE03 보조 지표(#106): 개선 방안(한국어 능력·점수 증가·필요 서류) 언급.
+        row["improvementCheck"] = _lang_check.improvement_check(answer, row.get("language") or "en")
     if row.get("referenceValues"):
         row["referenceCheck"] = reference_check(answer, row["referenceValues"], check.unsupported)
     called = sorted({t.get("toolName") for t in row.get("tools", [])})
@@ -1348,6 +1351,7 @@ def render_summary(
                 out.append(f"  - {r['questionId']} #{r['repeat']}: {detail}")
         out += fx_summary_lines(mine)
         out += _lang_check.summary_lines(mine)
+        out += _lang_check.improvement_lines(mine, answers=answers)
         out += source_split_table(mine)
         out += _product_check.summary_lines(mine)
         out += _product_check.tool_summary_lines(mine)
@@ -1944,6 +1948,8 @@ def main(
                 "repeat": repeat,
                 "warmup": warmup,
                 "language": args.language,
+                # LE03(#106): 개선 방안 언급 보조 지표를 붙일 문항.
+                "wantsImprovementCheck": bool(question.get("improvementCheck")),
                 "at": datetime.now(UTC).isoformat(),
                 "status": result.get("status"),
                 "httpStatus": result.get("httpStatus"),

@@ -217,6 +217,14 @@ def language_section(stats: dict[str, list[dict[str, Any]]], base: str, new: str
                 for k in ("mixed", "mixedBare", "mixedRaw", "mostlyKorean", "inLanguage")
             ]
             out.append(f"| {name} | {language} | {len(mine)} | " + " | ".join(cells) + " |")
+    out += ["", "| 설정 | LE03 개선 방안 언급(en 자동 판정) |", "|---|---|"]
+    for name in (base, new):
+        auto = [
+            bool(r["improvementCheck"]["mentioned"])
+            for r in stats[name]
+            if (r.get("improvementCheck") or {}).get("auto")
+        ]
+        out.append(f"| {name} | {ratio(list(auto))} |")
     return out
 
 

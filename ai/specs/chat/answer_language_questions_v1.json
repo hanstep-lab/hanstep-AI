@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "description": "답변 언어 측정(#106) 문항. eval_questions_v1.json과 같은 형식. 모두 영어 질문이고 사용자 언어는 evaluate_chat.py --language로 정한다(기본 en). 기대 도구는 프롬프트 v4.4 기준(v4.5·v4.5b는 PROMPT_BASE로 v4.4를 따른다). 출처: E-7-4 3문항은 v44_questions_v1.json E01~E03, 비자 정책은 specs/rag/evaluation.json en-05·en-07, 금융 정책은 specs/rag/finance_policy_questions_v1.json A02·A06, 대조군은 v44 FX11·R01. LR01은 로드맵 질문이지만 채팅에 get_visa_roadmap이 없어(app/chat/visa_tools.py VISA_TOOL_NAMES) calculate_e74_score를 기대한다. 설계: specs/chat/answer_language_v1_design.md 3절.",
+  "description": "답변 언어 측정(#106) 문항. eval_questions_v1.json과 같은 형식. 모두 영어 질문이고 사용자 언어는 evaluate_chat.py --language로 정한다(기본 en). 기대 도구는 프롬프트 v4.4 기준(v4.5·v4.5b는 PROMPT_BASE로 v4.4를 따른다). 출처: E-7-4 3문항은 v44_questions_v1.json E01~E03, 비자 정책은 specs/rag/evaluation.json en-05·en-07, 금융 정책은 specs/rag/finance_policy_questions_v1.json A02·A06, 대조군은 v44 FX11·R01. LE03은 개선 방안 언급 보조 지표(improvementCheck)를 붙인다. LR01은 로드맵 질문이지만 채팅에 get_visa_roadmap이 없어(app/chat/visa_tools.py VISA_TOOL_NAMES) calculate_e74_score를 기대한다. 설계: specs/chat/answer_language_v1_design.md 3절.",
   "latencySubset": [],
   "holdoutSubset": [],
   "languageSubsets": {
@@ -33,7 +33,8 @@
       "history": [],
       "expectedTools": ["calculate_e74_score"],
       "expectBehavior": "answer_with_tool_values",
-      "source": "v44_questions_v1.json E03"
+      "source": "v44_questions_v1.json E03",
+      "improvementCheck": true
     },
     {
       "id": "LR01",

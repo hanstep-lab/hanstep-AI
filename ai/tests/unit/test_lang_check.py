@@ -54,23 +54,62 @@ def test_allowlisted_official_name_is_not_mixed() -> None:
     assert check["hangulRuns"] == ["외국환거래규정", "외국환거래법 시행령"]
 
 
-def test_glossed_terms_are_mixed_but_not_bare() -> None:
-    answer = (
-        "You need a designated foreign exchange bank (지정거래외국환은행). Check the FINE menu "
-        '"소액해외송금업 등록업체 조회" first.'
-    )
+def test_gloss_is_only_a_short_korean_term_alone_in_brackets() -> None:
+    answer = "You need a designated bank (지정거래외국환은행) and a ( 외국인거주자 )."
     check = LC.language_check(answer, "en")
     assert check["mixed"] is True and check["mixedBare"] is False
     assert check["bareRuns"] == []
-    bare = LC.language_check("A foreign resident (Article 2) is 외국인거주자 here.", "en")
-    assert bare["mixedBare"] is True and bare["bareRuns"] == ["외국인거주자"]
-    # 반대 순서 병기(한글 뒤 괄호 안 영어)도 병기로 본다.
-    reverse = LC.language_check("You are a 외국인거주자 (foreign resident) here.", "en")
-    assert reverse["mixed"] is True and reverse["mixedBare"] is False
-    # 괄호가 문장 끝을 넘어 이어지면 병기로 보지 않는다.
-    open_only = LC.language_check("See (the rule. 외국인거주자 applies).", "en")
-    assert open_only["mixedBare"] is True
+    # 따옴표 안, 한글 뒤 괄호에 영어, 괄호 안에 다른 글자가 함께 있으면 병기가 아니다.
+    for text in (
+        'Check the FINE menu "소액해외송금업 등록업체 조회" first.',
+        "You are a 외국인거주자 (foreign resident) here.",
+        "See the rule (Article 2, 외국인거주자).",
+        "A foreign resident (Article 2) is 외국인거주자 here.",
+    ):
+        assert LC.language_check(text, "en")["mixedBare"] is True, text
+    # 한글 20자 초과, 조사·문장 끝이 있으면 병기가 아니다.
+    long_term = "가" * 21
+    assert LC.language_check(f"A ({long_term}).", "en")["mixedBare"] is True
+    assert LC.language_check(f"A ({'가' * 20}).", "en")["mixedBare"] is False
+    assert LC.language_check("A (지정거래외국환은행을 통해).", "en")["mixedBare"] is True
+    assert LC.language_check("A (은행에 신고해야 합니다).", "en")["mixedBare"] is True
+    # 명사 끝과 겹치는 글자(한도)는 조사로 보지 않는다.
+    assert LC.language_check("The limit (지급 한도) applies.", "en")["mixedBare"] is False
     assert LC.language_check(KOREAN_E74, "en")["mixedBare"] is True
+
+
+def test_improvement_check_on_english_only() -> None:
+    answer = "Raise your Korean to TOPIK level 4 for +40 points, and submit your tax certificate."
+    check = LC.improvement_check(answer, "en")
+    assert check == {
+        "auto": True,
+        "mentioned": True,
+        "korean": True,
+        "points": True,
+        "documents": True,
+    }
+    none = LC.improvement_check("Your score is 172 points. This is a pre-check.", "en")
+    assert none["mentioned"] is False
+    assert LC.improvement_check(answer, "vi")["mentioned"] is None
+
+
+def test_improvement_lines_table_only_with_answers() -> None:
+    rows = [
+        {
+            "variant": "v4.4",
+            "questionId": "LE03",
+            "repeat": 1,
+            "language": "en",
+            "answer": "Get TOPIK 4 | for points.",
+            "improvementCheck": LC.improvement_check("Get TOPIK 4.", "en"),
+        },
+        {"variant": "v4.4", "questionId": "LE01", "repeat": 1, "answer": "x"},
+    ]
+    text = "\n".join(LC.improvement_lines(rows, answers=True))
+    assert "자동 판정(en): 언급 1/1" in text
+    assert "| v4.4 LE03#1 | en | O | O | X | X |  | Get TOPIK 4 \\| for points. |" in text
+    assert "| v4.4 LE03#1" not in "\n".join(LC.improvement_lines(rows, answers=False))
+    assert LC.improvement_lines([rows[1]], answers=True) == []
 
 
 def test_particle_on_official_name_is_mixed() -> None:
