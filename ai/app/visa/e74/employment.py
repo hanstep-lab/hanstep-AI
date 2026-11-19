@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from app.visa.e74.dates import add_months
+from app.visa.e74.questions import missing_input
 from app.visa.e74.results import MissingInput
 from app.visa.e74.schemas import E74Profile, EmploymentHistoryIn
 
@@ -133,7 +134,7 @@ def stint_coverage(stint: CurrentStint, as_of: date, months: int) -> StintCovera
 
 
 def left_without_fault_missing(row: EmploymentHistoryIn) -> MissingInput:
-    return MissingInput(
+    return missing_input(
+        "employmentHistories.leftWithoutFault",
         field=f"employmentHistories[employmentHistoryId={row.employment_history_id}].leftWithoutFault",
-        question="직전 근무처를 휴·폐업, 임금체불, 폭언·폭행 등 본인 잘못이 아닌 이유로 옮겼는지",
     )

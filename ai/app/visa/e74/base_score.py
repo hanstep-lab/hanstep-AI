@@ -15,6 +15,7 @@ from datetime import date
 from typing import Any
 
 from app.visa.e74.dates import add_months, age_on
+from app.visa.e74.questions import missing_input
 from app.visa.e74.results import (
     ItemResult,
     ItemStatus,
@@ -65,7 +66,7 @@ def calculate_age_score(profile: E74Profile, rule_set: RuleSet, as_of: date) -> 
         return missing_result(
             category,
             "E74_AGE_MISSING",
-            [MissingInput(field="visaProfile.birthDate", question="생년월일")],
+            [missing_input("visaProfile.birthDate", field="visaProfile.birthDate")],
         )
     age = age_on(birth, as_of)
     evidence: dict[str, Any] = {"age": age, "asOfDate": as_of.isoformat()}
@@ -189,10 +190,7 @@ def calculate_income_score(profile: E74Profile, rule_set: RuleSet, as_of: date) 
         ]
         if len(fallback) < basis.years:
             missing = [
-                MissingInput(
-                    field=f"incomeRecords[incomeYear={year}]",
-                    question=f"{year}년 연간 소득(세무서 소득금액증명원 기준 금액)",
-                )
+                missing_input("incomeRecords", field=f"incomeRecords[incomeYear={year}]", year=year)
                 for year in targets
                 if year not in by_year
             ]
@@ -227,12 +225,7 @@ def calculate_income_score(profile: E74Profile, rule_set: RuleSet, as_of: date) 
             return missing_result(
                 category,
                 "E74_INCOME_INDUSTRY_MISSING",
-                [
-                    MissingInput(
-                        field="employmentHistories",
-                        question="현재 근무처 업종(농·축산업, 어업·내항상선은 소득 기준이 낮음)",
-                    )
-                ],
+                [missing_input("employmentHistories.industry", field="employmentHistories")],
                 evidence,
             )
         return not_met_result(category, "E74_INCOME_BELOW_MIN", evidence)
@@ -329,17 +322,15 @@ def _pre_test_candidate(
     prefix = f"visaEvidences[visaEvidenceId={ev.visa_evidence_id}]"
     missing: list[MissingInput] = []
     if ev.pre_test_score is None:
-        missing.append(
-            MissingInput(field=f"{prefix}.preTestScore", question="사회통합프로그램 사전평가 점수")
-        )
+        missing.append(missing_input("visaEvidences.preTestScore", field=f"{prefix}.preTestScore"))
     if ev.pre_test_assigned_stage is None:
         missing.append(
-            MissingInput(
-                field=f"{prefix}.preTestAssignedStage", question="사전평가 후 배정받은 단계"
+            missing_input(
+                "visaEvidences.preTestAssignedStage", field=f"{prefix}.preTestAssignedStage"
             )
         )
     if ev.issued_on is None:
-        missing.append(MissingInput(field=f"{prefix}.issuedOn", question="사전평가 결과일"))
+        missing.append(missing_input("visaEvidences.preTestIssuedOn", field=f"{prefix}.issuedOn"))
     if (
         missing
         or ev.pre_test_score is None
@@ -380,9 +371,9 @@ def calculate_korean_score(profile: E74Profile, rule_set: RuleSet, as_of: date) 
             category,
             "E74_KOREAN_MISSING",
             [
-                MissingInput(
+                missing_input(
+                    "visaEvidences.koreanAbility",
                     field="visaEvidences[evidenceType=TOPIK|KIIP|KIIP_PRE_TEST]",
-                    question="한국어 능력(TOPIK 급수, 사회통합프로그램 이수 단계, 사전평가 점수)",
                 )
             ],
         )
