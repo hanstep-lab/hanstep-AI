@@ -123,3 +123,30 @@ def test_advice_sentences_skip_negations() -> None:
     assert FX.advice_sentences(answer) == [
         "The peso will likely get cheaper next week, so you should wait."
     ]
+
+
+def test_forbidden_phrases_by_kind() -> None:
+    # 금지 표현(#101): 실시간, 환율 예측, 근거 없는 우대율. 부정문은 negated로만 남긴다.
+    answer = (
+        "This is the real-time rate for PHP. The peso is going to rise next month. "
+        "You get a 50% preferential rate on this transfer. "
+        "I can't say whether the rate will go up or down. "
+        "환율이 다음 주에 오를 것입니다. 실시간 환율이 아닙니다."
+    )
+    result = FX.forbidden_phrases(answer)
+    assert [h["kind"] for h in result["hits"]] == [
+        "realtime",
+        "forecast",
+        "preferential",
+        "forecast",
+    ]
+    assert [h["kind"] for h in result["negated"]] == ["forecast", "realtime"]
+    assert FX.FORBIDDEN_KINDS == ("realtime", "forecast", "preferential")
+
+
+def test_forbidden_phrases_ignore_plain_comparisons() -> None:
+    answer = (
+        "As of 2026-11-17, 1 PHP = 20.984 KRW (market reference rate, ECB-based, not a "
+        "remittance rate). It is lower than the 3-month average of 21.5431 KRW."
+    )
+    assert FX.forbidden_phrases(answer) == {"hits": [], "negated": []}

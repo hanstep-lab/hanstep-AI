@@ -17,6 +17,10 @@
     따로 센다. 데이터 부족 기간(insufficientDataPeriods)에 방향을 말하면 불일치로 센다.
 - advice_sentences(answer): 앞으로의 방향·송금 시점 권유 표현이 있는 문장(부정문 제외).
   사람이 다시 읽는다.
+- forbidden_phrases(answer): 금지 표현이 있는 문장(v4.4 전환 측정, #101). 종류는 realtime(실시간·
+  real-time·live rate), forecast(환율이 오를·내릴 것이라는 말), preferential(우대율·환율 우대). 모든
+  답변에 쓴다(환율 문항만이 아님). 부정문은 negated로 표시만 하고 세지 않는다(사람이 다시 읽는다).
+  preferential은 어느 도구 결과에도 우대율이 없어서 언급하면 근거 없는 우대율로 본다.
 """
 
 from __future__ import annotations
@@ -159,3 +163,40 @@ def advice_sentences(answer: str) -> list[str]:
     return [
         s.strip() for _, s in _sentences(answer) if _ADVICE.search(s) and not _NEGATION.search(s)
     ]
+
+
+_FORBIDDEN: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "realtime",
+        re.compile(r"\breal[- ]?time\b|\blive (?:exchange )?rates?\b|실시간", _I),
+    ),
+    (
+        "forecast",
+        re.compile(
+            r"\b(?:will|is going to|are going to|is likely to|is expected to)\s+"
+            r"(?:likely\s+|probably\s+)?(?:rise|fall|go up|go down|drop|increase|decrease|climb|"
+            r"weaken|strengthen|get (?:cheaper|stronger|weaker))\b"
+            r"|오를 (?:것|거|전망)|내릴 (?:것|거|전망)|오를지|내릴지",
+            _I,
+        ),
+    ),
+    (
+        "preferential",
+        re.compile(r"\bpreferential\b|\brate discount\b|우대율|환율 우대|우대 환율", _I),
+    ),
+)
+FORBIDDEN_KINDS = tuple(kind for kind, _ in _FORBIDDEN)
+_NEGATION_KO = re.compile(r"(?:알 수 없|예측할 수 없|말할 수 없|않|아니|아닙)")
+
+
+def forbidden_phrases(answer: str) -> dict[str, Any]:
+    """금지 표현 문장. hits는 부정문이 아닌 것만, negated는 부정문(세지 않음)."""
+    hits: list[dict[str, str]] = []
+    negated: list[dict[str, str]] = []
+    for _, sentence in _sentences(answer):
+        for kind, pattern in _FORBIDDEN:
+            if pattern.search(sentence):
+                item = {"kind": kind, "text": sentence.strip()[:200]}
+                is_negated = _NEGATION.search(sentence) or _NEGATION_KO.search(sentence)
+                (negated if is_negated else hits).append(item)
+    return {"hits": hits, "negated": negated}
