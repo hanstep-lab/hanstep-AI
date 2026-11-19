@@ -1,0 +1,161 @@
+{
+  "recipientId": 1,
+  "sendAmount": {
+    "amount": 500000,
+    "currency": "KRW"
+  },
+  "receiveAmount": {
+    "amount": 23587,
+    "currency": "PHP"
+  },
+  "appliedRate": {
+    "currency": "PHP",
+    "unit": 1,
+    "rate": 20.926,
+    "sourceLabel": "ECB 기준환율 기반 참고값",
+    "asOf": "2026-11-18",
+    "isMock": false
+  },
+  "isReference": true,
+  "referenceNotice": "LOCAL_PAYOUT_RATE_DIFFERS",
+  "sendCurrency": "USD",
+  "defaultProduct": "SOL_EASY",
+  "isEstimated": true,
+  "rates": {
+    "usdBaseRate": 1331.1,
+    "usdRateDate": "2026-11-19",
+    "usdSource": "KOREAEXIM",
+    "phpRefRate": 20.926,
+    "phpRateDate": "2026-11-18",
+    "phpSource": "frankfurter-ecb",
+    "usdPhpRefRate": 63.6099
+  },
+  "quotes": [
+    {
+      "product": "SOL_EASY",
+      "available": true,
+      "unavailableReason": null,
+      "sendAmountUsd": 370.81,
+      "spreadPct": 0.954,
+      "preferentialPct": 70,
+      "remittanceCount1y": 23,
+      "usdAppliedRate": 1334.91,
+      "krwPrincipal": 494998,
+      "fxMarginKrw": 1413,
+      "sendFeeKrw": 0,
+      "telegraphicFeeKrw": 5000,
+      "feeUsd": null,
+      "totalWithdrawKrw": 499998,
+      "unusedKrw": null,
+      "recipientAmountUsd": 370.81,
+      "recipientAmountPhpRef": 23587.19,
+      "deliveryType": "SWIFT_ACCOUNT",
+      "notices": [
+        "INTERMEDIARY_FEE_MAY_APPLY",
+        "LOCAL_PAYOUT_RATE_DIFFERS",
+        "FOREIGN_EXCHANGE_BANK_DESIGNATION_REQUIRED"
+      ],
+      "sources": [
+        {
+          "item": "usdBaseRate",
+          "title": "한국수출입은행 현재환율 Open API 매매기준율(USD)",
+          "approvalNo": null,
+          "checkedOn": "2026-11-19"
+        },
+        {
+          "item": "spreadPct",
+          "title": "신한은행 국제환율 고시표 2026-11-18 09:07 11회차(매매기준율 1,331.50 / 보내실 때 1,344.20)",
+          "approvalNo": null,
+          "checkedOn": "2026-11-18"
+        },
+        {
+          "item": "preferentialPct",
+          "title": "신한 SOL 쏠편한 해외송금 안내",
+          "approvalNo": "준법감시인 사전심사필 제2026-14794-1호(2026.09.16~2027.09.15)",
+          "checkedOn": "2026-11-18"
+        },
+        {
+          "item": "remittanceCount1y",
+          "title": "마이데이터 거래내역 해외송금 건수(Mock)",
+          "approvalNo": null,
+          "checkedOn": "2026-11-19"
+        },
+        {
+          "item": "sendFeeKrw",
+          "title": "신한 SOL 쏠편한 해외송금 안내",
+          "approvalNo": "준법감시인 사전심사필 제2026-14794-1호(2026.09.16~2027.09.15)",
+          "checkedOn": "2026-11-18"
+        },
+        {
+          "item": "telegraphicFeeKrw",
+          "title": "신한 SOL 쏠편한 해외송금 안내",
+          "approvalNo": "준법감시인 사전심사필 제2026-14794-1호(2026.09.16~2027.09.15)",
+          "checkedOn": "2026-11-18"
+        },
+        {
+          "item": "phpRefRate",
+          "title": "Frankfurter v2 ECB 기준환율(PHP)",
+          "approvalNo": null,
+          "checkedOn": "2026-11-18"
+        }
+      ]
+    },
+    {
+      "product": "SOL_FAST",
+      "available": true,
+      "unavailableReason": null,
+      "sendAmountUsd": 368.57,
+      "spreadPct": 0.954,
+      "preferentialPct": 0,
+      "remittanceCount1y": null,
+      "usdAppliedRate": 1343.8,
+      "krwPrincipal": 495285,
+      "fxMarginKrw": 4681,
+      "sendFeeKrw": null,
+      "telegraphicFeeKrw": null,
+      "feeUsd": 3.5,
+      "totalWithdrawKrw": 499988,
+      "unusedKrw": null,
+      "recipientAmountUsd": 368.57,
+      "recipientAmountPhpRef": 23444.7,
+      "deliveryType": "WESTERN_UNION",
+      "notices": [
+        "LOCAL_PAYOUT_RATE_BY_AGENT",
+        "LOCAL_PAYOUT_RATE_DIFFERS",
+        "FOREIGN_EXCHANGE_BANK_DESIGNATION_REQUIRED"
+      ],
+      "sources": [
+        {
+          "item": "usdBaseRate",
+          "title": "한국수출입은행 현재환율 Open API 매매기준율(USD)",
+          "approvalNo": null,
+          "checkedOn": "2026-11-19"
+        },
+        {
+          "item": "spreadPct",
+          "title": "신한은행 국제환율 고시표 2026-11-18 09:07 11회차(매매기준율 1,331.50 / 보내실 때 1,344.20)",
+          "approvalNo": null,
+          "checkedOn": "2026-11-18"
+        },
+        {
+          "item": "feeUsd",
+          "title": "신한 쏠빠른 해외송금 상품설명서·거래약관(제9조)",
+          "approvalNo": "준법감시인 사전심사필 제2026-12828-2호(2026.06.17~2027.06.16)",
+          "checkedOn": "2026-11-18"
+        },
+        {
+          "item": "perTransferLimitUsd",
+          "title": "신한 쏠빠른 해외송금 상품설명서·거래약관(제9조)",
+          "approvalNo": "준법감시인 사전심사필 제2026-12828-2호(2026.06.17~2027.06.16)",
+          "checkedOn": "2026-11-18"
+        },
+        {
+          "item": "phpRefRate",
+          "title": "Frankfurter v2 ECB 기준환율(PHP)",
+          "approvalNo": null,
+          "checkedOn": "2026-11-18"
+        }
+      ]
+    }
+  ]
+}
