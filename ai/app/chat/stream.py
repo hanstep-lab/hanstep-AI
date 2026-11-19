@@ -33,6 +33,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
+from app.chat.fx_tools import FX_SUMMARY_CARD, merge_fx_card
 from app.chat.graph import build_graph
 from app.chat.prompts import system_prompt
 from app.chat.schemas import ChatStreamRequest, LlmConfig
@@ -134,7 +135,9 @@ async def run_chat(
     tools: list[dict[str, Any]] = []
     calls: list[dict[str, Any]] = []
     sources: list[dict[str, Any]] = []
-    # 도구 결과의 화면 카드(점수 카드 등). agent.done의 blocks로 보낸다.
+    # 도구 결과의 화면 카드(점수 카드 등). agent.done의 blocks로 보낸다(Spring은 이 값을
+    # chat_messages.blocks_json에 저장하고 chat.done으로 그대로 보낸다).
+    # 환율 진단 카드는 한 턴에 하나: 여러 번 불러도 통화 기준으로 합친다.
     blocks: list[dict[str, Any]] = []
     first_delta_ms: int | None = None
     # Per LLM call number: when its first text reached the stream, and how many characters.
@@ -226,7 +229,9 @@ async def run_chat(
                         if source not in sources:
                             sources.append(source)
                     for block in item.get("blocks") or []:
-                        if block not in blocks:
+                        if block.get("type") == FX_SUMMARY_CARD:
+                            merge_fx_card(blocks, block)
+                        elif block not in blocks:
                             blocks.append(block)
                     yield _event("agent.tool_call", {k: item[k] for k in _TOOL_EVENT_FIELDS})
                 elif item["type"] == "llm_call":
