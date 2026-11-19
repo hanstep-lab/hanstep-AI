@@ -1059,3 +1059,24 @@ def test_fx_tool_content_backs_numbers() -> None:
     row["fxTools"] = []
     EVAL.score(row)
     assert "20.984 KRW" in row["numberCheck"]["unsupported"]
+
+
+def test_fx_summary_card_is_not_number_evidence_for_remittance_rows() -> None:
+    # 환율 진단 카드(#95)에는 LLM이 받지 않은 송금 환율(sendRate)이 있다. 송금 도구를 함께 부른
+    # 행에서도 카드 숫자는 근거가 아니다(근거는 LLM에 준 fxTools 값).
+    card = {
+        "type": "FX_SUMMARY_CARD",
+        "currencies": [{"currency": "USD", "unit": 1, "rate": 1406.51, "sendRate": 1420.5751}],
+        "unavailableCurrencies": [],
+    }
+    row: dict[str, Any] = {
+        "answer": "You would send at 1420.5751 KRW per USD.",
+        "toolResult": EVAL.tool_context(_settings(), 1, "fake"),
+        "contextTexts": ["What rate do I get when sending dollars?"],
+        "expectedTools": ["fx_rate_summary"],
+        "tools": [{"toolName": "get_fx_rate"}, {"toolName": "fx_rate_summary"}],
+        "blocks": [card],
+        "fxTools": [],
+    }
+    EVAL.score(row)
+    assert "1420.5751 KRW" in row["numberCheck"]["unsupported"]
