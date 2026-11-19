@@ -88,4 +88,53 @@ error 처리(③): 금융 정책 검색기는 실패하면 대신할 경로가 �
 
 ## 6. 개선 뒤 결과
 
-(구현 뒤 추가)
+코드 기준 `e9ae272`(ready 검색기 상태) + `b0632a2`(Dockerfile). 측정 조건·측정용 패치는 1절과 같다.
+
+### 6.1 단독 실행 (시간 값은 이것만 쓴다)
+
+다른 작업 없이 cold → warm 순서로 한 번씩 쟀다(2026-11-19 09:58 ~ 10:04).
+
+| 캐시 | 모델 로드 | 구축 끝 | ready 첫 true | 도구 첫 성공 | 구축 중 ready=false 표본 | ready=true인데 도구 실패 |
+|---|---|---|---|---|---|---|
+| cold | 26.8 | 305.2 | 305.3 | 305.3 | 505회(`financePolicySearch: building`) | **0회** |
+| warm | 23.1 | 58.6 | 58.7 | 58.7 | 44회(`financePolicySearch: building`) | **0회** |
+
+- ready는 구축이 끝난 뒤의 첫 표본(0.5초 간격)에서 true가 됐고, 같은 표본에서 도구가 처음 성공했다.
+- 구축 중에도 도구는 여전히 `SEARCH_NOT_CONFIGURED`로 실패한다(구축 시간 자체는 바꾸지 않았다).
+  달라진 것은 그동안 ready가 503 + `financePolicySearch: building`으로 그 사실을 알린다는 점이다.
+- 마지막 표본 checks: `financePolicySearch: ready`, `productSearch: not_configured`.
+
+### 6.2 전체 pytest와 동시에 돈 실행 (순서 지표만 쓴다)
+
+처음 개선 뒤 측정은 전체 단위 테스트(1492개)와 같은 시간에 돌아 CPU를 나눠 썼다. 그래서 시간 값은
+기준선과 비교하지 않고, 순서 지표만 쓴다.
+
+| 캐시 | ready 첫 true ≥ 구축 끝 | ready=true인데 도구 실패 |
+|---|---|---|
+| cold | 예(202.2 ≥ 201.9) | 0회 |
+| warm | 예(67.0 ≥ 66.7) | 0회 |
+
+### 6.3 기준선과 비교
+
+| 지표 | 기준선(2절) | 개선 뒤(6.1) |
+|---|---|---|
+| ready=true인데 도구 실패 (cold) | 531회 · 608회 | **0회** |
+| ready=true인데 도구 실패 (warm) | 58회 · 29회 | **0회** |
+| ready 첫 true − 구축 끝 (cold) | −294.3초 · −338.8초 | +0.03초 |
+| ready 첫 true − 구축 끝 (warm) | −42.1초 · −24.0초 | +0.11초 |
+
+- 판정(5절): 통과. ready가 구축 끝보다 먼저 true가 되는 일이 없고, ready=true인데 도구가 실패한 표본이 0이다.
+- 구축 시간(구축 시작 → 끝)은 같은 코드·조건에서도 cold 175~339초, warm 24~43초로 흔들렸다
+  (로컬 CPU 부하). 이번 변경은 구축 시간을 줄이는 것이 아니므로 시간 단축을 주장하지 않는다.
+  구축 시간 단축은 캐시 볼륨(BE 이슈)의 몫이다.
+
+### 6.4 Dockerfile
+
+`docker build -t hanstep-ai:issue98-check`(별도 태그, 공용 컨테이너는 쓰지 않음) 뒤 `docker run --rm`으로 확인했다.
+
+- 이미지: `/app/artifacts`, `/app/artifacts/rag`, `/app/artifacts/rag/embedding-cache` 모두 `10001:10001`(hanstep), 755. hanstep으로 파일 생성 가능.
+- 새 named volume을 `/app/artifacts/rag/embedding-cache`에 붙였을 때도 `10001:10001`, 쓰기 가능
+  (Docker가 빈 볼륨에 이미지 폴더의 소유자를 복사한다). 확인용 볼륨은 지웠다.
+
+원자료: `C:\Projects\hanstep\archive\ready-gap-98\`의 `after-{cold,warm}-standalone.json`(6.1),
+`after-{cold,warm}-concurrent.json`(6.2), `before-{cold,warm}-run{1,2}.json`(2절).
