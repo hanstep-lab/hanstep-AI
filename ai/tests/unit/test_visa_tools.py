@@ -15,6 +15,7 @@ from app.visa.e74.schemas import E74CalculateRequest
 from app.visa.e74.service import calculate
 from app.visa.tools import (
     CALCULATE_E74_SCORE,
+    E74_SCHEMA_DESCRIPTIONS,
     GET_VISA_ROADMAP,
     LEGAL_DECLARATION_ITEMS,
     LEGAL_DECLARATION_KEY,
@@ -22,6 +23,7 @@ from app.visa.tools import (
     CalculateE74ScoreInput,
     E74AssessmentToolResponse,
     E74ScoreCardBlock,
+    GetVisaRoadmapInput,
     MissingInputsBlock,
     RoadmapToolResponse,
     SearchVisaPoliciesInput,
@@ -80,6 +82,58 @@ def test_tool_definitions_have_closed_camel_case_schemas_without_user_id() -> No
         "scenario",
         "legalDeclaration",
     }
+
+
+def _descriptions(node: Any, path: str = "") -> dict[str, str]:
+    """JSON 스키마 안의 설명(description 문자열)을 위치별로 모은다."""
+    if isinstance(node, list):
+        return {
+            k: v for i, x in enumerate(node) for k, v in _descriptions(x, f"{path}[{i}]").items()
+        }
+    if not isinstance(node, dict):
+        return {}
+    found = {path: node["description"]} if isinstance(node.get("description"), str) else {}
+    for key, value in node.items():
+        found |= _descriptions(value, f"{path}.{key}" if path else key)
+    return found
+
+
+def test_e74_tool_definition_is_english_and_keeps_the_two_instructions() -> None:
+    """LLM에 보이는 calculate_e74_score 설명은 영어이고 개발자 메모가 없다(#108)."""
+    (e74,) = [d for d in tool_definitions() if d["name"] == CALCULATE_E74_SCORE]
+    texts = [e74["description"], *_descriptions(e74["input_schema"]).values()]
+    assert not [t for t in texts if re.search(r"[가-힣]", t)]
+    assert not [t for t in texts if re.search(r"MySQL|to_camel|Jackson|visa_evidence", t)]
+    # 스키마 설명은 E74_SCHEMA_DESCRIPTIONS 문구뿐이고, 사전의 위치는 모두 스키마에 있다.
+    assert _descriptions(e74["input_schema"]) == E74_SCHEMA_DESCRIPTIONS
+    # 지시 두 가지: 점수 질문에는 반드시 부른다, 물어서 받은 답만 넣는다
+    assert "Always call it for questions about the user's own E-7-4 score" in e74["description"]
+    legal = e74["input_schema"]["properties"]["legalDeclaration"]["description"]
+    assert "include only answers the user gave when asked" in legal
+    # 모양(인자 이름·타입·제약)은 그대로다.
+    raw = CalculateE74ScoreInput.model_json_schema(by_alias=True)
+    assert _without_descriptions(e74["input_schema"]) == _without_descriptions(
+        {k: v for k, v in raw.items() if k not in ("title",)}
+    )
+
+
+def _without_descriptions(node: Any) -> Any:
+    if isinstance(node, list):
+        return [_without_descriptions(v) for v in node]
+    if isinstance(node, dict):
+        return {
+            k: _without_descriptions(v)
+            for k, v in node.items()
+            if not (k == "description" and isinstance(v, str))
+        }
+    return node
+
+
+def test_other_tool_definitions_are_unchanged() -> None:
+    definitions = {d["name"]: d for d in tool_definitions()}
+    for name in (SEARCH_VISA_POLICIES, GET_VISA_ROADMAP):
+        model = SearchVisaPoliciesInput if name == SEARCH_VISA_POLICIES else GetVisaRoadmapInput
+        assert definitions[name]["description"] == model.__doc__
 
 
 def test_tool_inputs_accept_camel_case_and_reject_unknown_fields() -> None:
@@ -225,10 +279,13 @@ def test_e74_missing_inputs_add_a_missing_inputs_card() -> None:
     # 카드 question은 영어 문구다(#103).
     assert [f.question for f in missing.fields] == [m.question_en for m in result.missing_inputs]
     assert not any(re.search(r"[가-힣]", f.question) for f in missing.fields)
-    # LLM에 주는 도구 결과는 #101에서 잰 모양 그대로다(questionEn 없음).
-    assert all(
-        set(m) == {"field", "question", "ruleCodes"} for m in records.llm_output["missingInputs"]
-    )
+    # LLM에 주는 도구 결과는 #101에서 잰 모양 그대로이고 question은 카드와 같은 영어다(#108).
+    llm_missing = records.llm_output["missingInputs"]
+    assert all(set(m) == {"field", "question", "ruleCodes"} for m in llm_missing)
+    assert [m["question"] for m in llm_missing] == [f.question for f in missing.fields]
+    assert [m["ruleCodes"] for m in llm_missing] == [
+        list(m.rule_codes) for m in result.missing_inputs
+    ]
 
 
 def test_missing_inputs_card_finds_english_for_results_saved_before_question_en() -> None:
@@ -251,6 +308,162 @@ def test_missing_inputs_card_finds_english_for_results_saved_before_question_en(
     missing = e74_records(response).blocks[-1]
     assert isinstance(missing, MissingInputsBlock)
     assert [f.question for f in missing.fields] == [m.question_en for m in fresh.missing_inputs]
+
+
+HANGUL = re.compile(r"[가-힣]")
+LEGAL_ANSWERS = {
+    "finesUnder1mCount": 0,
+    "hasFine1mOrMore": False,
+    "taxStayRestrictionCount": 0,
+    "immigrationViolationCount": 0,
+    "hasOverstay3mOrMore": False,
+    "hasCurrentTaxArrears": False,
+}
+
+
+def _korean_strings(value: Any, path: str = "") -> list[tuple[str, str]]:
+    if isinstance(value, dict):
+        return [h for k, v in value.items() for h in _korean_strings(v, f"{path}.{k}")]
+    if isinstance(value, list):
+        return [h for i, v in enumerate(value) for h in _korean_strings(v, f"{path}[{i}]")]
+    return [(path, value)] if isinstance(value, str) and HANGUL.search(value) else []
+
+
+def _user_inputs(body: dict[str, Any]) -> list[str]:
+    """사용자가 입력한 원문(증빙 값·사업장명). LLM 결과에 그대로 들어가도 되는 한국어다."""
+    return [
+        *(e["levelValue"] for e in body.get("visaEvidences", []) if e.get("levelValue")),
+        *(h["employerName"] for h in body.get("employmentHistories", []) if h.get("employerName")),
+    ]
+
+
+def _e74_cases() -> list[tuple[str, dict[str, Any], str]]:
+    cases = []
+    for case_id in ("P00", "P01", "P02", "P03", "P04", "P05"):
+        body = profile_json(case_id)
+        for as_of in ("2026-10-25", "2026-11-19", "2026-12-05"):
+            cases.append((f"{case_id}@{as_of}", body, as_of))
+            cases.append(
+                (f"{case_id}+legal@{as_of}", {**body, "legalDeclaration": LEGAL_ANSWERS}, as_of)
+            )
+    # 검토 메모가 붙는 경우: 최근 2년 소득이 없어 대체 연도 사용, 19세 미만
+    p01 = profile_json("P01")
+    income = [
+        {"incomeYear": y, "annualAmount": a, "source": "DOCUMENT", "verificationStatus": "VERIFIED"}
+        for y, a in ((2022, 31000000), (2023, 32000000))
+    ]
+    cases.append(("P01-income-fallback", {**p01, "incomeRecords": income}, "2026-11-19"))
+    young = {**p01, "visaProfile": {**p01["visaProfile"], "birthDate": "2008-01-01"}}
+    cases.append(("P01-under-19", young, "2026-11-19"))
+    return cases
+
+
+E74_CASES = _e74_cases()
+
+
+def _calculate(body: dict[str, Any], as_of: str) -> Any:
+    request = E74CalculateRequest.model_validate({"asOfDate": as_of, "profile": body})
+    return calculate(request, include_draft=True)
+
+
+@pytest.mark.parametrize(("label", "body", "as_of"), E74_CASES, ids=[c[0] for c in E74_CASES])
+def test_e74_llm_output_has_no_korean_except_user_input(
+    label: str, body: dict[str, Any], as_of: str
+) -> None:
+    """LLM에 주는 E-7-4 도구 결과에는 한글이 없다(#108).
+
+    사용자 입력 원문(자격증 이름 등)만 예외다.
+    """
+    records = e74_records(
+        E74AssessmentToolResponse(assessment_id=5, reused=False, result=_calculate(body, as_of))
+    )
+    leftover = []
+    for path, text in _korean_strings(records.llm_output):
+        for value in _user_inputs(body):
+            text = text.replace(value, "")
+        if HANGUL.search(text):
+            leftover.append((path, text))
+    assert leftover == []
+
+
+@pytest.mark.parametrize(("label", "body", "as_of"), E74_CASES, ids=[c[0] for c in E74_CASES])
+def test_e74_llm_output_is_the_same_for_results_saved_before_english(
+    label: str, body: dict[str, Any], as_of: str
+) -> None:
+    """영어 필드가 없던 저장 결과(#103·#108 전, 재사용된 평가)도 LLM에는 같은 영어 결과를 준다."""
+    fresh = _calculate(body, as_of)
+    saved = fresh.model_dump(mode="json", by_alias=True)
+    for imp in saved["improvements"]:
+        del imp["descriptionEn"], imp["documentsEn"]
+    for m in saved["missingInputs"]:
+        del m["questionEn"]
+    old = E74AssessmentToolResponse.model_validate(
+        {"assessmentId": 5, "reused": True, "result": saved}
+    )
+    assert all(i.description_en is None for i in old.result.improvements)
+
+    new = E74AssessmentToolResponse(assessment_id=5, reused=True, result=fresh)
+    assert e74_records(old).llm_output == e74_records(new).llm_output
+
+
+def test_e74_llm_output_keeps_the_shape_and_uses_english_texts() -> None:
+    result = _calculate(profile_json("P02"), "2026-11-19")
+    llm = e74_records(E74AssessmentToolResponse(assessment_id=5, reused=False, result=result))
+    output = llm.llm_output
+
+    assert "reviewNotes" not in output and output["reviewNotices"] == []
+    first, imp = output["improvements"][0], result.improvements[0]
+    # 개선 방안 모양은 그대로(descriptionEn·documentsEn 키 없음)이고 값만 영어다.
+    assert list(first) == [
+        "ruleCode",
+        "kind",
+        "actor",
+        "pointsGain",
+        "blocking",
+        "availableFrom",
+        "target",
+        "documents",
+        "messageCode",
+        "description",
+    ]
+    assert (first["description"], first["documents"]) == (
+        imp.description_en,
+        list(imp.documents_en or ()),
+    )
+    # 엔진 결과(Spring 저장·로드맵 화면)의 한국어는 그대로다.
+    assert HANGUL.search(imp.description) and all(HANGUL.search(d) for d in imp.documents)
+
+
+def test_e74_review_notes_become_english_notices_for_the_llm() -> None:
+    """검토 메모(사람 확인용 한국어)는 LLM에 주지 않고 안내 코드·영어로 준다. 같은 안내는 합친다."""
+    label, body, as_of = E74_CASES[-2]
+    assert label == "P01-income-fallback"
+    result = _calculate(body, as_of)
+    assert [n.rule_code for n in result.review_notes] == ["INCOME_30_35", "REQ_MIN_INCOME"]
+
+    output = e74_records(
+        E74AssessmentToolResponse(assessment_id=5, reused=False, result=result)
+    ).llm_output
+    assert output["reviewNotices"] == [
+        {
+            "code": "INCOME_FROM_EARLIER_YEARS",
+            "ruleCodes": ["INCOME_30_35", "REQ_MIN_INCOME"],
+            "text": "Income for the last 2 years is missing, so the highest years from 2021 to"
+            " 2025 were used. The reason, such as a gap after re-entry, needs a manual check",
+        }
+    ]
+    assert not _korean_strings(output["reviewNotices"])
+
+
+def test_e74_sample_saved_before_english_gives_english_llm_output() -> None:
+    """Spring 평가 응답 샘플(영어 필드 없음)도 LLM 결과에 한글이 없다."""
+    response = E74AssessmentToolResponse.model_validate(
+        _fixture("e74_assessment_tool_response.json")
+    )
+    assert all(i.description_en is None for i in response.result.improvements)
+    output = e74_records(response).llm_output
+    assert output["improvements"] and _korean_strings(output) == []
+    assert all(i["description"] and i["documents"] for i in output["improvements"])
 
 
 def test_roadmap_sample_builds_link_card_ref_and_source() -> None:
