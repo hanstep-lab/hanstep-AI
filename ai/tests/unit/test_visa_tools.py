@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -221,6 +222,35 @@ def test_e74_missing_inputs_add_a_missing_inputs_card() -> None:
     missing = records.blocks[-1]
     assert isinstance(missing, MissingInputsBlock)
     assert [f.field for f in missing.fields] == [m.field for m in result.missing_inputs]
+    # 카드 question은 영어 문구다(#103).
+    assert [f.question for f in missing.fields] == [m.question_en for m in result.missing_inputs]
+    assert not any(re.search(r"[가-힣]", f.question) for f in missing.fields)
+    # LLM에 주는 도구 결과는 #101에서 잰 모양 그대로다(questionEn 없음).
+    assert all(
+        set(m) == {"field", "question", "ruleCodes"} for m in records.llm_output["missingInputs"]
+    )
+
+
+def test_missing_inputs_card_finds_english_for_results_saved_before_question_en() -> None:
+    """#103 전에 저장돼 재사용된 결과(questionEn 없음)도 카드에는 영어 문구를 쓴다."""
+    request = E74CalculateRequest.model_validate(
+        {"asOfDate": AS_OF.isoformat(), "profile": profile_json("P02")}
+    )
+    fresh = calculate(request, include_draft=True)
+    saved = fresh.model_dump(mode="json", by_alias=True)
+    for m in saved["missingInputs"]:
+        del m["questionEn"]
+    for item in saved["items"]:
+        for m in item["missingInputs"]:
+            del m["questionEn"]
+    response = E74AssessmentToolResponse.model_validate(
+        {"assessmentId": 5, "reused": True, "result": saved}
+    )
+    assert all(m.question_en is None for m in response.result.missing_inputs)
+
+    missing = e74_records(response).blocks[-1]
+    assert isinstance(missing, MissingInputsBlock)
+    assert [f.question for f in missing.fields] == [m.question_en for m in fresh.missing_inputs]
 
 
 def test_roadmap_sample_builds_link_card_ref_and_source() -> None:
