@@ -135,7 +135,9 @@ def test_all_currencies_from_fixture_values_only() -> None:
     assert "sendRate" not in usd and "sourceLabel" not in usd
     # 측정 값(agent.metrics)에는 LLM에 준 값이 그대로 남는다.
     assert outcome.measurement == {"arguments": {}, "content": content}
-    assert outcome.result_ref is None and outcome.blocks == []
+    # 카드(#95)를 붙여도 LLM에 주는 값은 Spring 본문을 summary_for_llm에 넣은 결과 그대로다.
+    assert content == summary_for_llm(_fixture_body())
+    assert outcome.result_ref is None and outcome.sources == []
 
 
 def test_currency_argument_is_upper_cased() -> None:
@@ -227,6 +229,7 @@ def test_spring_errors_become_cannot_check(
     assert (outcome.status, outcome.content) == (result, content)
     assert outcome.error_code == f"SPRING_HTTP_{status}"
     assert outcome.measurement is None
+    assert outcome.blocks == []  # 실패·거절이면 카드 없음
 
 
 def test_timeout_and_bad_body_become_unavailable() -> None:
@@ -241,6 +244,7 @@ def test_timeout_and_bad_body_become_unavailable() -> None:
     )
     bad = _run(_spring_tools(lambda r: httpx.Response(200, json={"currencies": [{}]}))[0], {})
     assert (bad.status, bad.content, bad.error_code) == ("FAILED", UNAVAILABLE, "INVALID_RESPONSE")
+    assert timed_out.blocks == [] and bad.blocks == []
 
 
 def test_source_slower_than_the_budget_times_out() -> None:
@@ -259,6 +263,7 @@ def test_fixture_currency_errors_match_spring() -> None:
         NOT_USER_CURRENCY,
         "SPRING_HTTP_400",
     )
+    assert jpy.blocks == []
 
 
 def test_unknown_tool_name_is_rejected() -> None:

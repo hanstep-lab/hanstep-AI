@@ -73,7 +73,7 @@ import httpx
 
 from app.api.routes.chat import PRODUCT_PROMPT_VERSIONS, REMITTANCE_PROMPT_VERSIONS
 from app.chat.fake_llm import FAKE_MODEL_ID
-from app.chat.fx_tools import FX_RATE_SUMMARY
+from app.chat.fx_tools import FX_RATE_SUMMARY, FX_SUMMARY_CARD
 from app.chat.judgment import judgment_facts
 from app.chat.number_check import check_answer, rounded_values, scan_numbers
 from app.chat.prompts import PROMPT_VERSIONS, system_prompt
@@ -1103,10 +1103,15 @@ def score(row: dict[str, Any]) -> None:
     if row.get("expectedAction") or called_remittance:
         # 송금 도구 결과도 근거다. 받는 분·환율(get_remittance_recipients·get_fx_rate)은
         # remitContext, 견적(quote_remittance)은 그 결과로 만든 확인 카드(blocks)와 숫자가 같다.
+        # 환율 진단 카드(FX_SUMMARY_CARD, #95)는 뺀다: LLM이 받지 않은 값(sendRate 등)이 있고,
+        # 환율 진단 근거는 아래 fx_results(LLM에 준 값)가 따로 맡는다.
         tool_results += [
             row_remit_context(row),
-            *(row.get("blocks") or []),
-            *(follow.get("blocks") or []),
+            *(
+                b
+                for b in [*(row.get("blocks") or []), *(follow.get("blocks") or [])]
+                if b.get("type") != FX_SUMMARY_CARD
+            ),
         ]
     product_tool = row.get("productTool")
     if product_tool and product_tool.get("content"):

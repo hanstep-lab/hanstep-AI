@@ -12,6 +12,10 @@
   "stale이면 기준 시각을 강조한다"이기 때문이다(송금 도구 get_fx_rate는 isMock을 뺀다).
 - 측정용(agent.metrics의 tools)으로 LLM에 준 값을 measurement.content에 남긴다.
   숫자 검사가 이 값을 근거로 쓴다.
+- 성공하면 환율 진단 카드(FX_SUMMARY_CARD, agent.done의 blocks)를 낸다(#95). 카드는 LLM용
+  결과가 아니라 Spring 원본에서 만든다(송금 환율 sendRate·receiveRate는 LLM에 주지 않는다).
+  필드 이름은 환율 화면 API(FX-001)와 같다. 버튼(환율 상세 보기 등)은 앱이 고정으로 붙인다.
+- 한 턴에 여러 번 불러도 카드는 하나다: 스트림이 merge_fx_card로 통화 기준으로 합친다.
 """
 
 from __future__ import annotations
@@ -20,12 +24,22 @@ import asyncio
 import json
 import logging
 import time
+from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PlainSerializer,
+    ValidationError,
+    field_validator,
+)
 
+from app.chat.remittance_tools import Contract, CurrencyCode, Rate
 from app.chat.tools import UNAVAILABLE, ToolOutcome
 from app.integrations.spring_client import SpringApiError, SpringInternalClient
 
@@ -171,6 +185,91 @@ def summary_for_llm(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# --- 환율 진단 카드(FX_SUMMARY_CARD, #95) ------------------------------------------------
+
+FX_SUMMARY_CARD = "FX_SUMMARY_CARD"
+# 부호가 있는 값(전일 대비, 평균과의 차이). Decimal로 받고 JSON에는 숫자로 낸다.
+Signed = Annotated[Decimal, PlainSerializer(float, return_type=float, when_used="json")]
+
+
+class FxPeriodAverage(Contract):
+    """평균을 낸 기간 하나(FX-001 periodAverages와 같은 이름). 데이터 부족 기간은 카드에 없다."""
+
+    period: Literal["1M", "3M", "6M", "1Y"]
+    avg: Rate
+    diff: Signed = Field(description="현재 − 평균")
+    diff_rate: Signed = Field(description="(현재 − 평균) ÷ 평균 × 100(%)")
+    direction: Literal["LOWER", "HIGHER", "SAME"]
+    business_days: int = Field(ge=1)
+
+
+class FxCurrencyCard(Contract):
+    """통화 하나. ``unit`` 외화 = ``rate`` KRW(FX-001과 같은 이름)."""
+
+    currency: CurrencyCode
+    unit: int = Field(ge=1)
+    rate: Rate
+    send_rate: Rate | None = Field(description="송금 보낼 때. KOREAEXIM만 있고 그 밖에는 null")
+    receive_rate: Rate | None = Field(description="송금 받을 때. KOREAEXIM만 있고 그 밖에는 null")
+    change: Signed | None = Field(description="전 영업일 대비. 전 영업일 값이 없으면 null")
+    change_rate: Signed | None = Field(description="전 영업일 대비(%). 없으면 null")
+    source: str = Field(min_length=1, max_length=30)
+    as_of: date
+    fetched_at: datetime
+    period_averages: tuple[FxPeriodAverage, ...]
+    is_mock: bool
+    stale: bool
+
+
+class FxSummaryCardBlock(Contract):
+    """환율 진단 카드(chat_messages.blocks_json). 문장·버튼 경로는 넣지 않는다."""
+
+    type: Literal["FX_SUMMARY_CARD"] = "FX_SUMMARY_CARD"
+    currencies: tuple[FxCurrencyCard, ...] = Field(min_length=1)
+    unavailable_currencies: tuple[CurrencyCode, ...]
+
+
+def summary_block(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Spring fx-summary 원본 → 카드. 평균을 내지 않은 기간(avg null)은 뺀다. 통화가 없으면 None."""
+    if not data["currencies"]:
+        return None
+    currencies = [
+        {**item, "periodAverages": [p for p in item["periodAverages"] if p["avg"] is not None]}
+        for item in data["currencies"]
+    ]
+    block = FxSummaryCardBlock.model_validate(
+        {
+            "currencies": currencies,
+            "unavailableCurrencies": list(data.get("unavailableCurrencies") or []),
+        }
+    )
+    result: dict[str, Any] = block.model_dump(mode="json", by_alias=True)
+    return result
+
+
+def merge_fx_card(blocks: list[dict[str, Any]], card: dict[str, Any]) -> None:
+    """한 턴의 카드를 하나로 합친다(blocks를 바꾼다).
+
+    - 카드 자리는 처음 나온 FX 카드 자리. 통화 순서는 처음 나온 순서.
+    - 같은 통화는 나중 호출 값으로 덮어쓴다(같은 턴이라 Spring 값은 사실상 같다).
+    - unavailableCurrencies는 합친 뒤 카드에 실제로 있는 통화를 뺀다.
+    """
+    index = next((i for i, b in enumerate(blocks) if b.get("type") == FX_SUMMARY_CARD), None)
+    if index is None:
+        blocks.append(card)
+        return
+    current = blocks[index]
+    by_code = {c["currency"]: c for c in current["currencies"]}
+    for item in card["currencies"]:
+        by_code[item["currency"]] = item
+    missing = dict.fromkeys([*current["unavailableCurrencies"], *card["unavailableCurrencies"]])
+    blocks[index] = {
+        "type": FX_SUMMARY_CARD,
+        "currencies": list(by_code.values()),
+        "unavailableCurrencies": [c for c in missing if c not in by_code],
+    }
+
+
 class FxTools:
     """요청 하나에 묶인 환율 진단 도구."""
 
@@ -233,8 +332,15 @@ class FxTools:
             content = summary_for_llm(data)
         except (KeyError, TypeError, ValueError):
             return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
+        try:
+            card = summary_block(data)
+        except (KeyError, TypeError, ValueError):
+            # 카드 형식만 어긋남(LLM 결과는 정상): 답변은 그대로 두고 카드만 내지 않는다.
+            logger.warning("fx summary card skipped: invalid card values")
+            card = None
         return outcome(
             "SUCCEEDED",
             content,
             measurement={"arguments": arguments, "content": content},
+            blocks=[card] if card is not None else [],
         )
