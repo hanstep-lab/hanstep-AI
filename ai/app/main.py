@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI
 from pymongo import MongoClient
@@ -26,6 +26,8 @@ from app.visa.roadmap.service import StepWriter
 from app.visa.roadmap.text import LlmStepWriter
 
 logger = logging.getLogger(__name__)
+
+SearchStatus = Literal["not_configured", "building", "ready", "error"]
 
 
 @dataclass
@@ -47,6 +49,10 @@ class AppState:
     product_search: ProductSearch | None = None
     # 금융 정책 검색(#88). None이면 search_finance_policy가 SEARCH_NOT_CONFIGURED.
     finance_policy_search: FinancePolicySearch | None = None
+    # 검색기 구축 상태(#98). readiness가 이 값을 보고한다. 문서 폴더가 설정됐으면 build_state가
+    # "building"으로 시작하고, 모델 로드 뒤 구축 결과에 따라 "ready" 또는 "error"가 된다.
+    product_search_status: SearchStatus = "not_configured"
+    finance_policy_search_status: SearchStatus = "not_configured"
 
 
 def _load_model(state: AppState) -> None:
@@ -58,6 +64,13 @@ def _load_model(state: AppState) -> None:
         state.errors["model"] = type(exc).__name__
         state.model_status = "error"
         logger.exception("embedding model failed to load")
+        # 모델 없이는 검색기를 만들 수 없다. building에 머무르지 않게 error로 둔다.
+        if state.product_search_status == "building":
+            state.product_search_status = "error"
+            state.errors["productSearch"] = "ModelNotLoaded"
+        if state.finance_policy_search_status == "building":
+            state.finance_policy_search_status = "error"
+            state.errors["financePolicySearch"] = "ModelNotLoaded"
         return
     state.model_status = "loaded"
     _build_product_search(state)
@@ -79,7 +92,10 @@ def _build_finance_policy_search(state: AppState) -> None:
         )
     except Exception as exc:
         state.errors["financePolicySearch"] = type(exc).__name__
+        state.finance_policy_search_status = "error"
         logger.exception("finance policy search failed to build")
+        return
+    state.finance_policy_search_status = "ready"
 
 
 def _build_product_search(state: AppState) -> None:
@@ -97,7 +113,10 @@ def _build_product_search(state: AppState) -> None:
         )
     except Exception as exc:
         state.errors["productSearch"] = type(exc).__name__
+        state.product_search_status = "error"
         logger.exception("product search failed to build")
+        return
+    state.product_search_status = "ready"
 
 
 def _roadmap_writer(settings: Settings) -> StepWriter | None:
@@ -137,6 +156,11 @@ def build_state(settings: Settings) -> AppState:
         embedder=embedder,
         roadmap_writer=_roadmap_writer(settings),
     )
+    # 문서 폴더가 설정된 검색기는 모델 로드 뒤 만들어진다. 그때까지 ready를 막는다(#98).
+    if settings.product_corpus_dir:
+        state.product_search_status = "building"
+    if settings.finance_policy_corpus_dir:
+        state.finance_policy_search_status = "building"
     if settings.mongo_configured():
         state.mongo = MongoClient(
             settings.mongo_uri.get_secret_value(),
