@@ -16,7 +16,7 @@ from typing import Any
 
 from app.visa.e74.dates import add_months, full_months_between
 from app.visa.e74.employment import current_stint, left_without_fault_missing, stint_coverage
-from app.visa.e74.questions import declaration_missing, declared_value
+from app.visa.e74.questions import declaration_missing, declared_value, missing_input
 from app.visa.e74.results import ItemResult, ItemStatus, MissingInput
 from app.visa.e74.rules import (
     Contract,
@@ -44,9 +44,7 @@ REQUIREMENT = RuleCategory.REQUIREMENT
 EXCLUSION = RuleCategory.EXCLUSION
 KOREAN_DEFERRED = "E74_KOREAN_DEFERRED"
 
-EMPLOYMENT_MISSING = MissingInput(
-    field="employmentHistories", question="근무 이력(사업장, 업종, 근무 시작일·종료일)"
-)
+EMPLOYMENT_MISSING = missing_input("employmentHistories", field="employmentHistories")
 
 
 @dataclass(frozen=True)
@@ -131,9 +129,8 @@ def _stay_period(rule: Rule, c: StayPeriod, profile: E74Profile, as_of: date) ->
             ItemStatus.NEEDS_EVIDENCE,
             "E74_REQ_STAY_MISSING",
             missing=[
-                MissingInput(
-                    field="visaProfile.currentStayStartedOn",
-                    question="현재 체류를 시작한 날(이번에 한국에 입국한 날)",
+                missing_input(
+                    "visaProfile.currentStayStartedOn", field="visaProfile.currentStayStartedOn"
                 )
             ],
         )
@@ -165,12 +162,7 @@ def _stay_period(rule: Rule, c: StayPeriod, profile: E74Profile, as_of: date) ->
             "E74_REQ_STAY_PRIOR_MISSING",
             evidence,
             missing=[
-                MissingInput(
-                    field="visaProfile.priorStayMonths",
-                    question=(
-                        "이번 입국 전, 최근 10년 안에 E-9·E-10·H-2로 한국에 있었던 기간 합계(개월)"
-                    ),
-                )
+                missing_input("visaProfile.priorStayMonths", field="visaProfile.priorStayMonths")
             ],
         )
     return _item(rule, ItemStatus.NOT_MET, "E74_REQ_STAY_SHORT", evidence)
@@ -198,9 +190,7 @@ def _current_employment(rule: Rule, c: CurrentEmployment, profile: E74Profile) -
             rule,
             ItemStatus.NEEDS_EVIDENCE,
             "E74_REQ_VISA_MISSING",
-            missing=[
-                MissingInput(field="visaProfile.visaTypeCode", question="현재 체류자격(예: E-9)")
-            ],
+            missing=[missing_input("visaProfile.visaTypeCode", field="visaProfile.visaTypeCode")],
         )
     evidence: dict[str, Any] = {"visaTypeCode": visa}
     if visa not in c.visa_types:
@@ -235,16 +225,13 @@ def _contract(rule: Rule, c: Contract, profile: E74Profile, as_of: date) -> Item
     missing: list[MissingInput] = []
     if current.contract_end_on is None:
         missing.append(
-            MissingInput(
-                field=f"{prefix}.contractEndOn",
-                question="현재 회사와 맺은(맺을) E-7-4 고용계약의 종료일",
-            )
+            missing_input("employmentHistories.contractEndOn", field=f"{prefix}.contractEndOn")
         )
     if current.contract_annual_salary is None:
         missing.append(
-            MissingInput(
+            missing_input(
+                "employmentHistories.contractAnnualSalary",
                 field=f"{prefix}.contractAnnualSalary",
-                question="E-7-4 고용계약 연봉(기본급·수당을 포함한 1년 총액)",
             )
         )
     if missing or current.contract_end_on is None or current.contract_annual_salary is None:
@@ -302,9 +289,9 @@ def _employer_recommendation(
             "E74_REQ_EMPLOYER_REC_MISSING",
             evidence,
             missing=[
-                MissingInput(
+                missing_input(
+                    "visaEvidences.employerRecommendation",
                     field=f"visaEvidences[evidenceType={c.evidence_type.value}]",
-                    question="현재 회사 대표의 고용기업 추천서를 받았는지(받을 수 있는지)",
                 )
             ],
         )

@@ -25,7 +25,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from app.rag.retrieval import SearchHit
-from app.visa.e74.engine import EligibilityStatus
+from app.visa.e74.engine import EligibilityStatus, MissingInputSummary
+from app.visa.e74.questions import english_question
 from app.visa.e74.results import ItemStatus
 from app.visa.e74.rules import ApprovalStatus, RuleCategory
 from app.visa.e74.schemas import E74Scenario, LegalDeclarationIn
@@ -264,7 +265,7 @@ class VisaRoadmapLinkBlock(ChatRecord):
 
 
 class MissingField(ChatRecord):
-    """추가로 입력받을 항목 하나."""
+    """추가로 입력받을 항목 하나. question은 영어 문구다(#103)."""
 
     field: str
     question: str
@@ -294,11 +295,25 @@ class VisaToolRecords(ChatRecord):
 # --- 4. 도구 결과 → 채팅 기록 -----------------------------------------------------------
 
 
-def _missing_block(missing: Sequence[Any]) -> tuple[MissingInputsBlock, ...]:
+def _card_question(missing: MissingInputSummary) -> str:
+    """카드에 보일 영어 문구.
+
+    questionEn이 없던 저장 결과(#103 전, 재사용된 평가·로드맵)는 한국어 문구로 영어 문구를 찾고,
+    문구 목록에 없으면 한국어 그대로 둔다.
+    """
+    return missing.question_en or english_question(missing.question) or missing.question
+
+
+def _missing_block(missing: Sequence[MissingInputSummary]) -> tuple[MissingInputsBlock, ...]:
     if not missing:
         return ()
-    fields = tuple(MissingField(field=m.field, question=m.question) for m in missing)
+    fields = tuple(MissingField(field=m.field, question=_card_question(m)) for m in missing)
     return (MissingInputsBlock(fields=fields),)
+
+
+def _llm_missing(missing: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """LLM에 주는 missingInputs. questionEn은 빼서 #101에서 잰 도구 결과 모양을 그대로 둔다."""
+    return [{k: v for k, v in m.items() if k != "questionEn"} for m in missing]
 
 
 def e74_records(response: E74AssessmentToolResponse) -> VisaToolRecords:
@@ -323,7 +338,7 @@ def e74_records(response: E74AssessmentToolResponse) -> VisaToolRecords:
         "scoreGap": data["scoreGap"],
         "koreanDeferralApplied": data["koreanDeferralApplied"],
         "requirements": requirements,
-        "missingInputs": data["missingInputs"],
+        "missingInputs": _llm_missing(data["missingInputs"]),
         "needsEvidence": data["needsEvidence"],
         "improvements": data["improvements"][:TOP_IMPROVEMENTS],
         "planToRequired": data["planToRequired"],
@@ -378,7 +393,7 @@ def roadmap_records(response: RoadmapToolResponse) -> VisaToolRecords:
         "score": data["score"],
         "steps": steps,
         "projectedScore": data["projectedScore"],
-        "missingInputs": data["missingInputs"],
+        "missingInputs": _llm_missing(data["missingInputs"]),
         "warnings": data["warnings"],
         "isMock": data["isMock"],
     }

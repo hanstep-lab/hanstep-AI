@@ -33,10 +33,17 @@ class ItemStatus(StrEnum):
 
 
 class MissingInput(CamelResponse):
-    """판정에 필요한 입력. field는 요청 JSON 경로, question은 LLM이 사용자에게 물을 내용."""
+    """판정에 필요한 입력. field는 요청 JSON 경로, question은 LLM이 사용자에게 물을 내용.
+
+    엔진은 questions.missing_input()으로만 만든다(문구는 questions.QUESTIONS 한곳).
+    """
 
     field: str
-    question: str
+    question: str = Field(description="한국어 문구")
+    question_en: str | None = Field(
+        default=None,
+        description="영어 문구(#103). 엔진은 늘 채운다. 이 필드가 생기기 전에 저장된 결과는 null",
+    )
 
 
 class ItemResult(CamelResponse):

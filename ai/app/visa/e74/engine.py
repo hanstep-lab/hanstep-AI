@@ -36,7 +36,7 @@ from app.visa.e74.requirements import (
     calculate_requirement_items,
     totals,
 )
-from app.visa.e74.results import CamelResponse, ItemResult, ItemStatus
+from app.visa.e74.results import CamelResponse, ItemResult, ItemStatus, MissingInput
 from app.visa.e74.rules import (
     MinAverageIncome,
     MinKorean,
@@ -85,7 +85,11 @@ class MissingInputSummary(CamelResponse):
     """여러 항목의 누락 입력을 필드별로 합친 것. LLM은 이 목록으로 재질의한다."""
 
     field: str
-    question: str
+    question: str = Field(description="한국어 문구")
+    question_en: str | None = Field(
+        default=None,
+        description="영어 문구(#103). 엔진은 늘 채운다. 이 필드가 생기기 전에 저장된 결과는 null",
+    )
     rule_codes: tuple[str, ...]
 
 
@@ -170,16 +174,21 @@ def _status(items: Sequence[ItemResult]) -> EligibilityStatus:
 
 
 def _missing_inputs(items: Sequence[ItemResult]) -> tuple[MissingInputSummary, ...]:
-    merged: dict[str, tuple[str, list[str]]] = {}
+    merged: dict[str, tuple[MissingInput, list[str]]] = {}
     for item in items:
         for missing in item.missing_inputs:
-            question, codes = merged.setdefault(missing.field, (missing.question, []))
+            first, codes = merged.setdefault(missing.field, (missing, []))
             code = item.rule_code or item.category.value
             if code not in codes:
                 codes.append(code)
     return tuple(
-        MissingInputSummary(field=field, question=question, rule_codes=tuple(codes))
-        for field, (question, codes) in merged.items()
+        MissingInputSummary(
+            field=field,
+            question=first.question,
+            question_en=first.question_en,
+            rule_codes=tuple(codes),
+        )
+        for field, (first, codes) in merged.items()
     )
 
 

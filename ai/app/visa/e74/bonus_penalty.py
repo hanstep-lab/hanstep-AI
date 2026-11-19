@@ -24,7 +24,7 @@ from app.visa.e74.employment import (
     required_days,
     stint_coverage,
 )
-from app.visa.e74.questions import declaration_missing, declared_value
+from app.visa.e74.questions import declaration_missing, declared_value, missing_input
 from app.visa.e74.results import (
     ItemResult,
     ItemStatus,
@@ -59,9 +59,7 @@ PENALTY = RuleCategory.PENALTY
 HIGHER_CERTIFICATE_GRADES = ("기술사", "기능장")
 _LICENSE_NOISE = re.compile(r"\s|제|면허")
 
-EMPLOYMENT_MISSING = MissingInput(
-    field="employmentHistories", question="근무 이력(사업장, 업종, 근무 시작일·종료일)"
-)
+EMPLOYMENT_MISSING = missing_input("employmentHistories", field="employmentHistories")
 
 
 def _first_rule(rule_set: RuleSet, category: RuleCategory, kind: type) -> Rule | None:
@@ -248,19 +246,7 @@ def calculate_region_bonus(
             evidence=evidence,
         )
     if unknown and covered_days(in_window(rows + unknown)) >= need:
-        missing = [
-            MissingInput(
-                field=(
-                    f"employmentHistories[employmentHistoryId={r.employment_history_id}]"
-                    ".isDepopulationArea"
-                ),
-                question=(
-                    f"{r.started_on.isoformat()}~{r.ended_on.isoformat() if r.ended_on else '현재'}"
-                    " 근무지가 인구감소지역 또는 읍·면 지역인지"
-                ),
-            )
-            for r in unknown
-        ]
+        missing = [_depopulation_missing(r) for r in unknown]
         return missing_result(BONUS, "E74_REGION_UNKNOWN_AREA", missing, evidence, rule_code=code)
     return not_met_result(BONUS, "E74_BONUS_REGION_SHORT", evidence, rule_code=code)
 
@@ -275,6 +261,19 @@ def _certificate_grade(name: str, grades: tuple[str, ...]) -> str | None:
 
 def _evidence_path(ev: VisaEvidenceIn, attribute: str) -> str:
     return f"visaEvidences[visaEvidenceId={ev.visa_evidence_id}].{attribute}"
+
+
+def _depopulation_missing(row: EmploymentHistoryIn) -> MissingInput:
+    """근무지가 인구감소지역(읍·면 포함)인지 모르는 근무 이력 한 건의 재질의."""
+    field = (
+        f"employmentHistories[employmentHistoryId={row.employment_history_id}].isDepopulationArea"
+    )
+    start = row.started_on.isoformat()
+    if row.ended_on is None:
+        return missing_input("employmentHistories.isDepopulationArea.current", field, start=start)
+    return missing_input(
+        "employmentHistories.isDepopulationArea", field, start=start, end=row.ended_on.isoformat()
+    )
 
 
 def _recognition_result(
@@ -321,8 +320,8 @@ def calculate_qualification_bonus(profile: E74Profile, rule_set: RuleSet) -> Ite
         considered.append(detail)
         if not name:
             missing.append(
-                MissingInput(
-                    field=_evidence_path(ev, "levelValue"), question="자격증 이름(예: 용접기능사)"
+                missing_input(
+                    "visaEvidences.certificateName", field=_evidence_path(ev, "levelValue")
                 )
             )
             continue
@@ -336,9 +335,10 @@ def calculate_qualification_bonus(profile: E74Profile, rule_set: RuleSet) -> Ite
         if condition.require_job_related and ev.related_to_current_job is not True:
             if ev.related_to_current_job is None:
                 missing.append(
-                    MissingInput(
+                    missing_input(
+                        "visaEvidences.certificateRelatedToCurrentJob",
                         field=_evidence_path(ev, "relatedToCurrentJob"),
-                        question=f"자격증 '{name}'이 지금 하는 일과 관련 있는지",
+                        name=name,
                     )
                 )
             else:
@@ -352,10 +352,7 @@ def calculate_qualification_bonus(profile: E74Profile, rule_set: RuleSet) -> Ite
         considered.append(detail)
         if not value:
             missing.append(
-                MissingInput(
-                    field=_evidence_path(ev, "levelValue"),
-                    question="국내 학위 과정(전문학사, 학사, 석사, 박사)",
-                )
+                missing_input("visaEvidences.degreeLevel", field=_evidence_path(ev, "levelValue"))
             )
         elif any(level in value for level in condition.degree_levels):
             recognized.append(ev)
@@ -395,8 +392,8 @@ def calculate_license_bonus(profile: E74Profile, rule_set: RuleSet) -> ItemResul
         considered.append(detail)
         if not license_class:
             missing.append(
-                MissingInput(
-                    field=_evidence_path(ev, "levelValue"), question="운전면허 종류(예: 2종 보통)"
+                missing_input(
+                    "visaEvidences.driverLicenseType", field=_evidence_path(ev, "levelValue")
                 )
             )
         elif license_class in accepted:

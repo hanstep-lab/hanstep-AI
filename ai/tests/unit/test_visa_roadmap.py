@@ -146,6 +146,10 @@ def test_unknown_prior_stay_means_no_date_and_a_question() -> None:
     assert d["steps"][-1]["availableFrom"] is None
     fields = {m["field"]: m["ruleCodes"] for m in d["missingInputs"]}
     assert fields["visaProfile.priorStayMonths"] == ["REQ_STAY_PERIOD"]
+    # 로드맵 응답에도 영어 문구가 실린다(#103). 한국어 question은 그대로다.
+    prior = next(m for m in d["missingInputs"] if m["field"] == "visaProfile.priorStayMonths")
+    assert prior["question"].startswith("이번 입국 전")
+    assert prior["questionEn"].startswith("Before this entry, how many months")
 
 
 def test_stay_ending_before_the_application_date_is_warned() -> None:
