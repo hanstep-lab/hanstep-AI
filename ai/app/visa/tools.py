@@ -42,6 +42,7 @@ from app.visa.e74.texts import (
     is_korean,
     korean_for_llm,
     review_notice,
+    status_text,
 )
 from app.visa.roadmap.schemas import RoadmapResponse
 
@@ -111,6 +112,8 @@ TOOL_INPUTS: dict[str, type[ToolInput]] = {
 E74_TOOL_DESCRIPTION = (
     "Calculate the user's E-7-4 score and whether they can apply, from their saved profile."
     " Always call it for questions about the user's own E-7-4 score."
+    " Do not write status codes or other code values from the result (for example INELIGIBLE,"
+    " NOT_MET or rule codes) in the answer; use statusText and the other texts."
 )
 E74_SCHEMA_DESCRIPTIONS: dict[str, str] = {
     "properties.asOfDate": "Date to calculate for. Defaults to today (KST).",
@@ -482,7 +485,8 @@ def e74_records(response: E74AssessmentToolResponse, language: str = "en") -> Vi
     ]
     llm_output = {
         "assessmentId": response.assessment_id,
-        "status": data["status"],
+        # 상태 코드(INELIGIBLE 등) 대신 사용자 언어 문구를 준다. 카드 status는 코드 그대로다.
+        "statusText": status_text(data["status"], language),
         "ruleVersion": data["ruleVersion"],
         "ruleStatus": data["ruleStatus"],
         "asOfDate": data["asOfDate"],

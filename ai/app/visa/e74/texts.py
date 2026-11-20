@@ -404,6 +404,29 @@ MANUAL_CHECK = "MANUAL_CHECK"
 MANUAL_CHECK_TEXT = "This item needs a manual check"
 MANUAL_CHECK_TEXT_KO = "이 항목은 따로 확인해야 함"
 
+# --- 판정 상태(LLM 결과 statusText). key는 EligibilityStatus 값.
+# 사전진단 결과이며 허가가 아니다.
+# 상태 코드(ELIGIBLE 등)는 LLM에 주지 않는다.
+# 카드(E74_SCORE_CARD.status)는 코드 그대로다(앱이 번역).
+STATUSES: dict[str, Text] = {
+    "ELIGIBLE": Text(
+        "사전 점검 기준으로 신청 요건을 모두 충족함",
+        "Meets all application requirements in this pre-check",
+    ),
+    "INELIGIBLE": Text(
+        "지금은 신청 요건을 충족하지 못함",
+        "Does not meet the application requirements now",
+    ),
+    "NEEDS_EVIDENCE": Text(
+        "증빙 서류나 추가 정보가 있어야 신청 가능 여부를 판정할 수 있음",
+        "Needs documents or more information before eligibility can be decided",
+    ),
+    "NEEDS_REVIEW": Text(
+        "따로 확인해야 신청 가능 여부를 판정할 수 있음",
+        "Needs a manual check before eligibility can be decided",
+    ),
+}
+
 
 # --- 문구 만들기(엔진) -------------------------------------------------------------------------
 
@@ -470,6 +493,12 @@ def is_korean(language: str) -> bool:
 def _llm_korean_replacements() -> tuple[tuple[str, str], ...]:
     pairs = [(t.ko, t.llm_ko) for table in (RULES, DOCUMENTS) for t in table.values() if t.llm_ko]
     return tuple(sorted(pairs, key=lambda pair: -len(pair[0])))
+
+
+def status_text(status: str, language: str) -> str:
+    """판정 상태 코드 → 사용자 언어 문구(LLM 결과 statusText). ko면 한국어, 그 밖이면 영어."""
+    text = STATUSES[status]
+    return text.ko if is_korean(language) or text.en is None else text.en
 
 
 def korean_for_llm(korean: str) -> str:
