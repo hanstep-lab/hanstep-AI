@@ -1,6 +1,7 @@
 """Chat prompt versions: v1 unchanged, v1.1 two lines, v2 visa, v3 remittance, v4 product, v4.4 FX.
 
-v4.4 = v4.2 + exchange rate rules (fx_rules.md).
+v4.4 = v4.2 + exchange rate rules (fx_rules.md). v4.6 = v4.5 + answer display rules (#116);
+v4.4d = v4.4 + the same display rules (kept to reproduce the 2026-11-20 measurement).
 """
 
 from __future__ import annotations
@@ -22,10 +23,13 @@ from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
 from app.chat.fx_tools import FX_RATE_SUMMARY
 from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.prompts import (
+    DISPLAY_CHANGES,
+    NO_BOLD_LINE,
     PROMPT_VERSION,
     PROMPT_VERSIONS,
     V4_1_STAY_RULE,
     V4_STAY_RULE,
+    _with_display_rules,
     _with_product_rules,
     _with_remittance_rules,
     _with_stay_rule,
@@ -85,6 +89,8 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v4.3a": "chat-v4.3a",
         "v4.4": "chat-v4.4",
         "v4.5": "chat-v4.5",
+        "v4.4d": "chat-v4.4d",
+        "v4.6": "chat-v4.6",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -236,6 +242,15 @@ PROMPT_SHA256 = {
     "v4.4": "61f665e249634c23bb469820f82a9d354b7d57c83c5460af433a0d7449541f55",
     # 2026-11-20(#114): v4.4 본문 그대로 + 목표·출처·상품 카드 규칙(goal_rules.md).
     "v4.5": "47a7a4f73d1b11ed540bc961351fe7489d31ac6cbf992458d04ecffe401d4aad",
+    # 2026-11-20(#116): 답변 표시 규칙(영어 규칙, en·vi·zh). ko는 PROMPT_SHA256_KO.
+    # v4.4d = v4.4 + 표시 규칙(11/20 측정 재현용), v4.6 = v4.5 + 표시 규칙.
+    "v4.4d": "6d72bb2bc1a76fc4bb8b3083394e0a41abdb7889c0320bfbd44f9298beec5e95",
+    "v4.6": "29f7942e9dd8b18c18d809d5cdd6e2c2d5740842350331f60d758b3227e4138c",
+}
+# 표시 규칙이 언어별로 다른 버전의 한국어(ko) 프롬프트.
+PROMPT_SHA256_KO = {
+    "v4.4d": "e69b2c08fae002baeafa8aae841abae6193cf7abb8688b20d52d49587abc0903",
+    "v4.6": "4efbb464edf6ef0b17cb5a4809fd3733b436e80aedb0cffdd54a717f4746df1a",
 }
 
 
@@ -246,6 +261,11 @@ def test_prompt_text_is_fixed_per_version() -> None:
         for version in PROMPT_VERSIONS
     }
     assert actual == PROMPT_SHA256
+    actual_ko = {
+        version: hashlib.sha256(system_prompt("ko", version).encode("utf-8")).hexdigest()
+        for version in PROMPT_SHA256_KO
+    }
+    assert actual_ko == PROMPT_SHA256_KO
 
 
 def test_prompt_rules_and_attached_tools_agree() -> None:
@@ -272,7 +292,8 @@ def test_v4_4_is_v4_2_plus_fx_rules() -> None:
     fx_rules = (PROMPTS / "fx_rules.md").read_text(encoding="utf-8")
     assert v44 == v42.rstrip("\n") + "\n\n" + fx_rules
     # v4.5(#114)는 v4.4 본문 그대로라 환율 진단 도구도 붙는다.
-    assert FX_PROMPT_VERSIONS == frozenset({"v4.4", "v4.5"})
+    # v4.4d·v4.6(#116)은 v4.4·v4.5에 표시 규칙을 더한 버전이라 같이 붙는다.
+    assert FX_PROMPT_VERSIONS == frozenset({"v4.4", "v4.5", "v4.4d", "v4.6"})
     assert _settings().chat_prompt_version == "v4.1"
     config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.4"))
     assert config.prompt_version_id == "chat-v4.4"
@@ -362,3 +383,75 @@ def test_v4_3a_is_v4_2_plus_direction_rule() -> None:
     assert _settings().chat_prompt_version == "v4.1"
     config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.3a"))
     assert config.prompt_version_id == "chat-v4.3a"
+
+
+@pytest.mark.parametrize("language", ["ko", "en"])
+@pytest.mark.parametrize(("version", "base"), [("v4.6", "v4.5"), ("v4.4d", "v4.4")])
+def test_display_version_is_base_with_display_rules(version: str, base: str, language: str) -> None:
+    # 표시 규칙(#116): v4.6 = v4.5 + 표시 규칙, v4.4d = v4.4 + 표시 규칙(11/20 측정 재현용).
+    # 바뀌는 바탕 글의 줄은 DISPLAY_CHANGES뿐이고, 볼드 금지 두 줄(송금·환율)은 빠지며,
+    # 끝에 사용자 언어의 표시 규칙이 붙는다.
+    lines = system_prompt(language, base).splitlines()
+    rules = (PROMPTS / f"display_rules_{language}.md").read_text(encoding="utf-8")
+    changes = {
+        old.replace("{language}", language): new.replace("{language}", language)
+        for old, new, _ in DISPLAY_CHANGES
+    }
+    assert lines.count(NO_BOLD_LINE) == 2
+    assert all(old in lines for old in changes)
+    expected = [changes.get(line, line) for line in lines if line != NO_BOLD_LINE]
+    assert system_prompt(language, version).splitlines() == [
+        *expected,
+        "",
+        *rules.replace("{language}", language).splitlines(),
+    ]
+    # 바탕 글은 언어 코드만 다르다(표시 규칙이 없는 버전).
+    assert system_prompt("ko", base) == system_prompt("en", base).replace('"en"', '"ko"')
+
+
+def test_v4_6_keeps_the_v4_5_goal_and_card_rules() -> None:
+    v45, v46 = system_prompt("en", "v4.5"), system_prompt("en", "v4.6")
+    # v4.5의 목표·출처·상품 카드 규칙(goal_rules.md)은 그대로 남고, 표시 규칙은 그 뒤에 붙는다.
+    goal_rules = (PROMPTS / "goal_rules.md").read_text(encoding="utf-8").rstrip("\n")
+    assert goal_rules in v45 and goal_rules in v46
+    assert v46.index(goal_rules) < v46.index("Display rules:")
+    config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.6"))
+    assert config.prompt_version_id == "chat-v4.6"
+    # 코드 기본값은 이 PR에서 바꾸지 않는다(develop 값 그대로).
+    assert _settings().chat_prompt_version == "v4.1"
+
+
+@pytest.mark.parametrize("version", ["v4.4d", "v4.6"])
+def test_display_rules_by_language(version: str) -> None:
+    ko, en = system_prompt("ko", version), system_prompt("en", version)
+    # ko: 원화는 "원"만, 외화는 처음 한 번 "미국 달러(USD)". en: 통화 코드.
+    for phrase in ("followed by 원", "Never write KRW, (KRW)", "미국 달러(USD)", "100동당"):
+        assert phrase in ko and phrase not in en, phrase
+    for phrase in ("1 USD = 1,330.80 KRW", "KRW 700,000", "not won"):
+        assert phrase in en and phrase not in ko, phrase
+    # 공통: 결론 첫 줄만 볼드, 숫자 목록, 출처·기준 시각 줄, 표시값 그대로, 영업일 수 빼기.
+    for text in (ko, en):
+        for phrase in (
+            "wrap only that sentence in **",
+            'each line starting with "- "',
+            "source and the as-of date and time",
+            "copy that text exactly",
+            "Do not mention the number of business days",
+            "rateText",
+            "basisText",
+        ):
+            assert phrase in text, phrase
+        assert NO_BOLD_LINE not in text
+        assert "currency codes (KRW) as they are" not in text
+        assert "3 to 5 short sentences" not in text
+    # vi·zh는 영어 표시 규칙을 받고, 답변 언어 줄만 그 언어 코드다.
+    for language in ("vi", "zh"):
+        assert system_prompt(language, version) == en.replace('"en"', f'"{language}"')
+
+
+def test_display_rules_fail_fast_when_a_v4_4_line_moves() -> None:
+    with pytest.raises(ValueError, match="language line"):
+        _with_display_rules("Rules:\n- something else", "Display rules:")
+    base = system_prompt("en", "v4.5").replace('"en"', '"{language}"')
+    with pytest.raises(ValueError, match="no-bold line exactly twice"):
+        _with_display_rules(base.replace(NO_BOLD_LINE + "\n", "", 1), "Display rules:")

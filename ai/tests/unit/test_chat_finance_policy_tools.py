@@ -171,6 +171,9 @@ def test_v4_4_adds_only_the_fx_tool_to_v4_2(monkeypatch: pytest.MonkeyPatch) -> 
     assert _tool_names("v4.4", monkeypatch) == [*v42, FX_RATE_SUMMARY]
     for version in ("v1", "v2", "v3", "v4", "v4.1", "v4.2", "v4.3a"):
         assert FX_RATE_SUMMARY not in _tool_names(version, monkeypatch), version
+    # 표시 규칙 버전(#116)의 도구 구성은 바탕 버전과 같다: v4.6 = v4.5, v4.4d = v4.4.
+    assert _tool_names("v4.4d", monkeypatch) == _tool_names("v4.4", monkeypatch)
+    assert _tool_names("v4.6", monkeypatch) == _tool_names("v4.5", monkeypatch)
 
 
 @pytest.mark.parametrize("enabled", [False, True])

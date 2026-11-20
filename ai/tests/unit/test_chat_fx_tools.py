@@ -303,3 +303,132 @@ def test_number_check_accepts_tool_numbers(answer: str) -> None:
 def test_number_check_flags_numbers_not_in_the_tool(answer: str, flagged: str) -> None:
     content = json.loads(_run(_fixture_tools(), {"currency": "PHP"}).content)
     assert flagged in check_answer(answer, [], [QUESTION], fx_results=[content]).unsupported
+
+
+# --- 표시값(#116, 프롬프트 v4.4d) -------------------------------------------------------------
+
+
+def _display_tools(language: str) -> FxTools:
+    return FxTools(
+        FixtureFxSummary(),
+        user_id=1,
+        request_id="req_d",
+        timeout=5,
+        language=language,
+        display_text=True,
+    )
+
+
+@pytest.mark.parametrize("language", ["en", "ko", "vi"])
+def test_display_off_keeps_the_v4_4_output(language: str) -> None:
+    # 표시 규칙이 없는 버전(v4.4)은 language를 받아도 LLM에 주는 값이 v4.4와 바이트 단위로 같다.
+    off = FxTools(FixtureFxSummary(), user_id=1, request_id="r", timeout=5, language=language)
+    outcome = _run(off, {})
+    assert outcome.content == _run(_fixture_tools(), {}).content
+    assert json.loads(outcome.content) == summary_for_llm(_fixture_body())
+    assert "rateText" not in outcome.content
+
+
+PHP_KO_DISPLAY: dict[str, Any] = {
+    "currencyName": {"first": "필리핀 페소(PHP)", "after": "페소"},
+    "rateText": "20.984",
+    "changeText": "+0.112",
+    "sourceText": "시장 환율 참고값",
+    # 11/17 값을 11/18에 확인했으므로 날짜만
+    "basisText": "11월 17일",
+}
+PHP_AVERAGE_TEXTS = [
+    {"averageText": "21.039", "differenceText": "-0.055"},
+    {"averageText": "21.543", "differenceText": "-0.559"},
+    {"averageText": "22.936", "differenceText": "-1.952"},
+    {"averageText": "23.816", "differenceText": "-2.832"},
+]
+
+
+def test_display_ko_adds_texts_next_to_the_raw_numbers() -> None:
+    outcome = _run(_display_tools("ko"), {})
+    assert outcome.status == "SUCCEEDED"
+    content = json.loads(outcome.content)
+    usd, php = content["currencies"]
+    # 원래 숫자는 그대로 두고 표시값만 더한다.
+    raw_php = {**php, "periodAverages": [
+        {k: v for k, v in p.items() if not k.endswith("Text")} for p in php["periodAverages"]
+    ]}  # fmt: skip
+    for key in PHP_KO_DISPLAY:
+        raw_php.pop(key)
+    assert raw_php == PHP_FOR_LLM
+    assert {k: php[k] for k in PHP_KO_DISPLAY} == PHP_KO_DISPLAY
+    assert [
+        {k: p[k] for k in ("averageText", "differenceText")} for p in php["periodAverages"]
+    ] == PHP_AVERAGE_TEXTS
+    # USD: 공식 고시 둘째 자리, 평균은 반올림, 같은 날 확인이라 시각까지.
+    assert {k: usd[k] for k in ("currencyName", "rateText", "changeText", "sourceText")} == {
+        "currencyName": {"first": "미국 달러(USD)", "after": "달러"},
+        "rateText": "1,406.51",
+        "changeText": "-1.08",
+        "sourceText": "한국수출입은행 고시",
+    }
+    assert usd["basisText"] == "11월 6일 11:05"
+    assert [
+        (p["average"], p["averageText"], p["differenceText"]) for p in usd["periodAverages"]
+    ] == [
+        (1407.7735, "1,407.77", "-1.26"),
+        (1429.6566, "1,429.66", "-23.15"),
+        (1419.9966, "1,420.00", "-13.49"),
+        (1418.8393, "1,418.84", "-12.33"),
+    ]
+    # 측정 값(agent.metrics)에도 표시값이 들어간 LLM 입력이 그대로 남는다(숫자 검사의 근거).
+    assert outcome.measurement == {"arguments": {}, "content": content}
+
+
+@pytest.mark.parametrize("language", ["en", "vi", "zh"])
+def test_display_en_uses_codes_and_english_names(language: str) -> None:
+    usd, php = json.loads(_run(_display_tools(language), {}).content)["currencies"]
+    assert php["currencyName"] == {"first": "PHP", "after": "PHP"}
+    assert (php["rateText"], php["sourceText"], php["basisText"]) == (
+        "20.984",
+        "market reference rate",
+        "Nov 17",
+    )
+    assert (usd["sourceText"], usd["basisText"]) == (
+        "Korea Eximbank published rate",
+        "Nov 6, 11:05",
+    )
+    # 숫자 표시는 언어와 상관없이 같다.
+    ko_usd = json.loads(_run(_display_tools("ko"), {}).content)["currencies"][0]
+    assert usd["rateText"] == ko_usd["rateText"] and usd["changeText"] == ko_usd["changeText"]
+
+
+def test_display_does_not_change_the_card() -> None:
+    assert _run(_display_tools("ko"), {}).blocks == _run(_fixture_tools(), {}).blocks
+
+
+def test_display_without_previous_day_or_known_source() -> None:
+    body = _fixture_body()
+    usd = body["currencies"][0]
+    body["currencies"] = [{**usd, "change": None, "changeRate": None, "source": "OTHER"}]
+    [item] = summary_for_llm(body, "ko")["currencies"]
+    assert item["changeText"] is None and item["changeFromPreviousBusinessDay"] is None
+    assert "sourceText" not in item and item["source"] == "OTHER"
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "**오늘 필리핀 페소(PHP) 환율은 20.984원으로, 최근 1년 평균보다 낮아요.**\n"
+        "- 1개월 평균 21.039원\n- 3개월 평균 21.543원\n- 6개월 평균 22.936원\n"
+        "- 1년 평균 23.816원(현재보다 2.832원 높음)\n"
+        "시장 환율 참고값 · 11월 17일 기준이에요. 과거 평균과 비교한 것이고, 앞으로의 환율을 "
+        "예측하지는 않아요.",
+        "**Today's PHP rate is 1 PHP = 20.984 KRW, lower than the 1-year average.**\n"
+        "- 1-month average: 21.039 KRW\n- 1-year average: 23.816 KRW\n"
+        "Market reference rate · as of Nov 17. This compares the rate with past averages.",
+    ],
+)
+def test_number_check_accepts_display_texts(answer: str) -> None:
+    # 반올림한 평균(21.0393 → 21.039)은 표시값이 LLM 입력에 있어서 근거가 있다.
+    content = json.loads(_run(_display_tools("ko"), {"currency": "PHP"}).content)
+    check = check_answer(answer, [], [QUESTION], fx_results=[content])
+    assert check.unsupported == [] and check.ambiguous == [], check.to_json()
+    raw = json.loads(_run(_fixture_tools(), {"currency": "PHP"}).content)
+    assert check_answer(answer, [], [QUESTION], fx_results=[raw]).unsupported

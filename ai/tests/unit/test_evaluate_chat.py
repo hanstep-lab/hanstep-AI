@@ -1158,6 +1158,21 @@ def test_e74_english_question_set() -> None:
     assert all(re.search(r"[가-힣]", q["text"]) for q in ko)
 
 
+def test_display_question_set_pairs_ko_and_en() -> None:
+    # 답변 표시 규칙 측정(#116): 환율 질문 5종 × 한국어(DK)·영어(DE).
+    # 표시 규칙 버전은 바탕 버전의 기대값을 쓴다(v4.6 → v4.5, v4.4d → v4.4).
+    spec = EVAL.load_questions(EVAL.QUESTION_SETS["display"])
+    ids = [q["id"] for q in spec["questions"]]
+    assert ids == [f"D{lang}0{n}" for lang in "KE" for n in range(1, 6)]
+    ko, en = spec["questions"][:5], spec["questions"][5:]
+    for a, b in zip(ko, en, strict=True):
+        assert (a["category"], a["kind"]) == (b["category"], b["kind"])
+        for version in ("v4.4", "v4.4d", "v4.5", "v4.6"):
+            assert EVAL.expected_tools(a, version) == EVAL.expected_tools(b, version)
+    assert (EVAL.PROMPT_BASE["v4.4d"], EVAL.PROMPT_BASE["v4.6"]) == ("v4.4", "v4.5")
+    assert all(not q["history"] for q in spec["questions"])
+
+
 def test_lang_question_set_and_subsets() -> None:
     # 답변 언어 측정(#106): 10문항, vi·ko 확인 문항은 세트 안의 id.
     spec = EVAL.load_questions(EVAL.QUESTION_SETS["lang"])

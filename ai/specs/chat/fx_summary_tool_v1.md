@@ -6,7 +6,7 @@ Spring 내부 API(hanstep-backend#127)를 부르고, 그 값을 LLM에 줄 형�
 - 숫자는 Spring이 계산한다(환율 화면 GET /api/v1/fx/rates와 같은 계산). LLM은 숫자를 옮겨 쓰고 설명만 한다.
 - 과거 평균과의 비교만 준다. 예측·송금 권유·시점 추천은 없다.
 - 환율은 실데이터만 쓴다(운영 `isMock`은 항상 false). 로컬 Mock 포함 설정에서는 `isMock: true`가 올 수 있다.
-- 프롬프트 v4.4(`chat-v4.4` = v4.2 본문 그대로 + 환율 진단 규칙)에서만 붙는다. 다른 버전의 도구 구성은 그대로다. 기본 프롬프트(v4.1) 전환은 측정 결과를 보고 따로 정한다.
+- 프롬프트 v4.4(`chat-v4.4` = v4.2 본문 그대로 + 환율 진단 규칙)와 그 뒤 버전(v4.5, 답변 표시 규칙이 있는 v4.6·v4.4d, #116)에서만 붙는다. 다른 버전의 도구 구성은 그대로다.
 
 ## 도구
 
@@ -59,6 +59,23 @@ Spring 내부 API(hanstep-backend#127)를 부르고, 그 값을 LLM에 줄 형�
 | `isMock` · `stale` | Mock 환율인지 · 값이 오래됐는지(KOREAEXIM은 기준일이 직전 평일보다 이름, MARKET_REF는 마지막 확인이 3시간 넘음) |
 
 결과 참조(resultRef)·근거(sources)는 없다. 화면 카드는 아래 "화면 카드" 절(#95). 측정용으로 같은 값을 `agent.metrics`의 `tools[].content`에 남긴다.
+
+### 표시값(프롬프트 v4.6·v4.4d, #116)
+
+v4.6·v4.4d(답변 표시 규칙, `specs/chat/answer_display_v1.md`)에서는 위 값을 그대로 두고 사용자 언어의 표시용 문자열을 더 준다. 숫자는 `app/chat/display.py`가 만들고, LLM은 그대로 옮긴다. v4.4·v4.5에서는 더하지 않는다(LLM 입력이 그대로다). 카드(`FX_SUMMARY_CARD`)도 그대로다.
+
+- 라우트(`app/api/routes/chat.py`)가 요청마다 `FxTools(..., language=body.language, display_text=<v4.6·v4.4d인지>)`로 만든다. LLM 인자가 아니다.
+- 언어: `ko`면 한국어, 그 밖(`en`·`vi`·`zh`)은 영어.
+- 환율 숫자는 앱 환율 카드와 같은 통화별 자릿수로 반올림(ROUND_HALF_UP)하고 천 단위 쉼표를 붙인다: USD 2, PHP 3, 그 밖 2.
+
+| 필드 | 위치 | ko 예(fixture PHP·USD) | en 예 |
+|---|---|---|---|
+| `currencyName.first`·`currencyName.after` | 통화 | `필리핀 페소(PHP)`·`페소` | `PHP`·`PHP` |
+| `rateText` | 통화 | `20.984`, `1,406.51` | 같음 |
+| `changeText` | 통화 | `+0.112`, `-1.08`(전 영업일 값이 없으면 null) | 같음 |
+| `sourceText` | 통화 | `시장 환율 참고값`, `한국수출입은행 고시`(표에 없는 출처면 필드 없음) | `market reference rate`, `Korea Eximbank published rate` |
+| `basisText` | 통화 | `11월 17일`(확인 시각이 기준일과 다른 날), `11월 6일 11:05`(같은 날이면 시각까지, KST) | `Nov 17`, `Nov 6, 11:05` |
+| `averageText`·`differenceText` | `periodAverages[]` | `21.039`·`-0.055`, `1,407.77`·`-1.26` | 같음 |
 
 ## 오류
 
@@ -184,3 +201,13 @@ LLM에 주는 결과와 측정 값(`agent.metrics`)은 그대로다. 측정 스�
 - `insufficientDataPeriods`의 기간은 데이터가 부족하다고 말하고 평균을 짐작하지 않는다.
 - 도구가 `data unavailable`·`no exchange rate data`를 주면 지금 환율을 확인할 수 없다고 말하고 환율을 말하지 않는다.
 - 굵게 등 마크다운 강조를 쓰지 않는다.
+
+## 프롬프트 v4.6·v4.4d에서 바꾼 규칙(#116)
+
+v4.6은 v4.5, v4.4d는 v4.4가 바탕이다. `fx_rules.md`는 그대로 두고 `app/chat/prompts/__init__.py`의 `DISPLAY_CHANGES`가 줄을 바꾼다. 공통 표시 규칙은 `specs/chat/answer_display_v1.md`.
+
+- 숫자: 표시값(`rateText`·`changeText`·`averageText`·`differenceText`)을 글자 그대로 쓴다.
+- 환율 표기: 표시 규칙(언어별)을 따른다(ko `1,330.80원`, en `1 USD = 1,330.80 KRW`).
+- 근거: 마지막 줄에 통화별 `sourceText`와 `basisText`를 쓴다. 평균의 영업일 수는 말하지 않는다.
+- 출처 이름: `sourceText`를 쓴다.
+- 볼드 금지 줄은 뺀다(결론 첫 줄만 볼드, 표시 규칙).
