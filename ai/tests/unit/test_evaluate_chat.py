@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -1150,6 +1151,11 @@ def test_e74_english_question_set() -> None:
         if q["id"] in v44:
             assert q["text"] == v44[q["id"]]["text"]
     assert questions[0]["text"] == "What's my E-7-4 score?"
+    # 한국어 세트(e74ko): 같은 id·기대 도구이고 질문은 한국어다.
+    ko = EVAL.load_questions(EVAL.QUESTION_SETS["e74ko"])["questions"]
+    assert [q["id"] for q in ko] == [q["id"] for q in questions]
+    assert all(EVAL.expected_tools(q, "v4.4") == ["calculate_e74_score"] for q in ko)
+    assert all(re.search(r"[가-힣]", q["text"]) for q in ko)
 
 
 def test_lang_question_set_and_subsets() -> None:
