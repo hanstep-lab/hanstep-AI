@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "description": "프롬프트 v4.5 측정(#114) 문항. eval_questions_v1.json과 같은 형식. 입력값 질문(category input) 2개와 열린 조언 질문(category open) 3개. 채점은 scripts/_v45_check.py(v45Check). 기대 숫자·고른 목표는 문항에 적지 않고, 측정 때 읽은 INT-06(행의 toolResult: declaredCommitments·goals)에서 정한다(목표 조합은 실행마다 DB로 바꾼다). 설계: specs/chat/chat_v45_measure_v1.md.",
+  "description": "프롬프트 v4.5 측정(#114) 문항. eval_questions_v1.json과 같은 형식. 입력값 질문(category input) 2개, 열린 조언 질문(category open) 3개, 상품 질문(category product) 1개. 채점은 scripts/_v45_check.py(v45Check). 기대 숫자·고른 목표는 문항에 적지 않고, 측정 때 읽은 INT-06(행의 toolResult: declaredCommitments·goals)에서 정한다(목표 조합은 실행마다 DB로 바꾼다). 설계: specs/chat/chat_v45_measure_v1.md.",
   "latencySubset": [],
   "holdoutSubset": [],
   "questions": [
@@ -55,6 +55,15 @@
       "expectBehavior": "advice_by_goals",
       "v45Check": "goals",
       "source": "이번 세트(열린 조언)"
+    },
+    {
+      "id": "V06",
+      "category": "product",
+      "text": "Recommend a savings product for me",
+      "history": [],
+      "expectedTools": ["recommend_savings_products"],
+      "expectBehavior": "recommend",
+      "source": "이번 세트(상품 추천: 여유자금 기준과 카드). 채점기 없음, 행의 productTool·blocks를 읽는다(설계 3-3)"
     }
   ]
 }
