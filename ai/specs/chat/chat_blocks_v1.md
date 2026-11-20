@@ -157,12 +157,14 @@ Spring 비자 API(E-7-4 평가 `result`, 로드맵 `roadmap`)는 AI 엔진 결�
 
 | LLM 결과 경로 | ko | en | 엔진 결과(Spring `result_json`) |
 |---|---|---|---|
+| `statusText` | 판정 상태 한국어 문구(`texts.py` `STATUSES`) | 판정 상태 영어 문구 | `status` 코드 그대로(카드 `E74_SCORE_CARD.status`도 코드, 앱이 번역) |
 | `missingInputs[].question` | `question`(한국어) | `questionEn`(카드와 같음) | `question`(한국어)·`questionEn` 그대로 |
 | `improvements[].description` | `description`에서 내부 표기를 뺀 한국어 | `descriptionEn` | `description`(한국어) 그대로 + `descriptionEn`(#108, 전 저장분은 키 없음) |
 | `improvements[].documents` | `documents`에서 내부 표기를 뺀 한국어 | `documentsEn` | `documents`(한국어) 그대로 + `documentsEn`(#108, 전 저장분은 키 없음) |
 | `reviewNotices[]` `{code, ruleCodes, text}` | 검토 메모 key와 한국어 안내 | 검토 메모 key와 영어 안내 | `reviewNotes` 그대로 |
 
 - 두 언어 모두 `reviewNotes`(사람 확인용 한국어 메모)는 LLM에 주지 않는다.
+- 판정 상태 코드(`ELIGIBLE`·`INELIGIBLE`·`NEEDS_EVIDENCE`·`NEEDS_REVIEW`)는 LLM 결과에 넣지 않고 `statusText` 문구로 준다. 도구 설명에 "상태 코드·코드값은 답변에 쓰지 않는다"를 넣었다(요건 `requirements[].status` 등 남은 코드값 포함).
 - 두 언어 모두 내부 표기도 주지 않는다. 확인 번호(Q8·Q9), 양식 번호("(붙임5)"·"(붙임9 견본)"), "검토 필요"가 해당한다. ko 문구는 `texts.py`의 `llm_ko`다(예: "고용기업 추천서(공식 양식)").
 - en: `descriptionEn`·`documentsEn`·`questionEn`이 없는 재사용 평가(#108·#103 전 저장분)는 한국어 문구로 같은 문구의 영어를 찾는다. 찾지 못한 개선 방안의 `description`·`documents`는 한국어 대신 null이다.
 - `reviewNotices[].code`: `NO_APPROVED_RULES`, `AGE_OUTSIDE_SCORE_TABLE`, `INCOME_FROM_EARLIER_YEARS`, `KOREAN_LEVEL_UNREADABLE`, `CERTIFICATE_GRADE_NOT_LISTED`, `STAY_SPECIAL_RULE_CHECK`, `REQUIRED_TOTAL_UNKNOWN`. 그 밖의 메모는 `MANUAL_CHECK`다. 같은 안내는 하나로 합친다(소득 대체 연도 메모는 소득 점수·최소 소득 요건 두 항목).
