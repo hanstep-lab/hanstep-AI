@@ -103,29 +103,64 @@ def _amount(money: Any) -> int | None:
     return int(money["amount"]) if isinstance(money, dict) and "amount" in money else None
 
 
+# INT-06 balance(hanstep-backend #151·#153, MonthlyBalanceResponse)의 출처 값.
+USER_INPUT = "USER_INPUT"
+BALANCE_ITEMS = ("fixedLiving", "remittance", "variableExpense")
+
+
+def _with_balance(analysis: dict[str, Any], balance: Any) -> dict[str, Any]:
+    """balance가 있으면 월소득·세 항목·여유자금을 그 값으로 바꾸고 항목별 출처를 더한다(#114).
+
+    balance가 없거나 객체가 아니면 analysis를 그대로 돌려준다(기존 동작). 프롬프트 버전과 상관없다.
+    변동지출이 직접 입력(USER_INPUT)이면 거래 기준 범위(min·max)는 null로 둔다(입력값 평균과 거래
+    범위가 섞이지 않게).
+    """
+    if not isinstance(balance, dict):
+        return analysis
+    out = dict(analysis)
+    for key in ("avgMonthlyIncome", "fixedLiving", "remittance", "spare"):
+        value = _amount(balance.get(key))
+        if value is not None:
+            out[key] = value
+    variable = dict(out["variableExpense"])
+    value = _amount(balance.get("variableExpense"))
+    if value is not None:
+        variable["avg"] = value
+    if balance.get("variableExpenseSource") == USER_INPUT:
+        variable["min"] = variable["max"] = None
+    out["variableExpense"] = variable
+    out["sources"] = {item: balance.get(f"{item}Source") for item in BALANCE_ITEMS}
+    return out
+
+
 def summarize(context: dict[str, Any]) -> dict[str, Any]:
-    """INT-06 response -> compact JSON for the LLM. KeyError/TypeError on a malformed body."""
+    """INT-06 response -> compact JSON for the LLM. KeyError/TypeError on a malformed body.
+
+    INT-06에 balance(직접 입력 우선 월 수지)가 있으면 analysis의 금액은 그 값이고 sources에 항목별
+    출처(USER_INPUT·TRANSACTIONS)가 있다(_with_balance).
+    """
     analysis = context["latestAnalysis"]
     variable = analysis["variableExpense"] or {}
     quality = analysis["dataQuality"] or {}
     commitments = context.get("commitments") or {}
+    base = {
+        "periodFrom": analysis["periodFrom"],
+        "periodTo": analysis["periodTo"],
+        "avgMonthlyIncome": _amount(analysis["avgMonthlyIncome"]),
+        "fixedLiving": _amount(analysis["fixedLiving"]),
+        "remittance": _amount(analysis["remittance"]),
+        "variableExpense": {
+            "avg": _amount(variable.get("avg")),
+            "min": _amount(variable.get("min")),
+            "max": _amount(variable.get("max")),
+        },
+        "spare": _amount(analysis["spare"]),
+        "observedMonthCount": quality.get("observedMonthCount"),
+        "warnings": quality.get("warnings") or [],
+    }
     return {
         "currency": "KRW",
-        "analysis": {
-            "periodFrom": analysis["periodFrom"],
-            "periodTo": analysis["periodTo"],
-            "avgMonthlyIncome": _amount(analysis["avgMonthlyIncome"]),
-            "fixedLiving": _amount(analysis["fixedLiving"]),
-            "remittance": _amount(analysis["remittance"]),
-            "variableExpense": {
-                "avg": _amount(variable.get("avg")),
-                "min": _amount(variable.get("min")),
-                "max": _amount(variable.get("max")),
-            },
-            "spare": _amount(analysis["spare"]),
-            "observedMonthCount": quality.get("observedMonthCount"),
-            "warnings": quality.get("warnings") or [],
-        },
+        "analysis": _with_balance(base, context.get("balance")),
         # Entered by the user during onboarding, not computed from transactions.
         "declaredCommitments": {
             key: _amount(commitments.get(key))

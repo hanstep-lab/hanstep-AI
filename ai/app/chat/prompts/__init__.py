@@ -20,6 +20,7 @@ PROMPT_VERSIONS = {
     "v4.2": "chat-v4.2",
     "v4.3a": "chat-v4.3a",
     "v4.4": "chat-v4.4",
+    "v4.5": "chat-v4.5",
 }
 PROMPT_VERSION = PROMPT_VERSIONS["v1"]  # the default
 
@@ -154,6 +155,13 @@ def _with_fx_rules(base: str, fx_rules: str) -> str:
 # 환율 진단 도구 fx_rate_summary는 v4.4에서만 붙는다.
 _SYSTEM["v4.4"] = _with_fx_rules(
     _SYSTEM["v4.2"], (_DIR / "fx_rules.md").read_text(encoding="utf-8")
+)
+# v4.5(#114): v4.4 본문 그대로 + 목표·출처·상품 카드 규칙(goal_rules.md). v4.4의 줄은 바꾸지 않는다.
+# product_rules.md의 '금리는 앱·지점에서 확인' 줄은 그대로 두고,
+# 카드가 붙는 v4.5에서만 이 절이 대신한다.
+# 상품 추천 카드(PRODUCT_RECOMMEND_CARD)는 v4.5에서만 붙는다.
+_SYSTEM["v4.5"] = (
+    _SYSTEM["v4.4"].rstrip("\n") + "\n\n" + (_DIR / "goal_rules.md").read_text(encoding="utf-8")
 )
 
 

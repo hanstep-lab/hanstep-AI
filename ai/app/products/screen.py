@@ -19,9 +19,21 @@ from app.chat.product_tools import (
     ProductProfile,
     ProductRanker,
     RecommendConditions,
+    excluded_summary,
     order_pool,
-    product_view,
+    rate_fields,
+    screen_item,
 )
+
+# rate_fields·screen_item·excluded_summary는 채팅 카드(PRODUCT_RECOMMEND_CARD, #114)와 같이 쓰려고
+# app/chat/product_tools.py로 옮겼다(이 모듈이 product_tools를 가져다 쓰므로 반대로는 순환 import).
+__all__ = [
+    "ScreenRecommendRequest",
+    "excluded_summary",
+    "rate_fields",
+    "recommend_for_screen",
+    "screen_item",
+]
 from app.products import recommender as rec
 
 
@@ -43,76 +55,6 @@ class ScreenRecommendRequest(BaseModel):
     monthlySpareKrw: int | None = Field(default=None, ge=0)  # noqa: N815
     conditions: RecommendConditions | None = None
     queryKo: str | None = Field(default=None, max_length=100)  # noqa: N815
-
-
-def _quoted(product: Mapping[str, Any], field: str) -> tuple[Any, Mapping[str, Any]] | None:
-    """조건표 값과 원문 근거. 값이나 근거가 없으면 None(지어내지 않는다)."""
-    entry = product.get(field)
-    if not isinstance(entry, Mapping) or entry.get("value") is None or not entry.get("source"):
-        return None
-    return entry, entry["source"]
-
-
-def rate_fields(product: Mapping[str, Any]) -> dict[str, Any]:
-    """baseRate·maxRate·feature: 조건표 원문 값을 그대로 옮긴다."""
-    out: dict[str, Any] = {"baseRate": None, "maxRate": None, "feature": None}
-    if base := _quoted(product, "baseRate"):
-        entry, source = base
-        out["baseRate"] = {
-            "ratePct": entry["value"],
-            "asOf": entry.get("asOf"),
-            "quote": source["quote"],
-            "page": source["page"],
-        }
-    if top := _quoted(product, "maxRate"):
-        entry, source = top
-        out["maxRate"] = {
-            "ratePct": entry["value"],
-            "quote": source["quote"],
-            "page": source["page"],
-        }
-    if feature := _quoted(product, "feature"):
-        _, source = feature
-        out["feature"] = {"quote": source["quote"], "page": source["page"]}
-    return out
-
-
-def screen_item(product: Mapping[str, Any], checks: Mapping[str, str]) -> dict[str, Any]:
-    """products[] 항목: product_view 값에 상품 id·체류 판정·금리·특징을 더한다(키는 늘 같음)."""
-    view = product_view(product, checks)
-    stay = checks.get("stayTerm")
-    return {
-        "productId": product["productId"],
-        "nameKo": view["name"],
-        "kind": view["type"],
-        "termMonths": view["termMonths"],
-        "monthlyAmountKrw": view.get("monthlyAmountKrw"),
-        "depositAmountKrw": view.get("depositAmountKrw"),
-        "accrual": view.get("accrual"),
-        "foreignerEligible": view["foreigners"],
-        "notChecked": view["notChecked"],
-        "stayFits": True if stay == rec.OK else None,
-        **rate_fields(product),
-        "evidence": view["evidence"],
-    }
-
-
-def excluded_summary(
-    excluded: Sequence[str],
-    products: Mapping[str, Mapping[str, Any]],
-    profile: Mapping[str, Any],
-    args: Mapping[str, Any],
-    as_of: date,
-) -> list[dict[str, Any]]:
-    """제외 상품을 처음 걸린 조건 하나로 세어 판정 순서대로 준다."""
-    counts: dict[str, int] = {}
-    for pid in excluded:
-        reason = rec.failed_condition(products[pid], profile, args, as_of)
-        if reason is None:  # recommend_filtered와 같은 판정이라 일어나지 않는다
-            raise RuntimeError(f"excluded product passes: {pid}")
-        counts[reason] = counts.get(reason, 0) + 1
-    order = (*rec.CONDITIONS, rec.FOREIGNER_EXPLICIT)
-    return [{"reason": name, "count": counts[name]} for name in order if name in counts]
 
 
 async def recommend_for_screen(

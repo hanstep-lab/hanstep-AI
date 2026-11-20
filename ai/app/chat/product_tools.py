@@ -129,6 +129,8 @@ TOOL_SCHEMAS_BY_PROMPT: dict[str, dict[str, Any]] = {
     "v4.3a": TOOL_SCHEMA_V4_1,
     # v4.4 = v4.2 + 환율 진단 규칙이라 상품 도구 설명도 v4.1용 그대로다.
     "v4.4": TOOL_SCHEMA_V4_1,
+    # v4.5 = v4.4 + 목표·출처·카드 규칙. 상품 도구 설명은 그대로다.
+    "v4.5": TOOL_SCHEMA_V4_1,
 }
 
 
@@ -235,13 +237,23 @@ class FixtureProductContext:
         return self._context
 
 
+def _money(value: Any) -> int | None:
+    return int(value["amount"]) if isinstance(value, Mapping) and "amount" in value else None
+
+
 def spare_from_finance(context: Mapping[str, Any]) -> int | None:
-    """INT-06 응답의 월 여유자금. 분석 결과가 없으면 None."""
+    """INT-06 응답의 월 여유자금. 분석 결과가 없으면 None.
+
+    balance(hanstep-backend #151·#153, 직접 입력 우선)가 있으면 balance.spare를 쓴다(PRD-02와 같은
+    값, #114). 없으면 latestAnalysis.spare(기존 동작). 프롬프트 버전과 상관없다.
+    """
+    balance = context.get("balance")
+    if isinstance(balance, Mapping) and (spare := _money(balance.get("spare"))) is not None:
+        return spare
     analysis = context.get("latestAnalysis")
     if not isinstance(analysis, Mapping):
         return None
-    spare = analysis.get("spare")
-    return int(spare["amount"]) if isinstance(spare, Mapping) and "amount" in spare else None
+    return _money(analysis.get("spare"))
 
 
 class SpringProductContext:
@@ -333,6 +345,102 @@ def product_view(product: Mapping[str, Any], checks: Mapping[str, str]) -> dict[
     return view
 
 
+def _quoted(product: Mapping[str, Any], field: str) -> tuple[Any, Mapping[str, Any]] | None:
+    """조건표 값과 원문 근거. 값이나 근거가 없으면 None(지어내지 않는다)."""
+    entry = product.get(field)
+    if not isinstance(entry, Mapping) or entry.get("value") is None or not entry.get("source"):
+        return None
+    return entry, entry["source"]
+
+
+def rate_fields(product: Mapping[str, Any]) -> dict[str, Any]:
+    """baseRate·maxRate·feature: 조건표 원문 값을 그대로 옮긴다."""
+    out: dict[str, Any] = {"baseRate": None, "maxRate": None, "feature": None}
+    if base := _quoted(product, "baseRate"):
+        entry, source = base
+        out["baseRate"] = {
+            "ratePct": entry["value"],
+            "asOf": entry.get("asOf"),
+            "quote": source["quote"],
+            "page": source["page"],
+        }
+    if top := _quoted(product, "maxRate"):
+        entry, source = top
+        out["maxRate"] = {
+            "ratePct": entry["value"],
+            "quote": source["quote"],
+            "page": source["page"],
+        }
+    if feature := _quoted(product, "feature"):
+        _, source = feature
+        out["feature"] = {"quote": source["quote"], "page": source["page"]}
+    return out
+
+
+def screen_item(product: Mapping[str, Any], checks: Mapping[str, str]) -> dict[str, Any]:
+    """PRD-02 products[] 항목: product_view 값에 상품 id·체류 판정·금리·특징을 더한다(키는 늘 같음).
+
+    화면 추천 API(app/products/screen.py)와 채팅 카드(PRODUCT_RECOMMEND_CARD)가 함께 쓴다.
+    """
+    view = product_view(product, checks)
+    stay = checks.get("stayTerm")
+    return {
+        "productId": product["productId"],
+        "nameKo": view["name"],
+        "kind": view["type"],
+        "termMonths": view["termMonths"],
+        "monthlyAmountKrw": view.get("monthlyAmountKrw"),
+        "depositAmountKrw": view.get("depositAmountKrw"),
+        "accrual": view.get("accrual"),
+        "foreignerEligible": view["foreigners"],
+        "notChecked": view["notChecked"],
+        "stayFits": True if stay == rec.OK else None,
+        **rate_fields(product),
+        "evidence": view["evidence"],
+    }
+
+
+def excluded_summary(
+    excluded: Sequence[str],
+    products: Mapping[str, Mapping[str, Any]],
+    profile: Mapping[str, Any],
+    args: Mapping[str, Any],
+    as_of: date,
+) -> list[dict[str, Any]]:
+    """제외 상품을 처음 걸린 조건 하나로 세어 판정 순서대로 준다."""
+    counts: dict[str, int] = {}
+    for pid in excluded:
+        reason = rec.failed_condition(products[pid], profile, args, as_of)
+        if reason is None:  # 호출하는 쪽이 조건에 걸린 상품만 넘긴다
+            raise RuntimeError(f"excluded product passes: {pid}")
+        counts[reason] = counts.get(reason, 0) + 1
+    order = (*rec.CONDITIONS, rec.FOREIGNER_EXPLICIT)
+    return [{"reason": name, "count": counts[name]} for name in order if name in counts]
+
+
+# 금융상품 추천 카드(chat.done blocks, specs/chat/product_recommend_card_v1.md, #114).
+PRODUCT_RECOMMEND_CARD = "PRODUCT_RECOMMEND_CARD"
+
+
+class ProductRecommendCardBlock(BaseModel):
+    """카드 형식 확인용. 값은 추천기 결과에서만 채운다(LLM이 쓴 숫자 없음)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["PRODUCT_RECOMMEND_CARD"] = "PRODUCT_RECOMMEND_CARD"
+    asOf: str  # noqa: N815 - 계약 이름(PRD-02)
+    remainingStayMonths: int | None  # noqa: N815
+    abstainReason: str | None  # noqa: N815
+    products: list[dict[str, Any]] = Field(max_length=rec.TOP_K)
+    excludedSummary: list[dict[str, Any]]  # noqa: N815
+
+
+def merge_product_card(blocks: list[dict[str, Any]], card: dict[str, Any]) -> None:
+    """한 턴에 카드 1장: 앞선 상품 카드를 지우고 이번(마지막 성공) 카드를 이 호출 자리에 둔다."""
+    blocks[:] = [b for b in blocks if b.get("type") != PRODUCT_RECOMMEND_CARD]
+    blocks.append(card)
+
+
 def _source(product: Mapping[str, Any]) -> dict[str, Any]:
     """agent.sources 항목(계약 3절 제안): 문서 id는 chunkRef, 쪽은 상품명 근거의 쪽."""
     name = product.get("nameKo")
@@ -358,9 +466,12 @@ class ProductTool:
         ranker: ProductRanker | None = None,
         catalog: Sequence[Mapping[str, Any]] | None = None,
         schema: dict[str, Any] = TOOL_SCHEMA,
+        card: bool = False,
     ) -> None:
         self._source = source
         self._schema = schema
+        # 금융상품 추천 카드(PRODUCT_RECOMMEND_CARD). 이 카드를 설명하는 프롬프트(v4.5)에서만 켠다.
+        self._card = card
         self._user_id = user_id
         self._request_id = request_id
         self._timeout = timeout
@@ -446,12 +557,53 @@ class ProductTool:
             "rankedBy": ranked_by,
             "content": content,
         }
+        blocks = []
+        if self._card:
+            card = self._card_block(pool, products, profile, args, as_of, result, request)
+            if card is not None:
+                blocks.append(card)
         return outcome(
             "SUCCEEDED",
             content,
             sources=[_source(products[pid]) for pid in result["recommended"]],
+            blocks=blocks,
             measurement=measurement,
         )
+
+    @staticmethod
+    def _card_block(
+        pool: Sequence[str],
+        products: Mapping[str, Mapping[str, Any]],
+        profile: Mapping[str, Any],
+        args: Mapping[str, Any],
+        as_of: date,
+        result: Mapping[str, Any],
+        request: Any,
+    ) -> dict[str, Any] | None:
+        """LLM이 받은 상품을 같은 순서로(최대 5개) PRD-02 이름으로 담은 카드. 기권이면 products=[].
+
+        카드 값만 형식이 어긋나면 카드를 내지 않는다(답변은 그대로).
+        """
+        try:
+            excluded = [
+                pid for pid in pool if rec.failed_condition(products[pid], profile, args, as_of)
+            ]
+            card = ProductRecommendCardBlock(
+                asOf=as_of.isoformat(),
+                remainingStayMonths=rec.remaining_stay_months(profile, as_of),
+                abstainReason=result["reason"],
+                products=[
+                    screen_item(
+                        products[pid], rec.check_product(products[pid], profile, request, as_of)
+                    )
+                    for pid in result["recommended"]
+                ],
+                excludedSummary=excluded_summary(excluded, products, profile, args, as_of),
+            )
+        except (ValidationError, KeyError, TypeError, RuntimeError) as exc:
+            logger.warning("product card skipped: %s", type(exc).__name__)
+            return None
+        return card.model_dump(mode="json")
 
     async def _order(self, query: str | None, catalog_order: list[str]) -> tuple[list[str], str]:
         return await order_pool(self._ranker, query, catalog_order, self._timeout)

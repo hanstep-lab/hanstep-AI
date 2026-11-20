@@ -1221,6 +1221,28 @@ def test_language_is_sent_and_checked(tmp_path: Path) -> None:
     assert "사용자 언어 vi" in output.with_suffix(".md").read_text(encoding="utf-8")
 
 
+def test_v45_question_set_and_check_hook() -> None:
+    # v4.5 측정(#114): 입력값 2 + 열린 질문 3 + 상품 1, 채점 종류가 행에 붙는다.
+    spec = EVAL.load_questions(EVAL.QUESTION_SETS["v45"])
+    kinds = [(q["id"], q.get("v45Check")) for q in spec["questions"]]
+    assert kinds == [
+        ("V01", "input"), ("V02", "input"), ("V03", "goals"), ("V04", "goals"), ("V05", "goals"),
+        ("V06", "product"),
+    ]  # fmt: skip
+    row: dict[str, Any] = {
+        "answer": "You have 675,317 won left.",
+        "toolResult": EVAL.fixture_context(),
+        "judgmentFacts": False,
+        "contextTexts": ["How much money do I have left?"],
+        "tools": [],
+        "expectedTools": [],
+        "v45Check": "input",
+        "v45Expect": "spare",
+    }
+    EVAL.score(row)
+    assert row["v45Result"]["kind"] == "input"
+
+
 def test_language_needs_the_ai_target() -> None:
     with pytest.raises(SystemExit):
         _run(_settings(), "--target", "spring", "--jwt", "x", "--language", "vi", "--output", "o")

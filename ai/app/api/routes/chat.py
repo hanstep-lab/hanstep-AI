@@ -58,20 +58,24 @@ router = APIRouter(prefix="/agent/chat", tags=["chat"])
 # 비자 도구(정책 검색·E-7-4 점수)를 설명하는 프롬프트 버전. 이 버전에서만 비자 도구를 붙인다.
 # v1·v1.1은 금융 도구만 붙어서 그 버전으로 잰 측정 조건이 그대로 남는다.
 VISA_PROMPT_VERSIONS = frozenset(
-    {"v2", "v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4"}
+    {"v2", "v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.5"}
 )
 # 송금 조회 도구(받는 분·환율·견적)를 설명하는 프롬프트 버전. v1~v2의 도구 구성은 그대로다.
 REMITTANCE_PROMPT_VERSIONS = frozenset(
-    {"v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4"}
+    {"v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.5"}
 )
 # 상품 추천 도구(#65)를 설명하는 프롬프트 버전. v3까지의 도구 구성은 그대로다.
-PRODUCT_PROMPT_VERSIONS = frozenset({"v4", "v4.1", "v4.2", "v4.3a", "v4.4"})
+PRODUCT_PROMPT_VERSIONS = frozenset({"v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.5"})
 # 금융 정책 검색 도구(#88)를 설명하는 프롬프트 버전.
 # v4.1까지의 도구 구성은 그대로다(기준선 영향 없음).
-FINANCE_POLICY_PROMPT_VERSIONS = frozenset({"v4.2", "v4.3a", "v4.4"})
+FINANCE_POLICY_PROMPT_VERSIONS = frozenset({"v4.2", "v4.3a", "v4.4", "v4.5"})
 # 환율 진단 도구(fx_rate_summary, #91)를 설명하는 프롬프트 버전. v4.4 = v4.2 + 환율 진단 규칙이라
 # v4.4에는 v4.2의 도구가 모두 붙고 이 도구가 더 붙는다. 다른 버전의 도구 구성은 그대로다.
-FX_PROMPT_VERSIONS = frozenset({"v4.4"})
+FX_PROMPT_VERSIONS = frozenset({"v4.4", "v4.5"})
+# 금융상품 추천 카드(PRODUCT_RECOMMEND_CARD, #114)를 설명하는 프롬프트 버전.
+# v4.5 = v4.4 + 목표·출처·카드 규칙이라 도구는 v4.4와 같고 상품 도구가 카드를 더 낸다.
+# 다른 버전에는 카드가 없다.
+PRODUCT_CARD_PROMPT_VERSIONS = frozenset({"v4.5"})
 
 
 @dataclass(frozen=True)
@@ -255,6 +259,7 @@ async def chat_stream(
                 timeout=settings.chat_tool_timeout_seconds,
                 ranker=request.app.state.rag.product_search,
                 schema=TOOL_SCHEMAS_BY_PROMPT[setup.config.prompt_version],
+                card=setup.config.prompt_version in PRODUCT_CARD_PROMPT_VERSIONS,
             )
         )
     # 금융 정책 검색 도구는 v4.2·v4.3a·v4.4에서만 붙는다. sources는 비운다(본문에 조문·시행일 인용).
