@@ -1,4 +1,4 @@
-"""프롬프트 v4.5 측정(#114) 채점: 입력값 기준 숫자·출처 언급, 고른 목표 언급(측정 전용).
+"""프롬프트 v4.5 측정(#114) 채점: 입력값 기준 숫자·출처 언급, 고른 목표 언급, 상품 질문(측정 전용).
 
 기준: specs/chat/chat_v45_measure_v1.md 3절. 서버는 쓰지 않는다.
 
@@ -15,6 +15,8 @@
 - 출처 언급: "you entered", "based on the amounts you entered" 같은 표현(SOURCE_PATTERN).
 - 목표 언급: 목표 종류별 낱말(GOAL_PATTERNS). 비율 = 언급한 고른 목표 수 ÷ 고른 목표 수.
   순서 일치 = 고른 목표를 모두 언급했고 첫 언급 위치가 고른 순서와 같음(하나라도 빠지면 null).
+- 상품 질문: 상품 도구가 쓴 여유자금·추천 수·기권 이유(행의 productTool), 카드(blocks의
+  PRODUCT_RECOMMEND_CARD)와 도구 결과 일치, 금리 숫자 직접 언급(답변의 % 숫자), 카드 가리킴("card").
 """
 
 from __future__ import annotations
@@ -136,6 +138,36 @@ def goal_check(answer: str, tool_result: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+PRODUCT_CARD = "PRODUCT_RECOMMEND_CARD"
+CARD_POINTER = re.compile(r"\bcards?\b", re.IGNORECASE)
+
+
+def product_check(row: Mapping[str, Any], answer: str) -> dict[str, Any]:
+    """상품 질문(V06): 도구가 쓴 여유자금·추천 결과, 카드, 금리 숫자 직접 언급, 카드 가리킴."""
+    content = (row.get("productTool") or {}).get("content") or {}
+    products = content.get("products") or []
+    cards = [b for b in row.get("blocks") or [] if b.get("type") == PRODUCT_CARD]
+    card = cards[-1] if cards else None
+    rate_numbers = [text for text, _, kind, _ in scan_numbers(answer) if kind == "percent"]
+    return {
+        "kind": "product",
+        "monthlySpareKrw": (content.get("user") or {}).get("monthlySpareKrw"),
+        "productCount": len(products) if content else None,
+        "abstainReason": content.get("abstainReason"),
+        "cardCount": len(cards),
+        # 카드 값이 도구 결과와 같은지: 상품 수·기권 이유(카드가 없으면 None).
+        "cardMatchesTool": (
+            None
+            if card is None
+            else len(card.get("products") or []) == len(products)
+            and card.get("abstainReason") == content.get("abstainReason")
+        ),
+        "rateNumbers": rate_numbers,
+        "statesRateNumbers": bool(rate_numbers),
+        "pointsToCard": bool(CARD_POINTER.search(answer)),
+    }
+
+
 def check(row: Mapping[str, Any], answer: str) -> dict[str, Any] | None:
     kind = row.get("v45Check")
     tool_result = row.get("toolResult") or {}
@@ -143,6 +175,8 @@ def check(row: Mapping[str, Any], answer: str) -> dict[str, Any] | None:
         return input_check(answer, str(row.get("v45Expect") or "items"), tool_result)
     if kind == "goals":
         return goal_check(answer, tool_result)
+    if kind == "product":
+        return product_check(row, answer)
     return None
 
 
@@ -192,5 +226,22 @@ def summary_lines(rows: Sequence[Mapping[str, Any]]) -> list[str]:
                 f"{_ratio([x['ratio'] == 1 for x in res])} | "
                 f"{_ratio([x['orderOk'] is True for x in res])} | "
                 f"{_ratio([not (r.get('numberCheck') or {}).get('unsupported') for r in mine])} |"
+            )
+    products = [r for r in done if r["v45Result"]["kind"] == "product"]
+    if products:
+        out += [
+            "",
+            "| 문항#회 | 도구 여유자금 | 추천 수 | 기권 이유 | 카드 | 카드=도구 | 금리 숫자 직접 "
+            "| 카드 가리킴 | 근거 없는 숫자 |",
+            "|---|---|---|---|---|---|---|---|---|",
+        ]
+        for r in products:
+            x = r["v45Result"]
+            unsupported = ", ".join((r.get("numberCheck") or {}).get("unsupported") or []) or "-"
+            out.append(
+                f"| {r['questionId']}#{r.get('repeat')} | {x['monthlySpareKrw']} | "
+                f"{x['productCount']} | {x['abstainReason'] or '-'} | {x['cardCount']} | "
+                f"{'-' if x['cardMatchesTool'] is None else x['cardMatchesTool']} | "
+                f"{', '.join(x['rateNumbers']) or '-'} | {x['pointsToCard']} | {unsupported} |"
             )
     return out

@@ -63,7 +63,8 @@
       "history": [],
       "expectedTools": ["recommend_savings_products"],
       "expectBehavior": "recommend",
-      "source": "이번 세트(상품 추천: 여유자금 기준과 카드). 채점기 없음, 행의 productTool·blocks를 읽는다(설계 3-3)"
+      "v45Check": "product",
+      "source": "이번 세트(상품 추천: 여유자금 기준, 카드, 금리 숫자 직접 언급·카드 가리킴. 설계 3-3)"
     }
   ]
 }

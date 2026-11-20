@@ -12,7 +12,9 @@
 - **적용 범위(코드 기준)**
   - 숫자 기준 변경(INT-06 `balance` 사용, 상품 도구의 `balance.spare`)은 프롬프트 버전과 상관없이 **모든 버전**에 적용된다.
     `summarize()`·`spare_from_finance()`는 버전을 보지 않는다.
-  - 상품 추천 카드와 규칙 두 개(출처 언급·목표 순서 안내)는 **v4.5만**이다.
+  - 상품 추천 카드와 v4.5 규칙(출처 언급·목표 순서 안내·카드가 붙을 때 금리는 카드를 가리킴)은 **v4.5만**이다.
+  - 금리 규칙(2026-11-20 추가): v4.4 `product_rules.md`의 "금리를 말하지 말고 앱·지점에서 확인"은 그대로 두고, v4.5 전용 규칙으로 덧붙인다.
+    카드가 붙는 답변은 금리 숫자를 직접 말하지 않고 카드를 가리킨다. 최고금리는 우대 조건 충족 시라는 점만 짧게 말한다.
 
 ## 2. 문항 (`specs/chat/v45_questions_v1.json`, 6문항)
 
@@ -23,7 +25,7 @@
 | V03 | 열린 질문 | What should I focus on with my money right now? | 고른 목표 |
 | V04 | 열린 질문 | Can you give me some financial advice? | 고른 목표 |
 | V05 | 열린 질문 | What should I do next to get closer to my goals? | 고른 목표 |
-| V06 | 상품 | Recommend a savings product for me | 채점기 없음(3-3) |
+| V06 | 상품 | Recommend a savings product for me | 여유자금·카드·금리 숫자·카드 가리킴(3-3) |
 
 - 기대 도구는 V01~V05가 `get_financial_analysis`, V06이 `recommend_savings_products`다(v4.4·v4.5 같음). 열린 질문에서 v4.5가 다른 도구(예: E-7-4)를 더 부르는 것은 도구 일치 판정에 쓰지 않고 따로 적는다.
 - 회차: 문항 6 × 목표 조합 2 × 2회 = 24회(설정 하나). V06은 2026-11-20 결정으로 기준선부터 넣었다.
@@ -60,20 +62,20 @@
 
 ### 3-3. 상품 질문 (V06)
 
-채점기를 따로 두지 않고 행에 저장된 값을 읽어 표로 적는다(측정 뒤 채점기를 고치지 않기 위해 읽을 값을 미리 정함).
+채점은 `_v45_check.product_check`(`v45Check: product`)다. 2026-11-20 결정으로 기준선 전에 넣었다.
 
 - 상품 도구가 쓴 여유자금: `productTool.content.user.monthlySpareKrw`
 - 추천 결과: `productTool.content.products` 개수, `abstainReason`
-- 카드: `blocks`에 `PRODUCT_RECOMMEND_CARD`가 있는지, `products` 개수·`abstainReason`이 도구 결과와 같은지(v4.5만)
-- 근거 없는 숫자 없음
-
+- 카드: `blocks`의 `PRODUCT_RECOMMEND_CARD` 수, 카드의 상품 수·`abstainReason`이 도구 결과와 같은지(`cardMatchesTool`, 카드가 없으면 null)
+- **금리 숫자 직접 언급**(`statesRateNumbers`): 답변에 % 숫자가 있다(`number_check.scan_numbers`의 percent). 근거 없는 숫자(`numberCheck.unsupported`)도 함께 적는다.
+- **카드 가리킴**(`pointsToCard`): 답변에 "card"가 있다(예: "rates from the product descriptions are shown in the card").
 ### 3-4. after 판정 기준 (v4.5)
 
 - 입력값 숫자 일치: V01·V02 전 회차
 - 출처 언급: 입력값 질문 전 회차
 - 고른 목표 모두 언급: 열린 질문 전 회차의 80% 이상
 - 근거 없는 숫자: 기준선보다 늘지 않음
-- V06: v4.5에서 카드가 전 회차에 있고, 카드 값이 도구 결과와 같다.
+- V06: v4.5에서 카드가 전 회차에 있고 카드 값이 도구 결과와 같다. 금리 숫자 직접 언급 0회, 카드 가리킴 전 회차(기권으로 상품이 없는 회차는 카드 가리킴을 보지 않는다).
 - 회귀: 판단형 10문항(eval J01~J10) × 1회. 도구 일치·숫자 검사가 v4.4와 같거나 낫다(같은 DB에서 v4.4도 같이 돈다).
 - after는 v4.4(새 코드)와 v4.5를 함께 잰다(2026-11-20 결정).
   - 기준선 v4.4(옛 코드) → v4.4(새 코드)의 차이는 **숫자 기준 변경 효과**다.

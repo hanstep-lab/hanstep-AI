@@ -99,6 +99,33 @@ def test_goal_mentions_ratio_and_order() -> None:
     assert V.check({"toolResult": TOOL_RESULT}, "x") is None
 
 
+def test_product_check_reads_tool_card_and_answer() -> None:
+    content = {
+        "user": {"remainingStayMonths": 10, "monthlySpareKrw": 675317},
+        "products": [{"name": "a"}, {"name": "b"}],
+        "abstainReason": None,
+    }
+    card = {"type": V.PRODUCT_CARD, "products": [{}, {}], "abstainReason": None}
+    row: dict[str, Any] = {
+        "v45Check": "product",
+        "productTool": {"content": content},
+        "blocks": [card],
+    }
+    answer = "Two savings products fit. The rates from the product descriptions are in the card."
+    result = V.check(row, answer)
+    assert result is not None
+    assert result["monthlySpareKrw"] == 675317 and result["productCount"] == 2
+    assert result["cardCount"] == 1 and result["cardMatchesTool"] is True
+    assert result["statesRateNumbers"] is False and result["pointsToCard"] is True
+    stated = V.check({**row, "blocks": []}, "It pays 2.2% a year, up to 3.7%.")
+    assert stated is not None
+    assert stated["rateNumbers"] == ["2.2%", "3.7%"] and stated["statesRateNumbers"] is True
+    assert stated["cardCount"] == 0 and stated["cardMatchesTool"] is None
+    assert stated["pointsToCard"] is False
+    no_tool = V.check({"v45Check": "product"}, "No products.")
+    assert no_tool is not None and no_tool["productCount"] is None
+
+
 def test_summary_lines() -> None:
     rows = [
         {

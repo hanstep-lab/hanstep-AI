@@ -1203,11 +1203,12 @@ def test_language_is_sent_and_checked(tmp_path: Path) -> None:
 
 
 def test_v45_question_set_and_check_hook() -> None:
-    # v4.5 측정(#114): 입력값 2 + 열린 질문 3, 채점 종류가 행에 붙는다.
+    # v4.5 측정(#114): 입력값 2 + 열린 질문 3 + 상품 1, 채점 종류가 행에 붙는다.
     spec = EVAL.load_questions(EVAL.QUESTION_SETS["v45"])
-    kinds = [(q["id"], q["v45Check"]) for q in spec["questions"]]
+    kinds = [(q["id"], q.get("v45Check")) for q in spec["questions"]]
     assert kinds == [
         ("V01", "input"), ("V02", "input"), ("V03", "goals"), ("V04", "goals"), ("V05", "goals"),
+        ("V06", "product"),
     ]  # fmt: skip
     row: dict[str, Any] = {
         "answer": "You have 675,317 won left.",
