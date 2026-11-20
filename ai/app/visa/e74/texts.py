@@ -3,14 +3,16 @@
 - 문구는 이 파일 한곳에 key별로 둔다. 엔진은 한국어(`description`, `documents`, `reviewNotes`)를
   예전과 글자 하나 다르지 않게 만들고, 개선 방안에는 영어(`descriptionEn`, `documentsEn`)를
   같이 싣는다.
-- LLM에 주는 도구 결과(app.visa.tools)는 영어만 쓴다. 영어가 없던 저장 결과(#108 전, 재사용된
-  평가)는 한국어 문구로 같은 문구의 영어를 찾는다(`english_improvement`, `english_documents`).
-- 검토 메모(사람 확인용)는 LLM에 주지 않는다. 메모 key가 곧 LLM 안내 코드이고, 영어 문구를
-  안내로 준다(`review_notice`).
+- LLM에 주는 도구 결과(app.visa.tools)는 사용자 언어로 고른다: ko면 한국어, 그 밖이면 영어.
+  영어가 없던 저장 결과(#108 전, 재사용된 평가)는 한국어 문구로 같은 문구의 영어를 찾는다
+  (`english_improvement`, `english_documents`).
+- LLM용 한국어(`llm_ko`): 엔진 한국어에 내부 표기(Q8·Q9 같은 확인 번호, "(붙임5)" 같은 양식 번호,
+  "검토 필요")가 있으면 그것을 뺀 문구를 따로 둔다. 없으면 엔진 한국어를 그대로 쓴다.
+- 검토 메모(사람 확인용)는 두 언어 모두 LLM에 주지 않는다. 메모 key가 곧 LLM 안내 코드이고, 사용자
+  언어의 안내 문구(ko는 `llm_ko`, 그 밖은 `en`)를 준다(`review_notice`).
 - 규칙 설명·서류 이름의 한국어는 규칙 JSON(rule_sets/*.json)이 원본이다. 여기 한국어는 영어를 찾는
   열쇠이고, 규칙 JSON과 같은지는 테스트가 확인한다.
-- 영어: 한국어와 뜻이 같은 쉬운 영어. 금액은 KRW로 쓴다. 내부 메모(Q8 등)와 "검토 필요"는
-  옮기지 않는다.
+- 영어: 한국어와 뜻이 같은 쉬운 영어. 금액은 KRW로 쓴다. 내부 표기는 옮기지 않는다.
 """
 
 from __future__ import annotations
@@ -29,10 +31,12 @@ class Text:
     """문구 하나의 한국어·영어. {이름} 자리에는 같은 값이 들어간다.
 
     사전 항목은 둘 다 있다. 값을 넣어 만든 문구는 영어가 없는 값이 섞이면 en이 None이다.
+    llm_ko는 LLM에 줄 한국어로, 엔진 한국어(ko)에 내부 표기가 있을 때만 둔다.
     """
 
     ko: str
     en: str | None
+    llm_ko: str | None = None
 
 
 # --- 개선 방안(improvements[].description). key는 messageCode.
@@ -247,6 +251,8 @@ RULES: dict[str, Text] = {
         "A total stay of 4 years or more on E-9, E-10 or H-2 in the last 10 years. Special case:"
         " 3 years or more of stay outside the capital area with a provincial government"
         " recommendation",
+        "최근 10년간 E-9·E-10·H-2로 합계 4년 이상 체류. "
+        "특례: 비수도권 3년 이상 체류 + 광역지자체 추천",
     ),
     "REQ_CURRENT_EMPLOYMENT": Text(
         "현재 근무처에서 외국인등록을 하고 합법적으로 정상 근무 중",
@@ -318,7 +324,9 @@ DOCUMENTS: dict[str, Text] = {
         "광역지자체 추천서", "Recommendation letter from a provincial government"
     ),
     "EMPLOYER_RECOMMENDATION": Text(
-        "고용기업 추천서(붙임5)", "Employer recommendation letter (official form)"
+        "고용기업 추천서(붙임5)",
+        "Employer recommendation letter (official form)",
+        "고용기업 추천서(공식 양식)",
     ),
     "RECOMMENDER_ID_COPY": Text("추천자 신분증 사본", "Copy of the recommender's ID"),
     "WORK_HISTORY_CERTIFICATE": Text(
@@ -330,7 +338,9 @@ DOCUMENTS: dict[str, Text] = {
     ),
     "DRIVER_LICENSE_COPY": Text("국내 운전면허증 사본", "Copy of your Korean driver's license"),
     "EMPLOYMENT_CONTRACT": Text(
-        "E-7-4 고용계약서(붙임9 견본)", "E-7-4 employment contract (official sample form)"
+        "E-7-4 고용계약서(붙임9 견본)",
+        "E-7-4 employment contract (official sample form)",
+        "E-7-4 고용계약서(공식 견본 양식)",
     ),
 }
 
@@ -350,40 +360,49 @@ REVIEW_NOTES: dict[str, Text] = {
     "NO_APPROVED_RULES": Text(
         "{date}에 적용할 승인된 규칙 버전이 없음(Q9)",
         "No approved scoring rules apply to {date}, so there is no score",
+        "{date}에 적용할 승인된 점수 규칙이 없어 점수가 없음",
     ),
     "AGE_OUTSIDE_SCORE_TABLE": Text(
         "점수표에 없는 나이(19세 미만)",
         "The age is not in the score table (under 19), so this item needs a manual check",
+        "점수표에 없는 나이(19세 미만)라 이 항목은 따로 확인해야 함",
     ),
     "INCOME_FROM_EARLIER_YEARS": Text(
         "최근 {years}년 소득이 없어 {start}~{end}년 중 높은 해로 계산함. "
         "재입국 공백 등 대체 사유 확인 필요",
         "Income for the last {years} years is missing, so the highest years from {start} to"
         " {end} were used. The reason, such as a gap after re-entry, needs a manual check",
+        "최근 {years}년 소득이 없어 {start}~{end}년 중 높은 해로 계산함. "
+        "재입국 공백 같은 사유는 따로 확인해야 함",
     ),
     "KOREAN_LEVEL_UNREADABLE": Text(
         "한국어 증빙의 급수·단계를 읽을 수 없음",
         "The level or stage on the Korean language document could not be read,"
         " so it needs a manual check",
+        "한국어 증빙의 급수·단계를 읽을 수 없어 따로 확인해야 함",
     ),
     "CERTIFICATE_GRADE_NOT_LISTED": Text(
         "기술사·기능장은 선발계획 인정 목록(기사·산업기사·기능사)에 없어 확인 필요",
         "Professional Engineer and Master Craftsman certificates are not on the recognized list"
         " (Engineer, Industrial Engineer, Craftsman), so this needs a manual check",
+        "기술사·기능장은 선발계획 인정 목록(기사·산업기사·기능사)에 없어 따로 확인해야 함",
     ),
     "STAY_SPECIAL_RULE_CHECK": Text(
         "Q8: 비수도권 3년 체류 특례(광역지자체 추천) 적용 여부 확인 필요",
         "Whether the special stay rule (3 years outside the capital area with a provincial"
         " government recommendation) applies needs a manual check",
+        "비수도권 3년 체류 특례(광역지자체 추천)가 적용되는지 따로 확인해야 함",
     ),
     "REQUIRED_TOTAL_UNKNOWN": Text(
         "규칙 버전에 기준 총점이 없음(공식 확인 전)",
         "The required total score for these rules is not confirmed yet",
+        "이 규칙 버전의 기준 총점이 아직 확정되지 않음",
     ),
 }
 # 위 목록에 없는 메모(규칙 데이터의 reviewNote 등)를 LLM에 알릴 때 쓰는 코드와 문구.
 MANUAL_CHECK = "MANUAL_CHECK"
 MANUAL_CHECK_TEXT = "This item needs a manual check"
+MANUAL_CHECK_TEXT_KO = "이 항목은 따로 확인해야 함"
 
 
 # --- 문구 만들기(엔진) -------------------------------------------------------------------------
@@ -437,7 +456,30 @@ def review_text(key: str, **params: object) -> str:
     return REVIEW_NOTES[key].ko.format(**params)
 
 
-# --- 영어 찾기(LLM 도구 결과) ---------------------------------------------------------------
+# --- LLM 도구 결과용 문구(사용자 언어) -------------------------------------------------------
+
+KOREAN = "ko"
+
+
+def is_korean(language: str) -> bool:
+    """LLM 문구를 한국어로 줄 사용자 언어인지. ko만 한국어, 그 밖(en·vi·zh)은 영어."""
+    return language == KOREAN
+
+
+@cache
+def _llm_korean_replacements() -> tuple[tuple[str, str], ...]:
+    pairs = [(t.ko, t.llm_ko) for table in (RULES, DOCUMENTS) for t in table.values() if t.llm_ko]
+    return tuple(sorted(pairs, key=lambda pair: -len(pair[0])))
+
+
+def korean_for_llm(korean: str) -> str:
+    """엔진 한국어 → LLM용 한국어. 규칙 설명·서류 이름에 든 내부 표기를 llm_ko 문구로 바꾼다.
+
+    개선 방안 설명은 규칙 설명을 그대로 품으므로 같은 바꾸기로 충분하다. 저장 결과에도 그대로 쓴다.
+    """
+    for ko, llm in _llm_korean_replacements():
+        korean = korean.replace(ko, llm)
+    return korean
 
 
 @cache
@@ -496,6 +538,17 @@ def _review_patterns() -> tuple[tuple[str, re.Pattern[str], Text], ...]:
     return _patterns(REVIEW_NOTES)
 
 
+def _english_values(match: re.Match[str]) -> dict[str, str] | None:
+    values: dict[str, str] = {}
+    for name, value in match.groupdict().items():
+        convert = _EN_VALUE.get(name)
+        english = convert(value) if convert is not None else value
+        if english is None:
+            return None
+        values[name] = english
+    return values
+
+
 def _english(
     korean: str, patterns: tuple[tuple[str, re.Pattern[str], Text], ...]
 ) -> tuple[str, str] | None:
@@ -503,17 +556,12 @@ def _english(
         match = pattern.fullmatch(korean)
         if match is None or text.en is None:
             continue
-        values: dict[str, str] = {}
-        for name, value in match.groupdict().items():
-            convert = _EN_VALUE.get(name)
-            english = convert(value) if convert is not None else value
-            if english is None:
-                break
-            values[name] = english
-        else:
-            en = text.en.format(**values)
-            if not HANGUL.search(en):
-                return key, en
+        values = _english_values(match)
+        if values is None:
+            continue
+        en = text.en.format(**values)
+        if not HANGUL.search(en):
+            return key, en
     return None
 
 
@@ -523,6 +571,15 @@ def english_improvement(korean: str) -> str | None:
     return None if found is None else found[1]
 
 
-def review_notice(note: str) -> tuple[str, str]:
-    """검토 메모 → (LLM 안내 코드, 영어 안내). 목록에 없는 메모는 MANUAL_CHECK."""
-    return _english(note, _review_patterns()) or (MANUAL_CHECK, MANUAL_CHECK_TEXT)
+def review_notice(note: str, language: str = "en") -> tuple[str, str]:
+    """검토 메모 → (LLM 안내 코드, 사용자 언어 안내). 목록에 없는 메모는 MANUAL_CHECK.
+
+    ko면 llm_ko(내부 표기 없는 한국어), 그 밖이면 영어 안내다. 메모 원문은 어느 쪽에도 주지 않는다.
+    """
+    if not is_korean(language):
+        return _english(note, _review_patterns()) or (MANUAL_CHECK, MANUAL_CHECK_TEXT)
+    for key, pattern, text in _review_patterns():
+        match = pattern.fullmatch(note)
+        if match is not None and text.llm_ko is not None:
+            return key, text.llm_ko.format(**match.groupdict())
+    return MANUAL_CHECK, MANUAL_CHECK_TEXT_KO
