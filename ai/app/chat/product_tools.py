@@ -129,6 +129,8 @@ TOOL_SCHEMAS_BY_PROMPT: dict[str, dict[str, Any]] = {
     "v4.3a": TOOL_SCHEMA_V4_1,
     # v4.4 = v4.2 + 환율 진단 규칙이라 상품 도구 설명도 v4.1용 그대로다.
     "v4.4": TOOL_SCHEMA_V4_1,
+    # v4.4d = v4.4 + 답변 표시 규칙(#116). 상품 도구 설명은 그대로다.
+    "v4.4d": TOOL_SCHEMA_V4_1,
 }
 
 

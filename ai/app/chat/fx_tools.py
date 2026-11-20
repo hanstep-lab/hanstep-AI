@@ -16,6 +16,10 @@
   결과가 아니라 Spring 원본에서 만든다(송금 환율 sendRate·receiveRate는 LLM에 주지 않는다).
   필드 이름은 환율 화면 API(FX-001)와 같다. 버튼(환율 상세 보기 등)은 앱이 고정으로 붙인다.
 - 한 턴에 여러 번 불러도 카드는 하나다: 스트림이 merge_fx_card로 통화 기준으로 합친다.
+- 표시값(#116): display_text가 켜지면(프롬프트 v4.4d) 원래 숫자 옆에 사용자 언어의 표시용 문자열
+  (rateText·changeText·averageText·differenceText, 통화명, 출처, 기준 시각)을 더한다.
+  숫자는 app.chat.display가 만들고 LLM은 그대로 옮긴다. 끄면 결과는 v4.4와 바이트 단위로 같다.
+  카드는 그대로다.
 """
 
 from __future__ import annotations
@@ -39,6 +43,14 @@ from pydantic import (
     field_validator,
 )
 
+from app.chat.display import (
+    DisplayLanguage,
+    as_of_text,
+    currency_name,
+    display_language,
+    rate_number_text,
+    signed_rate_number_text,
+)
 from app.chat.remittance_tools import Contract, CurrencyCode, Rate
 from app.chat.tools import UNAVAILABLE, ToolOutcome
 from app.integrations.spring_client import SpringApiError, SpringInternalClient
@@ -140,8 +152,51 @@ class SpringFxSummary:
         )
 
 
-def summary_for_llm(data: dict[str, Any]) -> dict[str, Any]:
-    """Spring fx-summary 응답 → LLM에 줄 값(문장 없음). 본문이 계약과 다르면 KeyError·TypeError."""
+# 출처 이름(표시값). 표에 없는 출처는 sourceText를 넣지 않는다(LLM은 source 코드만 본다).
+SOURCE_TEXT: dict[DisplayLanguage, dict[str, str]] = {
+    "ko": {"KOREAEXIM": "한국수출입은행 고시", "MARKET_REF": "시장 환율 참고값"},
+    "en": {"KOREAEXIM": "Korea Eximbank published rate", "MARKET_REF": "market reference rate"},
+}
+
+
+def _average_display(period: dict[str, Any], currency: str) -> dict[str, Any]:
+    return {
+        "averageText": rate_number_text(period["avg"], currency),
+        "differenceText": signed_rate_number_text(period["diff"], currency),
+    }
+
+
+def _currency_display(item: dict[str, Any], language: DisplayLanguage) -> dict[str, Any]:
+    """통화 하나의 표시값. 숫자는 카드와 같은 통화별 자릿수, 통화명은 처음·그다음 이름."""
+    code = item["currency"]
+    change = item["change"]
+    display: dict[str, Any] = {
+        "currencyName": {
+            "first": currency_name(code, language, first=True),
+            "after": currency_name(code, language, first=False),
+        },
+        "rateText": rate_number_text(item["rate"], code),
+        "changeText": None if change is None else signed_rate_number_text(change, code),
+    }
+    source = SOURCE_TEXT[language].get(item["source"])
+    if source is not None:
+        display["sourceText"] = source
+    fetched = item["fetchedAt"]
+    display["basisText"] = as_of_text(
+        date.fromisoformat(item["asOf"]),
+        None if fetched is None else datetime.fromisoformat(fetched),
+        language,
+    )
+    return display
+
+
+def summary_for_llm(data: dict[str, Any], language: str | None = None) -> dict[str, Any]:
+    """Spring fx-summary 응답 → LLM에 줄 값(문장 없음). 본문이 계약과 다르면 KeyError·TypeError.
+
+    language가 있으면(프롬프트 v4.4d) 원래 숫자 옆에 그 언어의 표시값을 더한다(#116).
+    없으면 v4.4와 같은 값이다.
+    """
+    shown = None if language is None else display_language(language)
     currencies = []
     for item in data["currencies"]:
         averages: list[dict[str, Any]] = []
@@ -150,35 +205,37 @@ def summary_for_llm(data: dict[str, Any]) -> dict[str, Any]:
             if period["avg"] is None:
                 insufficient.append(period["period"])
                 continue
-            averages.append(
-                {
-                    "period": period["period"],
-                    "months": PERIOD_MONTHS[period["period"]],
-                    "average": period["avg"],
-                    "difference": period["diff"],
-                    "differencePct": period["diffRate"],
-                    # 현재 값이 그 기간 평균보다 LOWER·HIGHER, ±0.10% 이내면 SAME
-                    "currentVsAverage": period["direction"],
-                    "businessDays": period["businessDays"],
-                }
-            )
-        currencies.append(
-            {
-                "currency": item["currency"],
-                "unit": item["unit"],
-                "quoteCurrency": QUOTE_CURRENCY,
-                "rate": item["rate"],
-                "source": item["source"],
-                "asOf": item["asOf"],
-                "lastCheckedAt": item["fetchedAt"],
-                "changeFromPreviousBusinessDay": item["change"],
-                "changePct": item["changeRate"],
-                "periodAverages": averages,
-                "insufficientDataPeriods": insufficient,
-                "isMock": bool(item["isMock"]),
-                "stale": bool(item["stale"]),
+            average = {
+                "period": period["period"],
+                "months": PERIOD_MONTHS[period["period"]],
+                "average": period["avg"],
+                "difference": period["diff"],
+                "differencePct": period["diffRate"],
+                # 현재 값이 그 기간 평균보다 LOWER·HIGHER, ±0.10% 이내면 SAME
+                "currentVsAverage": period["direction"],
+                "businessDays": period["businessDays"],
             }
-        )
+            if shown is not None:
+                average.update(_average_display(period, item["currency"]))
+            averages.append(average)
+        currency = {
+            "currency": item["currency"],
+            "unit": item["unit"],
+            "quoteCurrency": QUOTE_CURRENCY,
+            "rate": item["rate"],
+            "source": item["source"],
+            "asOf": item["asOf"],
+            "lastCheckedAt": item["fetchedAt"],
+            "changeFromPreviousBusinessDay": item["change"],
+            "changePct": item["changeRate"],
+            "periodAverages": averages,
+            "insufficientDataPeriods": insufficient,
+            "isMock": bool(item["isMock"]),
+            "stale": bool(item["stale"]),
+        }
+        if shown is not None:
+            currency.update(_currency_display(item, shown))
+        currencies.append(currency)
     return {
         "currencies": currencies,
         "unavailableCurrencies": list(data.get("unavailableCurrencies") or []),
@@ -280,11 +337,17 @@ class FxTools:
         user_id: int,
         request_id: str | None,
         timeout: float,
+        language: str = "en",
+        display_text: bool = False,
     ) -> None:
         self._source = source
         self._user_id = user_id
         self._request_id = request_id
         self._timeout = timeout
+        # 채팅 요청의 사용자 언어. 표시값(display_text, 프롬프트 v4.4d)의 언어를 고른다
+        # (ko면 한국어, 그 밖이면 영어).
+        self._language = language
+        self._display_text = display_text
 
     @property
     def schemas(self) -> list[dict[str, Any]]:
@@ -329,7 +392,7 @@ class FxTools:
             logger.warning("fx summary failed: %s", type(exc).__name__)
             return outcome("FAILED", UNAVAILABLE, error_code="SPRING_ERROR")
         try:
-            content = summary_for_llm(data)
+            content = summary_for_llm(data, self._language if self._display_text else None)
         except (KeyError, TypeError, ValueError):
             return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
         try:

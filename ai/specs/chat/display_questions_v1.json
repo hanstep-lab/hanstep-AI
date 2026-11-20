@@ -1,0 +1,18 @@
+{
+  "version": "v1",
+  "description": "답변 표시 규칙 측정(#116) 문항. eval_questions_v1.json과 같은 형식이다. 환율 질문 5종(오늘 환율, 평균 비교, 송금하면 받는 금액, 목표 환율 알림, 두 통화 비교)을 한국어(DK)·영어(DE)로 둔다. 한국어 문항은 --language ko, 영어 문항은 --language en으로 실행한다. 기대 도구는 v4.4·v4.4d가 같다(v4.4d = v4.4 + 표시 규칙). 숫자는 실행한 사용자(로컬 Reyes) 데이터로 채점한다.",
+  "latencySubset": [],
+  "holdoutSubset": [],
+  "questions": [
+    {"id": "DK01", "category": "fx", "kind": "current", "text": "오늘 달러 환율 얼마예요?", "history": [], "expectedTools": ["fx_rate_summary"]},
+    {"id": "DK02", "category": "fx", "kind": "comparison", "text": "지금 달러 환율이 최근 평균보다 높아요, 낮아요?", "history": [], "expectedTools": ["fx_rate_summary"]},
+    {"id": "DK03", "category": "remit_card", "kind": "remittance", "text": "엄마한테 50만 원 보내면 얼마 받아요?", "history": [], "expectedTools": ["get_remittance_recipients", "quote_remittance"]},
+    {"id": "DK04", "category": "fx", "kind": "alert", "text": "페소 환율이 20원 밑으로 내려가면 알려 줄 수 있어요?", "history": [], "expectedTools": ["fx_rate_summary"]},
+    {"id": "DK05", "category": "fx", "kind": "two-currencies", "text": "달러랑 페소 환율 비교해 주세요", "history": [], "expectedTools": ["fx_rate_summary"]},
+    {"id": "DE01", "category": "fx", "kind": "current", "text": "What is the USD exchange rate today?", "history": [], "expectedTools": ["fx_rate_summary"]},
+    {"id": "DE02", "category": "fx", "kind": "comparison", "text": "Is the USD rate higher or lower than its recent averages?", "history": [], "expectedTools": ["fx_rate_summary"]},
+    {"id": "DE03", "category": "remit_card", "kind": "remittance", "text": "If I send 500,000 won to my mom, how much will she get?", "history": [], "expectedTools": ["get_remittance_recipients", "quote_remittance"]},
+    {"id": "DE04", "category": "fx", "kind": "alert", "text": "Can you tell me when the peso rate drops below 20 won?", "history": [], "expectedTools": ["fx_rate_summary"]},
+    {"id": "DE05", "category": "fx", "kind": "two-currencies", "text": "Compare the USD and PHP exchange rates.", "history": [], "expectedTools": ["fx_rate_summary"]}
+  ]
+}

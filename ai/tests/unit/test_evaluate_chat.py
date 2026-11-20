@@ -770,14 +770,14 @@ def test_graded_numbers_are_counted_apart() -> None:
         ),
         (
             {"name": "v1", "model": "claude-haiku-5-5", "promptVersion": "v1"},
-            "promptVersion chat-v4.1 != chat-v1",
+            "promptVersion chat-v4.4d != chat-v1",
         ),
     ],  # fmt: skip
 )
 def test_stops_when_server_ignores_the_variant(
     tmp_path: Path, variant: dict[str, Any], problem: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # CHAT_ALLOW_CONFIG_OVERRIDE is off, so the server runs its defaults (haiku, facts, v4.1).
+    # CHAT_ALLOW_CONFIG_OVERRIDE is off, so the server runs its defaults (haiku, facts, v4.4d).
     variants = tmp_path / "variants.json"
     variants.write_text(json.dumps([variant]), encoding="utf-8")
     output = tmp_path / "run.jsonl"
@@ -1137,6 +1137,20 @@ def test_v44_question_set_expected_tools() -> None:
         assert EVAL.expected_tools(q, "v4.2") == ["get_fx_rate"]
     assert EVAL.expected_tools(by_id["E01"], "v4.4") == ["calculate_e74_score"]
     assert by_id["R01"]["text"] == "Send 500,000 won to my mom"
+
+
+def test_display_question_set_pairs_ko_and_en() -> None:
+    # 답변 표시 규칙 측정(#116): 환율 질문 5종 × 한국어(DK)·영어(DE). v4.4d는 v4.4의 기대값을 쓴다.
+    spec = EVAL.load_questions(EVAL.QUESTION_SETS["display"])
+    ids = [q["id"] for q in spec["questions"]]
+    assert ids == [f"D{lang}0{n}" for lang in "KE" for n in range(1, 6)]
+    ko, en = spec["questions"][:5], spec["questions"][5:]
+    for a, b in zip(ko, en, strict=True):
+        assert (a["category"], a["kind"]) == (b["category"], b["kind"])
+        for version in ("v4.4", "v4.4d"):
+            assert EVAL.expected_tools(a, version) == EVAL.expected_tools(b, version)
+    assert EVAL.PROMPT_BASE["v4.4d"] == "v4.4"
+    assert all(not q["history"] for q in spec["questions"])
 
 
 def test_lang_question_set_and_subsets() -> None:

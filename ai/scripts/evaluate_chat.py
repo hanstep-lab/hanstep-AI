@@ -104,6 +104,8 @@ POLICY_QUESTIONS = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json
 V44_QUESTIONS = AI_ROOT / "specs" / "chat" / "v44_questions_v1.json"
 # 답변 언어 측정(#106): E-7-4·비자 정책·금융 정책·대조군(환율·송금). 언어는 --language.
 LANG_QUESTIONS = AI_ROOT / "specs" / "chat" / "answer_language_questions_v1.json"
+# 답변 표시 규칙 측정(#116): 환율 질문 5종 × 한국어(DK)·영어(DE). 언어는 --language.
+DISPLAY_QUESTIONS = AI_ROOT / "specs" / "chat" / "display_questions_v1.json"
 QUESTION_SETS = {
     "eval": QUESTIONS,
     "remit": REMIT_QUESTIONS,
@@ -111,6 +113,7 @@ QUESTION_SETS = {
     "policy": POLICY_QUESTIONS,
     "v44": V44_QUESTIONS,
     "lang": LANG_QUESTIONS,
+    "display": DISPLAY_QUESTIONS,
 }
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
 PROMPT_BASE = {
@@ -122,6 +125,7 @@ PROMPT_BASE = {
     "v4.2": "v4.1",
     "v4.3a": "v4.2",
     "v4.4": "v4.2",
+    "v4.4d": "v4.4",
 }
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
 PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
@@ -1704,7 +1708,8 @@ def main(
         "product: product_questions_v1.json (product tool, #65), "
         "policy: specs/rag/finance_policy_questions_v1.json (finance policy RAG, #88), "
         "v44: v44_questions_v1.json (FX summary, E-7-4 and remittance cards, #101), "
-        "lang: answer_language_questions_v1.json (answer language, #106)",
+        "lang: answer_language_questions_v1.json (answer language, #106), "
+        "display: display_questions_v1.json (answer display rules, #116)",
     )
     parser.add_argument(
         "--language",
