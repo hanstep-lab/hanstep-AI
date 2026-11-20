@@ -172,7 +172,8 @@ _SYSTEM["v4.5"] = (
 # 답변 표시 규칙(#116): v4.4 본문의 줄 몇 개를 바꾸거나 빼고, 끝에 답변 표시 규칙
 # (display_rules_ko.md·display_rules_en.md)을 더한다. 표시 규칙은 사용자 언어로 고른다: ko면 한국어
 # 규칙, 그 밖(en·vi·zh)은 영어 규칙. 환율 도구는 LLM에 표시값(rateText 등)을 더 준다.
-# - v4.6 = v4.5 + 표시 규칙. 도구 묶음은 v4.5와 같다(환율 진단·상품 카드 포함).
+# - v4.6 = v4.5 + 표시 규칙 + 상품 카드 표시 규칙(#119, 아래). 도구 묶음은 v4.5와 같다(환율 진단·
+#   상품 카드 포함).
 # - v4.4d = v4.4 + 표시 규칙(v4.3a와 같은 갈래). 11/20 측정 재현용으로 남긴다.
 # v4.4·v4.5·fx_rules.md·goal_rules.md 문구는 바꾸지 않는다. 바꿀 줄은 v4.4 본문에 있고, v4.5도
 # v4.4 본문을 그대로 담는다.
@@ -255,17 +256,61 @@ _DISPLAY_RULES = {
 }
 
 
-def _display_versions(base: str) -> dict[DisplayLanguage, str]:
-    return {
-        language: _with_display_rules(base, _DISPLAY_RULES[language])
-        for language in _DISPLAY_LANGUAGES
-    }
+def _display_versions(base: str, extra: str = "") -> dict[DisplayLanguage, str]:
+    """언어별 표시 규칙 버전. extra가 있으면 표시 규칙 뒤에 그 언어의 extra_{언어}.md를 붙인다."""
+    versions = {}
+    for language in _DISPLAY_LANGUAGES:
+        text = _with_display_rules(base, _DISPLAY_RULES[language])
+        if extra:
+            rules = (_DIR / f"{extra}_{language}.md").read_text(encoding="utf-8")
+            text = text.rstrip("\n") + "\n\n" + rules
+        versions[language] = text
+    return versions
+
+
+# v4.6 상품 카드 표시 규칙(#119): 카드에 있는 상품 이름·기간·금액 범위·금리를 본문에서 다시 나열하지
+# 않는다. v4.6에서만 바꾼다.
+# - 표시 규칙 파일(display_rules_*.md)은 v4.4d도 쓰므로 고치지 않는다. v4.4d에는 상품 카드가 없다.
+# - 표시 규칙 뒤에 상품 카드 표시 규칙(display_product_card_ko.md·_en.md)을 붙인다.
+# - 상품 규칙(product_rules.md) 가운데 이 규칙과 부딪히는 두 줄을 v4.6에서만 바꾼다.
+#   product_rules.md 파일과 v4.5 문구는 그대로다.
+PRODUCT_FACTS_LINE = (
+    "- Recommend only the products in the tool result, in the same order and with the names as "
+    "given. For each product, give one or two facts from its terms or evidence, such as the term "
+    "or the monthly amount range."
+)
+CARD_PRODUCT_FACTS_LINE = (
+    "- Recommend only the products in the tool result, with the names as given. The product card "
+    "lists them; write the answer as the product card display rules at the end say."
+)
+PRODUCT_ORDER_LINE = (
+    "- Do not call any product the best or the most profitable; the order is not a quality "
+    "ranking. Do not promise approval, eligibility or tax benefits."
+)
+CARD_PRODUCT_ORDER_LINE = (
+    "- Do not call any product the best or the most profitable. Do not promise approval, "
+    "eligibility or tax benefits."
+)
+PRODUCT_CARD_CHANGES = (
+    (PRODUCT_FACTS_LINE, CARD_PRODUCT_FACTS_LINE, "product-facts"),
+    (PRODUCT_ORDER_LINE, CARD_PRODUCT_ORDER_LINE, "product-order"),
+)
+
+
+def _with_product_card_lines(base: str) -> str:
+    """바탕 글(v4.5)의 PRODUCT_CARD_CHANGES 줄을 바꾼다. 바꿀 줄이 한 번 있지 않으면 실패한다."""
+    text = base
+    for old, new, what in PRODUCT_CARD_CHANGES:
+        text = "\n".join(_replace_line(text, old, new, what))
+    return text
 
 
 # 표시 규칙이 사용자 언어별로 다른 버전. system_prompt가 language로 고른다.
 _SYSTEM_BY_DISPLAY: dict[str, dict[DisplayLanguage, str]] = {
     "v4.4d": _display_versions(_SYSTEM["v4.4"]),
-    "v4.6": _display_versions(_SYSTEM["v4.5"]),
+    "v4.6": _display_versions(
+        _with_product_card_lines(_SYSTEM["v4.5"]), extra="display_product_card"
+    ),
 }
 
 
