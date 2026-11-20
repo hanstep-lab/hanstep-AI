@@ -1,0 +1,68 @@
+{
+  "version": "v1",
+  "description": "상품 추천 카드 반복 제거 측정(#119) 문항. eval_questions_v1.json과 같은 형식이다. 영어 상품 질문 6개다. PC01은 v4.5 측정 세트 V06과 같은 질문이다. PC06은 기권(products가 비고 abstainReason만) 답변 확인용이다(월 납입액이 여유자금보다 큼). 채점은 v4.5 측정 세트의 상품 지표(scripts/_v45_check.py, v45Check product: 카드·카드=도구 결과·금리 숫자·카드 가리킴)를 쓴다. 본문의 상품 나열은 측정 원자료에서 따로 센다(specs/chat/answer_display_v1.md 3차 측정). 추천 결과는 실행한 사용자(로컬 Reyes)의 체류·여유자금으로 정해진다.",
+  "latencySubset": [],
+  "holdoutSubset": [],
+  "questions": [
+    {
+      "id": "PC01",
+      "category": "product",
+      "text": "Recommend a savings product for me",
+      "history": [],
+      "expectedTools": ["recommend_savings_products"],
+      "expectBehavior": "recommend",
+      "v45Check": "product",
+      "source": "v45_questions_v1.json V06과 같은 질문"
+    },
+    {
+      "id": "PC02",
+      "category": "product",
+      "text": "Recommend a time deposit product",
+      "history": [],
+      "expectedTools": ["recommend_savings_products"],
+      "expectBehavior": "recommend",
+      "v45Check": "product",
+      "source": "운영 11/20 사례(정기예금 5개를 본문에서 다시 나열)"
+    },
+    {
+      "id": "PC03",
+      "category": "product",
+      "text": "I want to save for 10 months, what do you recommend?",
+      "history": [],
+      "expectedTools": ["recommend_savings_products"],
+      "expectBehavior": "recommend",
+      "v45Check": "product",
+      "source": "이슈 #119(기간 조건)"
+    },
+    {
+      "id": "PC04",
+      "category": "product",
+      "text": "Is there a deposit I can join with KRW 1,000,000?",
+      "history": [],
+      "expectedTools": ["recommend_savings_products"],
+      "expectBehavior": "recommend",
+      "v45Check": "product",
+      "source": "이슈 #119(금액 조건)"
+    },
+    {
+      "id": "PC05",
+      "category": "product",
+      "text": "Which product fits my remaining stay?",
+      "history": [],
+      "expectedTools": ["recommend_savings_products"],
+      "expectBehavior": "recommend",
+      "v45Check": "product",
+      "source": "이슈 #119(남은 체류 기간)"
+    },
+    {
+      "id": "PC06",
+      "category": "product",
+      "text": "I want to put KRW 1,000,000 into savings every month. Which product fits?",
+      "history": [],
+      "expectedTools": ["recommend_savings_products"],
+      "expectBehavior": "explain_abstain_reason",
+      "v45Check": "product",
+      "source": "이슈 #119(기권: 카드에 상품이 없을 때)"
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 """Chat prompt versions: v1 unchanged, v1.1 two lines, v2 visa, v3 remittance, v4 product, v4.4 FX.
 
-v4.4 = v4.2 + exchange rate rules (fx_rules.md). v4.6 = v4.5 + answer display rules (#116);
-v4.4d = v4.4 + the same display rules (kept to reproduce the 2026-11-20 measurement).
+v4.4 = v4.2 + exchange rate rules (fx_rules.md). v4.6 = v4.5 + answer display rules (#116) +
+product card display rules (#119); v4.4d = v4.4 + the same answer display rules (kept to reproduce
+the 2026-11-20 measurement).
 """
 
 from __future__ import annotations
@@ -25,11 +26,15 @@ from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.prompts import (
     DISPLAY_CHANGES,
     NO_BOLD_LINE,
+    PRODUCT_CARD_CHANGES,
+    PRODUCT_FACTS_LINE,
+    PRODUCT_ORDER_LINE,
     PROMPT_VERSION,
     PROMPT_VERSIONS,
     V4_1_STAY_RULE,
     V4_STAY_RULE,
     _with_display_rules,
+    _with_product_card_lines,
     _with_product_rules,
     _with_remittance_rules,
     _with_stay_rule,
@@ -245,12 +250,13 @@ PROMPT_SHA256 = {
     # 2026-11-20(#116): 답변 표시 규칙(영어 규칙, en·vi·zh). ko는 PROMPT_SHA256_KO.
     # v4.4d = v4.4 + 표시 규칙(11/20 측정 재현용), v4.6 = v4.5 + 표시 규칙.
     "v4.4d": "6d72bb2bc1a76fc4bb8b3083394e0a41abdb7889c0320bfbd44f9298beec5e95",
-    "v4.6": "29f7942e9dd8b18c18d809d5cdd6e2c2d5740842350331f60d758b3227e4138c",
+    # 2026-11-20(#119): v4.6에만 상품 카드 표시 규칙. v4.5·v4.4d는 그대로다.
+    "v4.6": "da47484349d4097eeea8c83794365fd839a397e1ce9205a049a32a12426d8c87",
 }
 # 표시 규칙이 언어별로 다른 버전의 한국어(ko) 프롬프트.
 PROMPT_SHA256_KO = {
     "v4.4d": "e69b2c08fae002baeafa8aae841abae6193cf7abb8688b20d52d49587abc0903",
-    "v4.6": "4efbb464edf6ef0b17cb5a4809fd3733b436e80aedb0cffdd54a717f4746df1a",
+    "v4.6": "16329bb42ef5421b077ccce03c482d3f8f984dd0d57ad5ef43d77cad4aed8078",
 }
 
 
@@ -391,20 +397,24 @@ def test_display_version_is_base_with_display_rules(version: str, base: str, lan
     # 표시 규칙(#116): v4.6 = v4.5 + 표시 규칙, v4.4d = v4.4 + 표시 규칙(11/20 측정 재현용).
     # 바뀌는 바탕 글의 줄은 DISPLAY_CHANGES뿐이고, 볼드 금지 두 줄(송금·환율)은 빠지며,
     # 끝에 사용자 언어의 표시 규칙이 붙는다.
+    # v4.6만(#119): 상품 규칙 두 줄(PRODUCT_CARD_CHANGES)도 바뀌고, 상품 카드 표시 규칙이 더 붙는다.
     lines = system_prompt(language, base).splitlines()
     rules = (PROMPTS / f"display_rules_{language}.md").read_text(encoding="utf-8")
     changes = {
         old.replace("{language}", language): new.replace("{language}", language)
         for old, new, _ in DISPLAY_CHANGES
     }
+    card = version == "v4.6"
+    if card:
+        changes.update({old: new for old, new, _ in PRODUCT_CARD_CHANGES})
     assert lines.count(NO_BOLD_LINE) == 2
     assert all(old in lines for old in changes)
     expected = [changes.get(line, line) for line in lines if line != NO_BOLD_LINE]
-    assert system_prompt(language, version).splitlines() == [
-        *expected,
-        "",
-        *rules.replace("{language}", language).splitlines(),
-    ]
+    expected += ["", *rules.replace("{language}", language).splitlines()]
+    if card:
+        product_card = (PROMPTS / f"display_product_card_{language}.md").read_text(encoding="utf-8")
+        expected += ["", *product_card.splitlines()]
+    assert system_prompt(language, version).splitlines() == expected
     # 바탕 글은 언어 코드만 다르다(표시 규칙이 없는 버전).
     assert system_prompt("ko", base) == system_prompt("en", base).replace('"en"', '"ko"')
 
@@ -455,3 +465,58 @@ def test_display_rules_fail_fast_when_a_v4_4_line_moves() -> None:
     base = system_prompt("en", "v4.5").replace('"en"', '"{language}"')
     with pytest.raises(ValueError, match="no-bold line exactly twice"):
         _with_display_rules(base.replace(NO_BOLD_LINE + "\n", "", 1), "Display rules:")
+
+
+PRODUCT_CARD_PHRASES = (
+    "Product card display rules:",
+    "do not list the products again",
+    "do not give their terms or amount ranges",
+    "how many products fit",
+    "the main reason, such as the remaining stay or the monthly spare money",
+    "the conditions in notChecked that could not be checked",
+    "the rates and the preferential conditions are in the card",
+    "Do not explain the order of the products",
+    "When the card has no products (abstainReason)",
+    "suggest one next step",
+)
+
+
+@pytest.mark.parametrize("language", ["ko", "en"])
+def test_v4_6_product_card_display_rules(language: str) -> None:
+    # #119: 상품 추천 카드에 있는 상품 이름·기간·금액 범위·금리를 본문에서 다시 나열하지 않는다.
+    v46 = system_prompt(language, "v4.6")
+    for phrase in PRODUCT_CARD_PHRASES:
+        assert phrase in v46, phrase
+    # 상품 카드 표시 규칙은 목표·카드 규칙(goal_rules.md)과 표시 규칙 뒤, 맨 끝에 온다.
+    goal_rules = (PROMPTS / "goal_rules.md").read_text(encoding="utf-8").rstrip("\n")
+    display = v46.index("\nDisplay rules")  # ko: "Display rules (the user's app is in Korean):"
+    assert v46.index(goal_rules) < display < v46.index("Product card display rules:")
+    # 부딪히는 상품 규칙 두 줄(상품마다 기간·금액 말하기, 순서는 품질 순위가 아님)은 v4.6에만 없다.
+    lines = v46.splitlines()
+    for old, new, _ in PRODUCT_CARD_CHANGES:
+        assert old not in lines and new in lines
+    assert "the order is not a quality ranking" not in v46
+    # 순서를 말할 때의 짧은 문구와 출처 줄은 언어별이다.
+    order, source = {
+        "en": ('"listed by the conditions you meet"', "Shinhan Bank product descriptions"),
+        "ko": ('"조건에 맞는 순서예요"', "신한은행 상품설명서"),
+    }[language]
+    assert order in v46 and source in v46
+
+
+@pytest.mark.parametrize("version", ["v4.5", "v4.4d"])
+def test_product_card_display_rules_are_v4_6_only(version: str) -> None:
+    # 운영 v4.5와 11/20 1차 측정 재현용 v4.4d는 문구가 그대로다(상품 규칙 줄도 그대로).
+    for language in ("ko", "en"):
+        text = system_prompt(language, version)
+        assert "Product card display rules:" not in text
+        lines = text.splitlines()
+        assert PRODUCT_FACTS_LINE in lines and PRODUCT_ORDER_LINE in lines
+
+
+def test_product_card_lines_fail_fast_when_a_product_line_moves() -> None:
+    base = system_prompt("en", "v4.5")
+    with pytest.raises(ValueError, match="product-facts line"):
+        _with_product_card_lines(base.replace(PRODUCT_FACTS_LINE, "- something else"))
+    with pytest.raises(ValueError, match="product-order line"):
+        _with_product_card_lines(base.replace(PRODUCT_ORDER_LINE, "- something else"))

@@ -113,6 +113,8 @@ E74_KO_QUESTIONS = AI_ROOT / "specs" / "chat" / "e74_llm_ko_questions_v1.json"
 V45_QUESTIONS = AI_ROOT / "specs" / "chat" / "v45_questions_v1.json"
 # 답변 표시 규칙 측정(#116): 환율 질문 5종 × 한국어(DK)·영어(DE). 언어는 --language.
 DISPLAY_QUESTIONS = AI_ROOT / "specs" / "chat" / "display_questions_v1.json"
+# 상품 추천 카드 반복 제거 측정(#119): 영어 상품 질문 6개(PC06 기권), 채점은 v4.5 상품 지표.
+PRODUCT_CARD_QUESTIONS = AI_ROOT / "specs" / "chat" / "product_card_questions_v1.json"
 QUESTION_SETS = {
     "eval": QUESTIONS,
     "remit": REMIT_QUESTIONS,
@@ -124,6 +126,7 @@ QUESTION_SETS = {
     "e74ko": E74_KO_QUESTIONS,
     "v45": V45_QUESTIONS,
     "display": DISPLAY_QUESTIONS,
+    "pcard": PRODUCT_CARD_QUESTIONS,
 }
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
 PROMPT_BASE = {
@@ -1726,7 +1729,8 @@ def main(
         "v44: v44_questions_v1.json (FX summary, E-7-4 and remittance cards, #101), "
         "lang: answer_language_questions_v1.json (answer language, #106), "
         "v45: v45_questions_v1.json (input-based numbers and goals, #114), "
-        "display: display_questions_v1.json (answer display rules, #116)",
+        "display: display_questions_v1.json (answer display rules, #116), "
+        "pcard: product_card_questions_v1.json (product card answers, #119)",
     )
     parser.add_argument(
         "--language",
