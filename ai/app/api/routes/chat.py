@@ -235,6 +235,7 @@ async def chat_stream(
                 user_id=body.user_id,
                 request_id=rid,
                 timeout=settings.chat_tool_timeout_seconds,
+                language=body.language,
             )
         )
     # 송금 조회 도구도 그 도구를 설명하는 프롬프트 버전(v3)에서만 붙인다. 송금은 실행하지 않는다.

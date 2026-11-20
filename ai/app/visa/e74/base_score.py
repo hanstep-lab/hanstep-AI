@@ -43,6 +43,7 @@ from app.visa.e74.schemas import (
     VerificationStatus,
     VisaEvidenceIn,
 )
+from app.visa.e74.texts import review_text
 
 KOREAN_EVIDENCE_TYPES = (EvidenceType.TOPIK, EvidenceType.KIIP, EvidenceType.KIIP_PRE_TEST)
 # 연도별로 한 행만 쓴다. 공식 증명원 > 사용자 신고 > 거래 합계 추정.
@@ -89,7 +90,7 @@ def calculate_age_score(profile: E74Profile, rule_set: RuleSet, as_of: date) -> 
             potential_points=None,
             message_code="E74_AGE_OUT_OF_TABLE",
             evidence=evidence,
-            review_note="점수표에 없는 나이(19세 미만)",
+            review_note=review_text("AGE_OUTSIDE_SCORE_TABLE"),
         )
     verified = profile.visa_profile.evidence_status is ProfileEvidenceStatus.VERIFIED
     return scored_result(
@@ -198,10 +199,11 @@ def calculate_income_score(profile: E74Profile, rule_set: RuleSet, as_of: date) 
                 category, "E74_INCOME_MISSING", missing, {"incomeYears": list(targets)}
             )
         used = sorted(fallback, key=lambda r: r.annual_amount, reverse=True)[: basis.years]
-        review_note = (
-            f"최근 {basis.years}년 소득이 없어 "
-            f"{basis.fallback_year_from}~{basis.fallback_year_to}년 중 높은 해로 계산함. "
-            "재입국 공백 등 대체 사유 확인 필요"
+        review_note = review_text(
+            "INCOME_FROM_EARLIER_YEARS",
+            years=basis.years,
+            start=basis.fallback_year_from,
+            end=basis.fallback_year_to,
         )
 
     total = sum(record.annual_amount for record in used)
@@ -395,7 +397,7 @@ def calculate_korean_score(profile: E74Profile, rule_set: RuleSet, as_of: date) 
                 potential_points=None,
                 message_code="E74_KOREAN_UNREADABLE",
                 evidence={"candidates": considered},
-                review_note="한국어 증빙의 급수·단계를 읽을 수 없음",
+                review_note=review_text("KOREAN_LEVEL_UNREADABLE"),
             )
         return not_met_result(category, "E74_KOREAN_BELOW_MIN", {"candidates": considered})
 

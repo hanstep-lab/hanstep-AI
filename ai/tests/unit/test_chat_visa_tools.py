@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import AsyncIterator
 from datetime import date
 from pathlib import Path
@@ -161,6 +162,26 @@ def test_calculate_returns_summary_ref_source_and_score_card(today: date) -> Non
     ]
     card = outcome.blocks[0]
     assert (card["type"], card["assessmentId"], card["total"]) == ("E74_SCORE_CARD", 77, 305)
+
+
+@pytest.mark.parametrize("language", ["ko", "en"])
+def test_calculate_gives_llm_texts_in_the_user_language(today: date, language: str) -> None:
+    """채팅 요청의 사용자 언어로 LLM 문구를 고른다(ko면 한국어). 카드는 언어와 상관없다."""
+    tools = VisaTools(
+        e74_source=FakeE74Source(),
+        search_source=None,
+        user_id=185,
+        request_id="req_v",
+        timeout=5,
+        language=language,
+    )
+    outcome = asyncio.run(tools.run(CALCULATE_E74_SCORE, {}))
+
+    descriptions = [i["description"] for i in json.loads(outcome.content)["improvements"]]
+    assert descriptions
+    korean = [bool(re.search(r"[가-힣]", d)) for d in descriptions]
+    assert all(korean) if language == "ko" else not any(korean)
+    assert outcome.blocks[0]["total"] == 305
 
 
 def test_calculate_defaults_to_kst_today() -> None:

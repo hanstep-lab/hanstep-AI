@@ -47,6 +47,15 @@ from app.visa.e74.rules import (
     TotalScore,
 )
 from app.visa.e74.schemas import E74Profile, EmploymentHistoryIn, EvidenceType
+from app.visa.e74.texts import (
+    Text,
+    english_documents,
+    improvement_text,
+    rule_text,
+    term_text,
+    terms_text,
+    visa_types_text,
+)
 
 SCORED = (
     RuleCategory.BASE_INCOME,
@@ -79,8 +88,19 @@ class Improvement(CamelResponse):
     available_from: date | None = None
     target: dict[str, Any] = Field(default_factory=dict, description="목표 값과 현재 값")
     documents: tuple[str, ...] = ()
+    documents_en: tuple[str, ...] | None = Field(
+        default=None,
+        description="documents와 같은 순서의 영어 서류 이름(#108). 엔진은 늘 채운다. "
+        "이 필드가 생기기 전에 저장된 결과는 null",
+    )
     message_code: str
-    description: str = Field(description="한국어 설명. LLM이 사용자 언어로 바꿔 말한다")
+    description: str = Field(
+        description="한국어 설명(로드맵 화면 등). LLM에는 descriptionEn을 준다"
+    )
+    description_en: str | None = Field(
+        default=None,
+        description="영어 설명(#108). 엔진은 늘 채운다. 이 필드가 생기기 전에 저장된 결과는 null",
+    )
 
 
 class ScoreGap(CamelResponse):
@@ -140,10 +160,25 @@ def first_day_reaching(
 # --- 요건 ----------------------------------------------------------------------------
 
 
+def _wording(text: Text, documents: tuple[str, ...]) -> dict[str, Any]:
+    """설명·서류의 한국어와 영어(#108). 문구는 texts.IMPROVEMENTS 한곳에 있다."""
+    return {
+        "description": text.ko,
+        "description_en": text.en,
+        "documents": documents,
+        "documents_en": english_documents(documents),
+    }
+
+
+def _won(amount: int) -> str:
+    """금액 표기(천 단위 쉼표). 한국어·영어 문구에 같은 값을 넣는다."""
+    return f"{amount:,}"
+
+
 def _fix(
     rule: Rule,
     message_code: str,
-    description: str,
+    text: Text,
     *,
     target: dict[str, Any] | None = None,
     available_from: date | None = None,
@@ -156,9 +191,8 @@ def _fix(
         blocking=True,
         available_from=available_from,
         target=target or {},
-        documents=rule.documents,
         message_code=message_code,
-        description=description,
+        **_wording(text, rule.documents),
     )
 
 
@@ -181,7 +215,9 @@ def _fix_requirement(
         return _fix(
             rule,
             "E74_IMPROVE_STAY_WAIT",
-            f"체류 {c.min_months // 12}년 요건은 지금처럼 계속 체류하면 {day.isoformat()}부터 충족",
+            improvement_text(
+                "E74_IMPROVE_STAY_WAIT", years=c.min_months // 12, date=day.isoformat()
+            ),
             target={
                 "requiredMonths": c.min_months,
                 "currentMonths": ev.get("totalMonths", ev.get("currentStayMonths")),
@@ -192,7 +228,9 @@ def _fix_requirement(
         return _fix(
             rule,
             "E74_IMPROVE_CURRENT_EMPLOYMENT",
-            f"{'·'.join(c.visa_types)} 자격으로 현재 근무처에서 일하고 있어야 함",
+            improvement_text(
+                "E74_IMPROVE_CURRENT_EMPLOYMENT", visa_types=visa_types_text(c.visa_types)
+            ),
             target={"visaTypes": list(c.visa_types)},
         )
     if isinstance(c, Contract):
@@ -205,8 +243,12 @@ def _fix_requirement(
             return _fix(
                 rule,
                 "E74_IMPROVE_CONTRACT_SALARY",
-                f"E-7-4 고용계약 연봉을 {required_salary:,}원 이상으로(현재 {salary:,}원, "
-                f"{required_salary - salary:,}원 부족)",
+                improvement_text(
+                    "E74_IMPROVE_CONTRACT_SALARY",
+                    required=_won(required_salary),
+                    salary=_won(salary),
+                    shortfall=_won(required_salary - salary),
+                ),
                 target={
                     "requiredAnnualSalary": required_salary,
                     "annualSalary": salary,
@@ -216,8 +258,11 @@ def _fix_requirement(
         return _fix(
             rule,
             "E74_IMPROVE_CONTRACT_PERIOD",
-            f"E-7-4 고용계약 기간을 {ev.get('requiredEndOn')}까지 이상으로"
-            f"(현재 {ev.get('contractEndOn')}까지)",
+            improvement_text(
+                "E74_IMPROVE_CONTRACT_PERIOD",
+                required_end=ev.get("requiredEndOn"),
+                contract_end=ev.get("contractEndOn"),
+            ),
             target={
                 "requiredEndOn": ev.get("requiredEndOn"),
                 "contractEndOn": ev.get("contractEndOn"),
@@ -229,16 +274,22 @@ def _fix_requirement(
             return _fix(
                 rule,
                 "E74_IMPROVE_NEEDS_CURRENT_JOB",
-                "현재 근무처가 있어야 고용기업 추천을 받을 수 있음",
+                improvement_text("E74_IMPROVE_NEEDS_CURRENT_JOB"),
             )
         tenure_rows = stint_coverage(stint, as_of, c.min_tenure_months).rows
         tenure_day = first_day_reaching(tenure_rows, as_of, c.min_tenure_months)
         return _fix(
             rule,
             "E74_IMPROVE_EMPLOYER_TENURE_WAIT",
-            f"현재 근무처 {c.min_tenure_months}개월 근무가 "
-            f"{tenure_day.isoformat() if tenure_day else '나중에'} 채워지면 "
-            "고용기업 추천을 받을 수 있음",
+            improvement_text(
+                "E74_IMPROVE_EMPLOYER_TENURE_WAIT",
+                months=c.min_tenure_months,
+                date=tenure_day.isoformat(),
+            )
+            if tenure_day
+            else improvement_text(
+                "E74_IMPROVE_EMPLOYER_TENURE_WAIT.later", months=c.min_tenure_months
+            ),
             target={"requiredMonths": c.min_tenure_months},
             available_from=tenure_day,
         )
@@ -249,8 +300,12 @@ def _fix_requirement(
         return _fix(
             rule,
             "E74_IMPROVE_MIN_INCOME",
-            f"최근 2년 평균소득이 {c.min_amount:,}원 이상이어야 함(현재 {average:,}원, "
-            f"{c.min_amount - average:,}원 부족)",
+            improvement_text(
+                "E74_IMPROVE_MIN_INCOME",
+                required=_won(c.min_amount),
+                average=_won(average),
+                shortfall=_won(c.min_amount - average),
+            ),
             target={
                 "requiredAverageIncome": c.min_amount,
                 "averageIncome": average,
@@ -262,17 +317,21 @@ def _fix_requirement(
         if lowest is None:
             return None
         level = lowest[1]
-        text = (
-            f"한국어: TOPIK {level.topik_level_min}급, "
-            f"사회통합프로그램 {level.kiip_stage_min}단계 이수, "
-            f"또는 사전평가 {level.pre_test_score_min}점 이상"
-            f"({level.pre_test_min_assigned_stage}단계 이상 배정)"
-        )
+        korean_level = {
+            "topik": level.topik_level_min,
+            "kiip": level.kiip_stage_min,
+            "pre_test": level.pre_test_score_min,
+            "stage": level.pre_test_min_assigned_stage,
+        }
         if c.deferral_until is not None and as_of <= c.deferral_until:
-            text += (
-                f". {c.deferral_until.isoformat()}까지는 한국어 외 점수가 "
-                f"{c.deferral_min_total_without_korean}점 이상이면 유예 가능"
+            text = improvement_text(
+                "E74_IMPROVE_MIN_KOREAN.deferral",
+                **korean_level,
+                until=c.deferral_until.isoformat(),
+                min_total=c.deferral_min_total_without_korean,
             )
+        else:
+            text = improvement_text("E74_IMPROVE_MIN_KOREAN", **korean_level)
         return _fix(
             rule,
             "E74_IMPROVE_MIN_KOREAN",
@@ -288,7 +347,7 @@ def _fix_requirement(
         return _fix(
             rule,
             "E74_IMPROVE_TOTAL_SCORE",
-            f"총점이 {needed}점 부족(기준 {required}점). 아래 방안으로 채울 수 있음",
+            improvement_text("E74_IMPROVE_TOTAL_SCORE", needed=needed, required=required),
             target={
                 "requiredTotal": required,
                 "confirmedTotal": confirmed_total,
@@ -341,11 +400,15 @@ def _raise_income(item: ItemResult, rule_set: RuleSet, industry: str | None) -> 
             "currentAverage": average,
             "shortfall": band.min_amount - average,
         },
-        documents=rule.documents,
         message_code="E74_IMPROVE_RAISE_INCOME",
-        description=(
-            f"최근 2년 평균소득을 {band.min_amount:,}원 이상으로 올리면 +{gain}점"
-            f"(현재 {average:,}원)"
+        **_wording(
+            improvement_text(
+                "E74_IMPROVE_RAISE_INCOME",
+                needed=_won(band.min_amount),
+                gain=gain,
+                average=_won(average),
+            ),
+            rule.documents,
         ),
     )
 
@@ -371,12 +434,16 @@ def _raise_korean(item: ItemResult, rule_set: RuleSet) -> Improvement | None:
             "kiipStage": level.kiip_stage_min,
             "preTestScore": level.pre_test_score_min,
         },
-        documents=rule.documents,
         message_code="E74_IMPROVE_RAISE_KOREAN",
-        description=(
-            f"한국어를 TOPIK {level.topik_level_min}급, "
-            f"사회통합프로그램 {level.kiip_stage_min}단계, "
-            f"또는 사전평가 {level.pre_test_score_min}점 이상으로 올리면 +{gain}점"
+        **_wording(
+            improvement_text(
+                "E74_IMPROVE_RAISE_KOREAN",
+                topik=level.topik_level_min,
+                kiip=level.kiip_stage_min,
+                pre_test=level.pre_test_score_min,
+                gain=gain,
+            ),
+            rule.documents,
         ),
     )
 
@@ -400,16 +467,15 @@ def _bonus_improvement(
     points = rule.points or 0
     blocking = _blocks(rule, unmet_evidence)
 
-    def make(kind: ImprovementKind, code: str, description: str, **extra: Any) -> Improvement:
+    def make(kind: ImprovementKind, code: str, text: Text, **extra: Any) -> Improvement:
         return Improvement(
             rule_code=rule.rule_code,
             kind=kind,
             actor=rule.actor,
             points_gain=points,
             blocking=blocking,
-            documents=rule.documents,
             message_code=code,
-            description=description,
+            **_wording(text, rule.documents),
             **extra,
         )
 
@@ -419,7 +485,11 @@ def _bonus_improvement(
             return make(
                 ImprovementKind.OBTAIN_BONUS,
                 "E74_IMPROVE_OBTAIN_RECOMMENDATION",
-                f"{rule.description} 받으면 +{points}점",
+                improvement_text(
+                    "E74_IMPROVE_OBTAIN_RECOMMENDATION",
+                    rule=rule_text(rule.rule_code, rule.description),
+                    points=points,
+                ),
             )
         if group in seen_groups:
             return None
@@ -432,7 +502,7 @@ def _bonus_improvement(
         return make(
             ImprovementKind.OBTAIN_BONUS,
             "E74_IMPROVE_OBTAIN_RECOMMENDATION",
-            f"중앙부처 또는 광역지자체 추천을 받으면 +{points}점(둘 중 하나만 인정)",
+            improvement_text("E74_IMPROVE_OBTAIN_RECOMMENDATION.group", points=points),
             target={"alternatives": [m.rule_code for m in members]},
         )
     if isinstance(c, Tenure):
@@ -446,7 +516,7 @@ def _bonus_improvement(
         return make(
             ImprovementKind.WAIT_UNTIL,
             "E74_IMPROVE_TENURE_WAIT",
-            f"현재 근무처에서 계속 일하면 {day.isoformat()}부터 3년 근속 +{points}점",
+            improvement_text("E74_IMPROVE_TENURE_WAIT", date=day.isoformat(), points=points),
             available_from=day,
         )
     if isinstance(c, RegionWork):
@@ -462,22 +532,25 @@ def _bonus_improvement(
         return make(
             ImprovementKind.WAIT_UNTIL,
             "E74_IMPROVE_REGION_WAIT",
-            f"지금 근무지(인구감소지역·읍면)에서 계속 일하면 "
-            f"{region_day.isoformat()}부터 +{points}점",
+            improvement_text("E74_IMPROVE_REGION_WAIT", date=region_day.isoformat(), points=points),
             available_from=region_day,
         )
     if isinstance(c, Qualification):
         return make(
             ImprovementKind.OBTAIN_BONUS,
             "E74_IMPROVE_OBTAIN_QUALIFICATION",
-            f"지금 하는 일과 관련된 국내 {'·'.join(c.certificate_grades)} 자격증, "
-            f"또는 국내 {c.degree_levels[0]} 이상 학위를 받으면 +{points}점",
+            improvement_text(
+                "E74_IMPROVE_OBTAIN_QUALIFICATION",
+                grades=terms_text(c.certificate_grades),
+                degree=term_text(c.degree_levels[0]),
+                points=points,
+            ),
         )
     if isinstance(c, DriverLicense):
         return make(
             ImprovementKind.OBTAIN_BONUS,
             "E74_IMPROVE_OBTAIN_DRIVER_LICENSE",
-            f"국내 운전면허(제2종 보통 이상)를 따면 +{points}점",
+            improvement_text("E74_IMPROVE_OBTAIN_DRIVER_LICENSE", points=points),
         )
     return None
 
@@ -583,9 +656,14 @@ def analyze_improvements(
                         actor=rule.actor,
                         points_gain=None,
                         blocking=True,
-                        documents=rule.documents,
                         message_code="E74_IMPROVE_SUBMIT_REQUIREMENT_EVIDENCE",
-                        description=f"{rule.description}: 증빙 서류를 내면 요건이 확정됨",
+                        **_wording(
+                            improvement_text(
+                                "E74_IMPROVE_SUBMIT_REQUIREMENT_EVIDENCE",
+                                rule=rule_text(rule.rule_code, rule.description),
+                            ),
+                            rule.documents,
+                        ),
                     )
                 )
         elif item.category in SCORED:
@@ -602,10 +680,14 @@ def analyze_improvements(
                         actor=rule.actor,
                         points_gain=potential - earned,
                         blocking=_blocks(rule, unmet_evidence),
-                        documents=rule.documents,
                         message_code="E74_IMPROVE_SUBMIT_EVIDENCE",
-                        description=(
-                            f"{rule.description}: 증빙 서류를 내면 +{potential - earned}점 확정"
+                        **_wording(
+                            improvement_text(
+                                "E74_IMPROVE_SUBMIT_EVIDENCE",
+                                rule=rule_text(rule.rule_code, rule.description),
+                                points=potential - earned,
+                            ),
+                            rule.documents,
                         ),
                     )
                 )
