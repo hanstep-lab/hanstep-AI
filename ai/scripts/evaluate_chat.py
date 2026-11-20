@@ -126,6 +126,7 @@ PROMPT_BASE = {
     "v4.2": "v4.1",
     "v4.3a": "v4.2",
     "v4.4": "v4.2",
+    "v4.5": "v4.4",
 }
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
 PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)

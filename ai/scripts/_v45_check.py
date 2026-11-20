@@ -13,6 +13,7 @@
   여유자금이 음수면 절댓값으로 본다("short by 600,000 won").
 - 거래 기준 숫자 사용: 답변에 거래 기준 값(입력값과 다른 항목만)이 있으면 true.
 - 출처 언급: "you entered", "based on the amounts you entered" 같은 표현(SOURCE_PATTERN).
+  "you declared"는 2026-11-20 기준선 뒤 사용자 결정으로 더했다(기준선도 같은 규칙으로 다시 채점).
 - 목표 언급: 목표 종류별 낱말(GOAL_PATTERNS). 비율 = 언급한 고른 목표 수 ÷ 고른 목표 수.
   순서 일치 = 고른 목표를 모두 언급했고 첫 언급 위치가 고른 순서와 같음(하나라도 빠지면 null).
 - 상품 질문: 상품 도구가 쓴 여유자금·추천 수·기권 이유(행의 productTool), 카드(blocks의
@@ -30,7 +31,7 @@ from app.chat.number_check import rounded_values, scan_numbers
 
 ITEMS = ("fixedLiving", "remittance", "variableExpense")
 SOURCE_PATTERN = re.compile(
-    r"\byou(?:'ve| have)? (?:entered|put in|provided|set|told|gave|reported|input)\b"
+    r"\byou(?:'ve| have)? (?:entered|put in|provided|set|told|gave|reported|input|declared)\b"
     r"|\bbased on (?:what|the (?:amounts?|figures?|numbers?|values?)) you\b"
     r"|\byour (?:own )?(?:input|inputs|entries|entered (?:amounts?|values?|figures?))\b"
     r"|입력하신",

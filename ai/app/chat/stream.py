@@ -35,6 +35,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
 from app.chat.fx_tools import FX_SUMMARY_CARD, merge_fx_card
 from app.chat.graph import build_graph
+from app.chat.product_tools import PRODUCT_RECOMMEND_CARD, merge_product_card
 from app.chat.prompts import system_prompt
 from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.tools import ChatTool
@@ -231,6 +232,9 @@ async def run_chat(
                     for block in item.get("blocks") or []:
                         if block.get("type") == FX_SUMMARY_CARD:
                             merge_fx_card(blocks, block)
+                        elif block.get("type") == PRODUCT_RECOMMEND_CARD:
+                            # 상품 카드는 한 턴에 1장: 마지막 성공 호출의 카드(#114).
+                            merge_product_card(blocks, block)
                         elif block not in blocks:
                             blocks.append(block)
                     yield _event("agent.tool_call", {k: item[k] for k in _TOOL_EVENT_FIELDS})

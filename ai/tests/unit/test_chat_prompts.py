@@ -84,6 +84,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v4.2": "chat-v4.2",
         "v4.3a": "chat-v4.3a",
         "v4.4": "chat-v4.4",
+        "v4.5": "chat-v4.5",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -233,6 +234,8 @@ PROMPT_SHA256 = {
     "v4.3a": "ac9c014344e4409b0553ca5f3006010a4e2c1c51d72da32f3a795c7938b4165c",
     # 2026-11-18(#91): v4.2 본문 그대로 + 환율 진단 규칙(fx_rules.md).
     "v4.4": "61f665e249634c23bb469820f82a9d354b7d57c83c5460af433a0d7449541f55",
+    # 2026-11-20(#114): v4.4 본문 그대로 + 목표·출처·상품 카드 규칙(goal_rules.md).
+    "v4.5": "47a7a4f73d1b11ed540bc961351fe7489d31ac6cbf992458d04ecffe401d4aad",
 }
 
 
@@ -268,7 +271,8 @@ def test_v4_4_is_v4_2_plus_fx_rules() -> None:
     v42, v44 = system_prompt("en", "v4.2"), system_prompt("en", "v4.4")
     fx_rules = (PROMPTS / "fx_rules.md").read_text(encoding="utf-8")
     assert v44 == v42.rstrip("\n") + "\n\n" + fx_rules
-    assert FX_PROMPT_VERSIONS == frozenset({"v4.4"})
+    # v4.5(#114)는 v4.4 본문 그대로라 환율 진단 도구도 붙는다.
+    assert FX_PROMPT_VERSIONS == frozenset({"v4.4", "v4.5"})
     assert _settings().chat_prompt_version == "v4.1"
     config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.4"))
     assert config.prompt_version_id == "chat-v4.4"
