@@ -17,12 +17,15 @@ from app.visa.e74.texts import (
     DOCUMENTS,
     IMPROVEMENTS,
     MANUAL_CHECK,
+    MANUAL_CHECK_TEXT_KO,
     REVIEW_NOTES,
     RULES,
     Text,
     english_documents,
     english_improvement,
     improvement_text,
+    is_korean,
+    korean_for_llm,
     or_list,
     placeholders,
     review_notice,
@@ -38,6 +41,8 @@ pytestmark = pytest.mark.unit
 
 E74_DIR = Path(__file__).resolve().parents[2] / "app" / "visa" / "e74"
 HANGUL = re.compile(r"[가-힣]")
+# 내부 표기: 확인 번호(Q8·Q9), 양식 번호("(붙임5)"), 사람 검토 표시
+INTERNAL_MARKS = re.compile(r"\bQ\d+\b|붙임|검토 필요|확인 필요")
 RULE_SETS = load_rule_sets()
 ALL_RULES = [rule for rule_set in RULE_SETS for rule in rule_set.rules]
 # 개선 방안 문구에 규칙 설명이 들어갈 수 있는 범주(점수·가점 증빙, 요건 증빙, 추천 가점)
@@ -111,6 +116,13 @@ def test_every_text_has_korean_and_english(table: str, key: str) -> None:
     assert placeholders(text.ko) == placeholders(text.en)
     # 내부 메모 번호(Q8 등)는 영어로 옮기지 않는다
     assert not re.search(r"\bQ\d+\b", text.en)
+    # LLM용 한국어: 엔진 한국어에 내부 표기가 있으면 꼭 두고, 그 문구에는 내부 표기가 없다.
+    # 검토 메모는 원문을 LLM에 주지 않으므로 모두 LLM용 한국어 안내가 있다.
+    if INTERNAL_MARKS.search(text.ko) or table == "REVIEW_NOTES":
+        assert text.llm_ko is not None, "LLM용 한국어가 없다"
+    if text.llm_ko is not None:
+        assert HANGUL.search(text.llm_ko) and not INTERNAL_MARKS.search(text.llm_ko)
+        assert placeholders(text.llm_ko) == placeholders(text.ko)
 
 
 @pytest.mark.parametrize("word", sorted(CONDITION_TERMS))
@@ -160,6 +172,34 @@ def test_review_notice_finds_the_code_and_english_from_the_note(key: str) -> Non
     english = REVIEW_NOTES[key].en
     assert english is not None
     assert review_notice(review_text(key, **params)) == (key, english.format(**params))
+
+
+@pytest.mark.parametrize("key", sorted(REVIEW_NOTES))
+def test_review_notice_in_korean_uses_the_llm_text_not_the_note(key: str) -> None:
+    params = _params(REVIEW_NOTES[key], REVIEW_PARAMS)
+    korean = REVIEW_NOTES[key].llm_ko
+    assert korean is not None
+    note = review_text(key, **params)
+    assert review_notice(note, "ko") == (key, korean.format(**params))
+    assert review_notice(note, "ko")[1] != note
+
+
+def test_korean_for_llm_replaces_only_texts_with_internal_marks() -> None:
+    for text in (*RULES.values(), *DOCUMENTS.values()):
+        assert korean_for_llm(text.ko) == (text.llm_ko or text.ko)
+    stay = RULES["REQ_STAY_PERIOD"]
+    built = improvement_text(
+        "E74_IMPROVE_SUBMIT_REQUIREMENT_EVIDENCE", rule=rule_text("REQ_STAY_PERIOD", stay.ko)
+    )
+    assert korean_for_llm(built.ko) == f"{stay.llm_ko}: 증빙 서류를 내면 요건이 확정됨"
+    assert korean_for_llm("모르는 문구") == "모르는 문구"
+
+
+def test_only_korean_users_get_korean_llm_texts() -> None:
+    # vi·zh는 고려하지 않는 언어라 영어를 준다.
+    assert [is_korean(lang) for lang in ("ko", "en", "vi", "zh")] == [True, False, False, False]
+    assert review_notice("확인 필요(테스트)", "ko") == (MANUAL_CHECK, MANUAL_CHECK_TEXT_KO)
+    assert review_notice("확인 필요(테스트)", "vi") == review_notice("확인 필요(테스트)", "en")
 
 
 def test_unknown_texts_get_no_korean() -> None:

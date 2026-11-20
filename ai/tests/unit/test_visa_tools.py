@@ -403,7 +403,8 @@ def test_e74_llm_output_is_the_same_for_results_saved_before_english(
     assert all(i.description_en is None for i in old.result.improvements)
 
     new = E74AssessmentToolResponse(assessment_id=5, reused=True, result=fresh)
-    assert e74_records(old).llm_output == e74_records(new).llm_output
+    for language in ("en", "ko"):
+        assert e74_records(old, language).llm_output == e74_records(new, language).llm_output
 
 
 def test_e74_llm_output_keeps_the_shape_and_uses_english_texts() -> None:
@@ -464,6 +465,119 @@ def test_e74_sample_saved_before_english_gives_english_llm_output() -> None:
     output = e74_records(response).llm_output
     assert output["improvements"] and _korean_strings(output) == []
     assert all(i["description"] and i["documents"] for i in output["improvements"])
+
+
+# --- ko 사용자: 엔진 한국어 문구, 내부 표기 없음 ------------------------------------------
+
+# 내부 표기: 확인 번호(Q8·Q9), 양식 번호("(붙임5)"), 사람 검토 표시. ko·en 모두 LLM에 주지 않는다.
+INTERNAL_MARKS = re.compile(r"\bQ\d+\b|붙임|검토 필요|확인 필요")
+TEXT_KEYS = ("question", "description", "documents", "text")
+
+
+def _strings(value: Any, path: str = "") -> list[tuple[str, str]]:
+    if isinstance(value, dict):
+        return [h for k, v in value.items() for h in _strings(v, f"{path}.{k}")]
+    if isinstance(value, list):
+        return [h for i, v in enumerate(value) for h in _strings(v, f"{path}[{i}]")]
+    return [(path, value)] if isinstance(value, str) else []
+
+
+def _without_texts(value: Any) -> Any:
+    """문구(질문·설명·서류·안내)를 뺀 모양. 언어가 달라도 같아야 한다."""
+    if isinstance(value, dict):
+        return {k: _without_texts(v) for k, v in value.items() if k not in TEXT_KEYS}
+    if isinstance(value, list):
+        return [_without_texts(v) for v in value]
+    return value
+
+
+@pytest.mark.parametrize(("label", "body", "as_of"), E74_CASES, ids=[c[0] for c in E74_CASES])
+def test_e74_korean_llm_output_has_no_internal_marks_and_keeps_the_shape(
+    label: str, body: dict[str, Any], as_of: str
+) -> None:
+    result = _calculate(body, as_of)
+    response = E74AssessmentToolResponse(assessment_id=5, reused=False, result=result)
+    ko, en = e74_records(response, "ko"), e74_records(response, "en")
+
+    assert [(p, t) for p, t in _strings(ko.llm_output) if INTERNAL_MARKS.search(t)] == []
+    assert [(p, t) for p, t in _strings(en.llm_output) if INTERNAL_MARKS.search(t)] == []
+    # 숫자·코드·모양은 언어와 상관없다. 점수 카드도 같다.
+    assert _without_texts(ko.llm_output) == _without_texts(en.llm_output)
+    assert ko.blocks[0] == en.blocks[0]
+    # 질문은 엔진 한국어 문구 그대로다. 재질의 카드도 같은 한국어 질문이다.
+    korean = [m.question for m in result.missing_inputs]
+    assert [m["question"] for m in ko.llm_output["missingInputs"]] == korean
+    if result.missing_inputs:
+        ko_card, en_card = ko.blocks[-1], en.blocks[-1]
+        assert isinstance(ko_card, MissingInputsBlock) and isinstance(en_card, MissingInputsBlock)
+        assert [f.field for f in ko_card.fields] == [f.field for f in en_card.fields]
+        assert [f.question for f in ko_card.fields] == korean
+        assert all(HANGUL.search(q) for q in korean)
+        assert [f.question for f in en_card.fields] == [
+            m.question_en for m in result.missing_inputs
+        ]
+    else:
+        assert len(ko.blocks) == len(en.blocks) == 1
+
+
+def test_e74_korean_llm_output_drops_internal_marks_from_rule_and_document_texts() -> None:
+    """P03: 엔진 한국어에는 "(Q8, 검토 필요)"·"(붙임5)"가 있고, ko LLM 결과에는 없다."""
+    result = _calculate(profile_json("P03"), "2026-11-19")
+    output = e74_records(
+        E74AssessmentToolResponse(assessment_id=5, reused=False, result=result), "ko"
+    ).llm_output
+    engine = {(i.rule_code, i.message_code): i for i in result.improvements}
+    llm = {(i["ruleCode"], i["messageCode"]): i for i in output["improvements"]}
+
+    stay = ("REQ_STAY_PERIOD", "E74_IMPROVE_SUBMIT_REQUIREMENT_EVIDENCE")
+    assert "(Q8, 검토 필요)" in engine[stay].description
+    assert llm[stay]["description"] == engine[stay].description.replace("(Q8, 검토 필요)", "")
+    employer = ("REC_EMPLOYER", "E74_IMPROVE_SUBMIT_EVIDENCE")
+    assert "고용기업 추천서(붙임5)" in engine[employer].documents
+    assert llm[employer]["documents"] == ["고용기업 추천서(공식 양식)", "추천자 신분증 사본"]
+
+
+def test_e74_review_notes_become_korean_notices_for_korean_users() -> None:
+    """ko 사용자도 검토 메모 원문은 주지 않고 같은 코드의 한국어 안내를 준다."""
+    label, body, as_of = E74_CASES[-2]
+    assert label == "P01-income-fallback"
+    result = _calculate(body, as_of)
+    output = e74_records(
+        E74AssessmentToolResponse(assessment_id=5, reused=False, result=result), "ko"
+    ).llm_output
+    assert output["reviewNotices"] == [
+        {
+            "code": "INCOME_FROM_EARLIER_YEARS",
+            "ruleCodes": ["INCOME_30_35", "REQ_MIN_INCOME"],
+            "text": "최근 2년 소득이 없어 2021~2025년 중 높은 해로 계산함. "
+            "재입국 공백 같은 사유는 따로 확인해야 함",
+        }
+    ]
+    assert output["reviewNotices"][0]["text"] != result.review_notes[0].note
+
+
+@pytest.mark.parametrize("language", ["vi", "zh"])
+def test_e74_other_languages_get_the_english_llm_output_and_card(language: str) -> None:
+    """vi·zh는 고려하지 않는 언어라 en과 같은 영어 결과·카드를 준다(측정하지 않음)."""
+    result = _calculate(profile_json("P02"), "2026-11-19")
+    response = E74AssessmentToolResponse(assessment_id=5, reused=False, result=result)
+    other, en = e74_records(response, language), e74_records(response, "en")
+    assert other.llm_output == en.llm_output
+    assert other.blocks == en.blocks
+
+
+def test_e74_korean_card_uses_korean_questions_for_results_saved_before_question_en() -> None:
+    """#103 전 저장 결과(questionEn 없음)도 ko 카드는 원래 한국어 질문을 그대로 쓴다."""
+    fresh = _calculate(profile_json("P02"), "2026-11-19")
+    saved = fresh.model_dump(mode="json", by_alias=True)
+    for m in saved["missingInputs"]:
+        del m["questionEn"]
+    old = E74AssessmentToolResponse.model_validate(
+        {"assessmentId": 5, "reused": True, "result": saved}
+    )
+    card = e74_records(old, "ko").blocks[-1]
+    assert isinstance(card, MissingInputsBlock)
+    assert [f.question for f in card.fields] == [m.question for m in fresh.missing_inputs]
 
 
 def test_roadmap_sample_builds_link_card_ref_and_source() -> None:
