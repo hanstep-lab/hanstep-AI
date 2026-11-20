@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "description": "E-7-4 도구 LLM 입력 영어화 측정(#108) 문항. eval_questions_v1.json과 같은 형식이다. E01~E03은 v44_questions_v1.json의 같은 id 문항을 글자 그대로 옮겼다(E01은 운영 assistantMessageId 88과 같은 문장). E04는 개선 방안의 서류(documents), E05는 가정 계산(scenario, 저장된 평가를 재사용하지 않고 새로 계산하는 경로)을 본다. 모두 사용자 본인의 E-7-4 질문이라 기대 도구는 calculate_e74_score다.",
+  "latencySubset": [],
+  "holdoutSubset": [],
+  "questions": [
+    {"id": "E01", "category": "e74", "text": "What's my E-7-4 score?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E02", "category": "e74", "text": "Can I apply for the E-7-4 visa now?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E03", "category": "e74", "text": "What can I do to raise my E-7-4 score?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E04", "category": "e74", "text": "Which documents should I prepare to raise my E-7-4 score?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E05", "category": "e74", "text": "What would my E-7-4 score be if I got a Korean driver's license?", "history": [], "expectedTools": ["calculate_e74_score"]}
+  ]
+}

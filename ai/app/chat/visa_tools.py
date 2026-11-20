@@ -151,12 +151,15 @@ class VisaTools:
         user_id: int,
         request_id: str | None,
         timeout: float,
+        language: str = "en",
     ) -> None:
         self._e74 = e74_source
         self._search = search_source
         self._user_id = user_id
         self._request_id = request_id
         self._timeout = timeout
+        # 채팅 요청의 사용자 언어. E-7-4 결과의 LLM 문구를 고른다(ko면 한국어, 그 밖이면 영어).
+        self._language = language
 
     @property
     def schemas(self) -> list[dict[str, Any]]:
@@ -228,7 +231,7 @@ class VisaTools:
         except Exception as exc:  # 연결 실패 등: 점수 없이 답하게 한다
             logger.warning("e74 assessment failed: %s", type(exc).__name__)
             return outcome("FAILED", UNAVAILABLE, error_code="SPRING_ERROR")
-        return _succeeded(outcome, lambda: e74_records(response))
+        return _succeeded(outcome, lambda: e74_records(response, self._language))
 
     async def _search_policies(
         self, parsed: SearchVisaPoliciesInput, outcome: OutcomeFn

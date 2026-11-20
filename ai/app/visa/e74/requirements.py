@@ -39,6 +39,7 @@ from app.visa.e74.schemas import (
     ProfileEvidenceStatus,
     VerificationStatus,
 )
+from app.visa.e74.texts import review_text
 
 REQUIREMENT = RuleCategory.REQUIREMENT
 EXCLUSION = RuleCategory.EXCLUSION
@@ -153,7 +154,7 @@ def _stay_period(rule: Rule, c: StayPeriod, profile: E74Profile, as_of: date) ->
             ItemStatus.NEEDS_REVIEW,
             "E74_REQ_STAY_NON_CAPITAL_SPECIAL",
             evidence,
-            review_note="Q8: 비수도권 3년 체류 특례(광역지자체 추천) 적용 여부 확인 필요",
+            review_note=review_text("STAY_SPECIAL_RULE_CHECK"),
         )
     if vp.prior_stay_months is None:
         return _item(
@@ -424,7 +425,7 @@ def _total_score(
             rule,
             ItemStatus.NEEDS_REVIEW,
             "E74_REQ_TOTAL_UNKNOWN",
-            review_note="규칙 버전에 기준 총점이 없음(공식 확인 전)",
+            review_note=review_text("REQUIRED_TOTAL_UNKNOWN"),
         )
     threshold = deferral_threshold if deferral_threshold is not None else required
     t = totals(scores.all())

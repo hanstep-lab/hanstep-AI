@@ -16,7 +16,7 @@
 | type | 만들어지는 조건 | 필드(타입·null) | 프론트(develop) |
 |---|---|---|---|
 | `E74_SCORE_CARD` | `calculate_e74_score` SUCCEEDED. 프롬프트 v2 이상. Spring이 설정돼 있어야 한다(fake 모드에서는 도구가 FAILED라 안 나옴) | `assessmentId` int · `status` enum · `total` int · `potentialTotal` int · `required` int\|null · `ruleVersion` string\|null · `ruleStatus` enum\|null · `isScenario` bool | `E74ScoreCard` |
-| `MISSING_INPUTS` | 같은 E-7-4 결과에 `missingInputs`가 1개 이상이면 `E74_SCORE_CARD` 바로 뒤 | `fields`(1개 이상) `{field: string, question: string}`. `question`은 **영어**(#103). null 없음 | `MissingInputsCard`(`question` 그대로, 3개까지) |
+| `MISSING_INPUTS` | 같은 E-7-4 결과에 `missingInputs`가 1개 이상이면 `E74_SCORE_CARD` 바로 뒤 | `fields`(1개 이상) `{field: string, question: string}`. `question`은 사용자 언어(ko 한국어, en·그 밖 영어. #108). null 없음 | `MissingInputsCard`(`question` 그대로, 3개까지) |
 | `REMITTANCE_CONFIRM` | `quote_remittance` SUCCEEDED이고 견적이 요청과 맞을 때. 기본 상품이 보낼 수 없는 금액이면 없다. 프롬프트 v3 이상. fake 모드에서도 fixture로 나온다 | `recipient`{…} · `sendAmount` · `receiveAmount`\|null · `appliedRate`{…}\|null · `transferPath` · `fees`{…} · `rateSources`{…}(#105, 코드·숫자만) | `RemittanceConfirmCard`(`fees`·`rateSources`는 아직 안 씀) |
 | `FX_SUMMARY_CARD` | `fx_rate_summary` SUCCEEDED이고 통화가 1개 이상. 프롬프트 v4.4만. 한 턴에 1개(통화별로 합침) | `currencies`(1개 이상) · `unavailableCurrencies`. 3.5절 | `FxSummaryCard` |
 | `VISA_ROADMAP_LINK` | **채팅에서 안 나온다.** 형식만 있다(`get_visa_roadmap`이 채팅 도구가 아님) | `roadmapId` int · `stepCount` int · `applicableFrom` date\|null · `ruleStatus` enum\|null | 모르는 type이라 버린다 |
@@ -44,7 +44,7 @@
 | 그래프가 tool_call 항목에 blocks를 실음 | `ai/app/chat/graph.py:133` |
 | 턴 전체 blocks 모음·중복 제거·FX 카드 합치기 | `ai/app/chat/stream.py:141`, `:231-235`(`merge_fx_card`) |
 | agent.done에 `blocks or None` | `ai/app/chat/stream.py:272` |
-| E-7-4 카드·재질의 카드 생성 | `ai/app/visa/tools.py:243-280`(모델), `_missing_block`·`_card_question`, `e74_records` |
+| E-7-4 카드·재질의 카드 생성 | `ai/app/visa/tools.py:243-280`(모델), `_missing_block`·`_question_en`, `e74_records` |
 | 채팅 비자 도구 → blocks 전달 | `ai/app/chat/visa_tools.py:265-282`(`_succeeded`) |
 | 송금 확인 카드 생성 | `ai/app/chat/remittance_tools.py` `RemittanceConfirmBlock`·`confirm_block`, `RemittanceTools._quote`, `_quote_matches`(#105에서 줄이 바뀌어 이름으로 적음) |
 | 환율 진단 카드 생성·합치기 | `ai/app/chat/fx_tools.py:188-276`(모델·`summary_block`·`merge_fx_card`), `:336` |
@@ -121,7 +121,7 @@ blocks를 만드는 도구는 `calculate_e74_score`, `quote_remittance`, `fx_rat
 
 ### 3.2 `MISSING_INPUTS` — 추가 입력 요청 카드
 
-- 만들어지는 곳: `ai/app/visa/tools.py:267-280`(모델), `_missing_block`·`_card_question`
+- 만들어지는 곳: `ai/app/visa/tools.py:267-280`(모델), `_missing_block`·`_question_en`
 - 조건: E-7-4 결과의 `missingInputs`가 1개 이상이면 `E74_SCORE_CARD` 바로 뒤에 하나 붙는다. 없으면 붙지 않는다.
 
 | 필드 | 타입 | null | 뜻 |
@@ -129,13 +129,13 @@ blocks를 만드는 도구는 `calculate_e74_score`, `quote_remittance`, `fx_rat
 | `type` | `"MISSING_INPUTS"` | 아니오 | |
 | `fields` | 배열(1개 이상) | 아니오 | 판정에 필요한데 없는 입력 |
 | `fields[].field` | string | 아니오 | 입력 경로(예: `incomeRecords[incomeYear=2024]`, `legalDeclaration.finesUnder1mCount`, `visaProfile.currentStayStartedOn`). 화면 이동·입력 칸 연결에 쓸 수 있는 키 |
-| `fields[].question` | string | 아니오 | 물어볼 내용. **영어 한 문장**(#103). 사용자 언어와 상관없이 영어다. 답변 본문에서는 LLM이 사용자 언어로 다시 묻는다 |
+| `fields[].question` | string | 아니오 | 물어볼 내용. 채팅 요청의 사용자 언어 문구다(#108): ko면 한국어(엔진 `question`), en이면 영어 한 문장(엔진 `questionEn`, #103). vi·zh는 영어 |
 
-- 모양(`{field, question}`)은 #103 전과 같다. `question`의 언어만 한국어에서 영어로 바뀌었다.
-- `question`은 엔진 결과의 `questionEn`이다. #103 전에 저장돼 재사용된 평가·로드맵(`questionEn` 없음)은 한국어 문구로 같은 질문의 영어 문구를 찾아 넣는다. 문구 목록에 없으면 한국어 그대로다.
+- 모양(`{field, question}`)은 #103 전과 같다. `question`의 언어만 사용자 언어를 따른다(#103에서는 영어 고정, #108부터 ko는 한국어).
+- en: 엔진 결과의 `questionEn`이다. #103 전에 저장돼 재사용된 평가·로드맵(`questionEn` 없음)은 한국어 문구로 같은 질문의 영어 문구를 찾아 넣는다. 문구 목록에 없으면 한국어 그대로다. ko: 엔진 결과의 `question`(한국어) 그대로다.
 - 숫자 필드 없음.
 - 감점·제외 6문항(`legalDeclaration.*`)은 저장하지 않는 자기신고 항목이라, 프로필이 비어 있으면 거의 항상 목록에 들어간다.
-- LLM에 주는 도구 결과의 `missingInputs`는 #101에서 잰 모양 그대로다(`{field, question(한국어), ruleCodes}`, `questionEn` 없음).
+- LLM에 주는 도구 결과의 `missingInputs`는 #101에서 잰 모양 그대로(`{field, question, ruleCodes}`)다. #108부터 `question`은 사용자 언어 문구(ko 한국어, en 카드와 같은 영어)다. 3.2.1절 참고.
 
 #### E-7-4 결과·로드맵 응답의 `missingInputs` (채팅 카드가 아닌 쪽)
 
@@ -150,6 +150,26 @@ Spring 비자 API(E-7-4 평가 `result`, 로드맵 `roadmap`)는 AI 엔진 결�
 
 - 로드맵 화면(VS-001) 규칙(**임시**): 앱 언어가 `ko`면 `question`, 그 밖이면 `questionEn`. `questionEn`이 없으면 `question`.
 - 문구는 `ai/app/visa/e74/questions.py`의 `QUESTIONS`에 질문 키별로 한곳에 있다(27개, 감점·제외 6개 포함. 근무지 인구감소지역 질문은 근무 중·종료로 둘).
+
+#### 3.2.1 E-7-4 도구가 LLM에 주는 값 (#108, 카드 아님)
+
+`calculate_e74_score`의 도구 결과(`llmOutput`)는 채팅 요청의 사용자 언어(`language`, Spring이 `users.preferred_language`로 채움)로 고른다. ko면 한국어, en이면 영어다. vi·zh는 고려하지 않으며 영어 결과를 받는다(측정하지 않음). 도구 정의(설명·인자 설명)는 LLM용이라 영어 하나다. 엔진 결과의 한국어 필드는 그대로 두고(로드맵 화면·저장용), LLM에만 같은 key의 문구를 준다. 문구는 `ai/app/visa/e74/texts.py` 한곳에 key별로 있다.
+
+| LLM 결과 경로 | ko | en | 엔진 결과(Spring `result_json`) |
+|---|---|---|---|
+| `statusText` | 판정 상태 한국어 문구(`texts.py` `STATUSES`) | 판정 상태 영어 문구 | `status` 코드 그대로(카드 `E74_SCORE_CARD.status`도 코드, 앱이 번역) |
+| `missingInputs[].question` | `question`(한국어) | `questionEn`(카드와 같음) | `question`(한국어)·`questionEn` 그대로 |
+| `improvements[].description` | `description`에서 내부 표기를 뺀 한국어 | `descriptionEn` | `description`(한국어) 그대로 + `descriptionEn`(#108, 전 저장분은 키 없음) |
+| `improvements[].documents` | `documents`에서 내부 표기를 뺀 한국어 | `documentsEn` | `documents`(한국어) 그대로 + `documentsEn`(#108, 전 저장분은 키 없음) |
+| `reviewNotices[]` `{code, ruleCodes, text}` | 검토 메모 key와 한국어 안내 | 검토 메모 key와 영어 안내 | `reviewNotes` 그대로 |
+
+- 두 언어 모두 `reviewNotes`(사람 확인용 한국어 메모)는 LLM에 주지 않는다.
+- 판정 상태 코드(`ELIGIBLE`·`INELIGIBLE`·`NEEDS_EVIDENCE`·`NEEDS_REVIEW`)는 LLM 결과에 넣지 않고 `statusText` 문구로 준다. 도구 설명에 "상태 코드·코드값은 답변에 쓰지 않는다"를 넣었다(요건 `requirements[].status` 등 남은 코드값 포함).
+- 두 언어 모두 내부 표기도 주지 않는다. 확인 번호(Q8·Q9), 양식 번호("(붙임5)"·"(붙임9 견본)"), "검토 필요"가 해당한다. ko 문구는 `texts.py`의 `llm_ko`다(예: "고용기업 추천서(공식 양식)").
+- en: `descriptionEn`·`documentsEn`·`questionEn`이 없는 재사용 평가(#108·#103 전 저장분)는 한국어 문구로 같은 문구의 영어를 찾는다. 찾지 못한 개선 방안의 `description`·`documents`는 한국어 대신 null이다.
+- `reviewNotices[].code`: `NO_APPROVED_RULES`, `AGE_OUTSIDE_SCORE_TABLE`, `INCOME_FROM_EARLIER_YEARS`, `KOREAN_LEVEL_UNREADABLE`, `CERTIFICATE_GRADE_NOT_LISTED`, `STAY_SPECIAL_RULE_CHECK`, `REQUIRED_TOTAL_UNKNOWN`. 그 밖의 메모는 `MANUAL_CHECK`다. 같은 안내는 하나로 합친다(소득 대체 연도 메모는 소득 점수·최소 소득 요건 두 항목).
+- 사용자 입력 원문(예: 자격증 이름 `'용접기능사'`)은 영어 문구 안에 그대로 들어갈 수 있다.
+- 점수 카드(`E74_SCORE_CARD`) 숫자는 언어와 상관없다. `MISSING_INPUTS.question`은 LLM 결과와 같은 언어다(3.2절).
 
 ### 3.3 `REMITTANCE_CONFIRM` — 송금 확인 카드
 
@@ -444,7 +464,7 @@ AI `agent.done`과 Spring `chat.done`의 차이
 | `VISA_ROADMAP_LINK` | 없음 | 파서에서 버린다 |
 
 ### 6.3 언어
-- `MISSING_INPUTS.question`은 #103부터 영어다. 앱 언어(`ko`·`en`·`vi`·`zh`)와 상관없이 영어로 온다.
+- `MISSING_INPUTS.question`은 채팅 요청의 사용자 언어로 온다(#108). ko면 한국어, en·vi·zh면 영어다(#103에서는 영어 고정).
 - 로드맵 화면(VS-001)은 지금 `missingInputs`의 `question`을 보여 주지 않는다(`field` 접두사만 보고 고정 문구 한 줄, `src/api/visa.ts:313`). 질문을 보여 줄 때는 3.2절의 임시 규칙(`ko`면 `question`, 그 밖이면 `questionEn`)을 따른다.
 - `appliedRate.sourceLabel`은 Spring이 준 한국어다. 화면에 쓰지 않고 `rateSources` 코드로 문구를 만든다(예: `KOREAEXIM` → "Export-Import Bank of Korea", `frankfurter-ecb` → "ECB reference rate").
 - `fees.notices` 코드도 앱이 화면 언어로 바꾼다(예: `INTERMEDIARY_FEE_MAY_APPLY` → "Intermediary bank fees may apply"). 나머지는 코드·숫자다.
