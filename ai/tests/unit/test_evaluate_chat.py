@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -1137,6 +1138,24 @@ def test_v44_question_set_expected_tools() -> None:
         assert EVAL.expected_tools(q, "v4.2") == ["get_fx_rate"]
     assert EVAL.expected_tools(by_id["E01"], "v4.4") == ["calculate_e74_score"]
     assert by_id["R01"]["text"] == "Send 500,000 won to my mom"
+
+
+def test_e74_english_question_set() -> None:
+    # E-7-4 도구 LLM 입력 영어화 측정(#108): E01~E03은 v44 문항 그대로, 모두 calculate_e74_score.
+    spec = EVAL.load_questions(EVAL.QUESTION_SETS["e74en"])
+    v44 = {q["id"]: q for q in EVAL.load_questions(EVAL.QUESTION_SETS["v44"])["questions"]}
+    questions = spec["questions"]
+    assert [q["id"] for q in questions] == ["E01", "E02", "E03", "E04", "E05"]
+    for q in questions:
+        assert EVAL.expected_tools(q, "v4.4") == ["calculate_e74_score"]
+        if q["id"] in v44:
+            assert q["text"] == v44[q["id"]]["text"]
+    assert questions[0]["text"] == "What's my E-7-4 score?"
+    # 한국어 세트(e74ko): 같은 id·기대 도구이고 질문은 한국어다.
+    ko = EVAL.load_questions(EVAL.QUESTION_SETS["e74ko"])["questions"]
+    assert [q["id"] for q in ko] == [q["id"] for q in questions]
+    assert all(EVAL.expected_tools(q, "v4.4") == ["calculate_e74_score"] for q in ko)
+    assert all(re.search(r"[가-힣]", q["text"]) for q in ko)
 
 
 def test_lang_question_set_and_subsets() -> None:

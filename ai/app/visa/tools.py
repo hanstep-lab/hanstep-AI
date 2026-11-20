@@ -12,6 +12,11 @@
 - ``*_records`` 함수가 도구 결과 하나로 LLM에 돌려줄 요약, 결과 참조, 근거, 카드를 한 번에 만든다.
 - 채팅 기록(chat_tool_calls.arguments_json)에는 LLM 인자를 그대로 남기지 않고
   ``recorded_arguments``를 거친 값을 남긴다(감점·제외 6문항 답 값 제외).
+- E-7-4 도구 결과는 사용자 언어로 준다(#108): ko면 한국어, 그 밖(en, 고려하지 않는 vi·zh)이면
+  영어. 엔진 결과의 한국어 문구는 화면·저장용으로 그대로 두고, LLM에는 같은 key의 문구를 준다.
+  한국어도 내부 표기(Q8·Q9, "(붙임5)")는 뺀다. 사람 확인용 검토 메모는 두 언어 모두 주지 않고 안내
+  코드로 바꾼다. 재질의 카드(MISSING_INPUTS) 질문도 같은 언어다. 도구 정의(설명)는 LLM용이라
+  영어 하나다.
 """
 
 from __future__ import annotations
@@ -25,12 +30,20 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from app.rag.retrieval import SearchHit
-from app.visa.e74.engine import EligibilityStatus, MissingInputSummary
+from app.visa.e74.engine import EligibilityStatus, MissingInputSummary, ReviewNote
 from app.visa.e74.questions import english_question
 from app.visa.e74.results import ItemStatus
 from app.visa.e74.rules import ApprovalStatus, RuleCategory
 from app.visa.e74.schemas import E74Scenario, LegalDeclarationIn
 from app.visa.e74.service import E74CalculateResponse
+from app.visa.e74.texts import (
+    english_documents,
+    english_improvement,
+    is_korean,
+    korean_for_llm,
+    review_notice,
+    status_text,
+)
 from app.visa.roadmap.schemas import RoadmapResponse
 
 SEARCH_VISA_POLICIES = "search_visa_policies"
@@ -92,14 +105,96 @@ TOOL_INPUTS: dict[str, type[ToolInput]] = {
     GET_VISA_ROADMAP: GetVisaRoadmapInput,
 }
 
+# LLM에 보이는 calculate_e74_score 설명(영어, #108). 입력 모델 docstring·Field 설명(계산 API
+# 문서와 같음)은 코드 문서로 두고, LLM 스키마에는 이 문구만 넣는다. key는 input_schema 안
+# 위치이고 여기 없는 설명은 지운다.
+# 지시 두 가지("점수 질문에는 반드시 쓴다", "물어서 받은 답만 넣는다")는 영어로 남긴다.
+E74_TOOL_DESCRIPTION = (
+    "Calculate the user's E-7-4 score and whether they can apply, from their saved profile."
+    " Always call it for questions about the user's own E-7-4 score."
+    " Do not write status codes or other code values from the result (for example INELIGIBLE,"
+    " NOT_MET or rule codes) in the answer; use statusText and the other texts."
+)
+E74_SCHEMA_DESCRIPTIONS: dict[str, str] = {
+    "properties.asOfDate": "Date to calculate for. Defaults to today (KST).",
+    "properties.scenario": (
+        "What-if conditions (new evidence, changed income or a later date)."
+        " Leave it out for the actual status."
+    ),
+    "properties.legalDeclaration": (
+        "The user's answers to the six penalty and exclusion questions. They are not saved,"
+        " so include only answers the user gave when asked."
+    ),
+    "$defs.E74Scenario": (
+        "What-if scenario: recalculate with the same rules as if the improvements were done."
+    ),
+    "$defs.E74Scenario.properties.asOfDate": (
+        "Calculate for this date (for example, when waiting until a work or stay period is"
+        " reached)."
+    ),
+    "$defs.EvidenceType": "Evidence type.",
+    "$defs.LegalDeclarationIn": (
+        "Self-declared answers for penalties and exclusions, all for the last 10 years. An item"
+        " left null counts as not answered, and the result lists it as a question to ask."
+    ),
+    "$defs.LegalDeclarationIn.properties.finesUnder1mCount": (
+        "Number of fines under KRW 1,000,000."
+    ),
+    "$defs.LegalDeclarationIn.properties.hasFine1mOrMore": (
+        "Whether the user received a fine of KRW 1,000,000 or more."
+    ),
+    "$defs.LegalDeclarationIn.properties.taxStayRestrictionCount": (
+        "Number of times stay permission was limited because of unpaid taxes."
+    ),
+    "$defs.LegalDeclarationIn.properties.immigrationViolationCount": (
+        "Number of penalties under the Immigration Act, including administrative fines."
+    ),
+    "$defs.LegalDeclarationIn.properties.hasOverstay3mOrMore": (
+        "Whether the user stayed 3 months or more after their permitted stay ended."
+    ),
+    "$defs.LegalDeclarationIn.properties.hasCurrentTaxArrears": (
+        "Whether the user has unpaid taxes now (they can apply after paying in full)."
+    ),
+    "$defs.ScenarioEvidenceIn": (
+        "Evidence assumed to be newly obtained. It is treated as issued on the calculation date"
+        " and VERIFIED."
+    ),
+    "$defs.ScenarioIncomeIn": (
+        "Assume that year's income is this amount, confirmed by documents (it replaces existing"
+        " records for that year)."
+    ),
+}
+
+
+def _with_descriptions(node: Any, texts: Mapping[str, str], path: str = "") -> Any:
+    """JSON 스키마의 설명(description 문자열)을 texts 문구로 바꾸고, texts에 없는 설명은 지운다."""
+    if isinstance(node, list):
+        return [_with_descriptions(v, texts, f"{path}[{i}]") for i, v in enumerate(node)]
+    if not isinstance(node, dict):
+        return node
+    replaced = {
+        key: _with_descriptions(value, texts, f"{path}.{key}" if path else key)
+        for key, value in node.items()
+        if not (key == "description" and isinstance(value, str))
+    }
+    if path in texts:
+        replaced["description"] = texts[path]
+    return replaced
+
 
 def tool_definitions() -> list[dict[str, Any]]:
-    """LLM 도구 정의(name, description, input_schema). 설명은 입력 모델의 docstring이다."""
+    """LLM 도구 정의(name, description, input_schema). 설명은 입력 모델의 docstring이다.
+
+    calculate_e74_score만 영어 설명(E74_TOOL_DESCRIPTION, E74_SCHEMA_DESCRIPTIONS)을 쓴다(#108).
+    """
     definitions = []
     for name, model in TOOL_INPUTS.items():
         schema = model.model_json_schema(by_alias=True)
         description = schema.pop("description", "")
         schema.pop("title", None)
+        if name == CALCULATE_E74_SCORE:
+            description = E74_TOOL_DESCRIPTION
+            schema = _with_descriptions(schema, E74_SCHEMA_DESCRIPTIONS)
         definitions.append({"name": name, "description": description, "input_schema": schema})
     return definitions
 
@@ -265,7 +360,7 @@ class VisaRoadmapLinkBlock(ChatRecord):
 
 
 class MissingField(ChatRecord):
-    """추가로 입력받을 항목 하나. question은 영어 문구다(#103)."""
+    """추가로 입력받을 항목 하나. question은 사용자 언어 문구다(ko 한국어, 그 밖 영어. #108)."""
 
     field: str
     question: str
@@ -295,8 +390,8 @@ class VisaToolRecords(ChatRecord):
 # --- 4. 도구 결과 → 채팅 기록 -----------------------------------------------------------
 
 
-def _card_question(missing: MissingInputSummary) -> str:
-    """카드에 보일 영어 문구.
+def _question_en(missing: MissingInputSummary) -> str:
+    """카드와 E-7-4 LLM 도구 결과에 쓰는 영어 문구.
 
     questionEn이 없던 저장 결과(#103 전, 재사용된 평가·로드맵)는 한국어 문구로 영어 문구를 찾고,
     문구 목록에 없으면 한국어 그대로 둔다.
@@ -304,20 +399,82 @@ def _card_question(missing: MissingInputSummary) -> str:
     return missing.question_en or english_question(missing.question) or missing.question
 
 
-def _missing_block(missing: Sequence[MissingInputSummary]) -> tuple[MissingInputsBlock, ...]:
+def _question(missing: MissingInputSummary, language: str) -> str:
+    """카드와 E-7-4 LLM 결과의 질문 문구: ko면 엔진 한국어, 그 밖이면 영어(#108)."""
+    return missing.question if is_korean(language) else _question_en(missing)
+
+
+def _missing_block(
+    missing: Sequence[MissingInputSummary], language: str = "en"
+) -> tuple[MissingInputsBlock, ...]:
     if not missing:
         return ()
-    fields = tuple(MissingField(field=m.field, question=_card_question(m)) for m in missing)
+    fields = tuple(MissingField(field=m.field, question=_question(m, language)) for m in missing)
     return (MissingInputsBlock(fields=fields),)
 
 
-def _llm_missing(missing: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """LLM에 주는 missingInputs. questionEn은 빼서 #101에서 잰 도구 결과 모양을 그대로 둔다."""
+def _roadmap_llm_missing(missing: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """로드맵 LLM 결과의 missingInputs. questionEn은 빼서 #101에서 잰 모양을 그대로 둔다."""
     return [{k: v for k, v in m.items() if k != "questionEn"} for m in missing]
 
 
-def e74_records(response: E74AssessmentToolResponse) -> VisaToolRecords:
-    """E-7-4 평가 결과 → LLM 요약, 결과 참조, 근거, 점수 카드(+ 재질의 카드)."""
+def _llm_missing(missing: Sequence[MissingInputSummary], language: str) -> list[dict[str, Any]]:
+    """E-7-4 LLM 결과의 missingInputs(#108). 모양은 그대로({field, question, ruleCodes})이고
+    question은 ko면 엔진 한국어 문구, 그 밖이면 카드와 같은 영어 문구다."""
+    return [
+        {
+            "field": m.field,
+            "question": _question(m, language),
+            "ruleCodes": list(m.rule_codes),
+        }
+        for m in missing
+    ]
+
+
+def _llm_improvement(improvement: dict[str, Any], language: str) -> dict[str, Any]:
+    """E-7-4 LLM 결과의 개선 방안 하나(#108). 모양은 그대로, description·documents는 사용자 언어.
+
+    ko면 엔진 한국어에서 내부 표기(Q8, "(붙임5)" 등)를 뺀 문구다.
+    en이면 descriptionEn·documentsEn이고, 이 필드가 없던 저장 결과(#108 전, 재사용된 평가)는
+    한국어 문구로 영어를 찾는다. 찾지 못하면 한국어 대신 null을 준다(ruleCode·messageCode·target으로
+    뜻은 남는다).
+    """
+    chosen = {k: v for k, v in improvement.items() if k not in ("descriptionEn", "documentsEn")}
+    if is_korean(language):
+        chosen["description"] = korean_for_llm(improvement["description"])
+        chosen["documents"] = [korean_for_llm(d) for d in improvement["documents"]]
+        return chosen
+    chosen["description"] = improvement.get("descriptionEn") or english_improvement(
+        improvement["description"]
+    )
+    documents = improvement.get("documentsEn")
+    if documents is None:
+        documents = english_documents(improvement["documents"])
+    chosen["documents"] = None if documents is None else list(documents)
+    return chosen
+
+
+def _llm_review_notices(notes: Sequence[ReviewNote], language: str) -> list[dict[str, Any]]:
+    """검토 메모(사람 확인용 한국어) 대신 LLM에 주는 안내 {code, ruleCodes, text}(#108).
+
+    메모 key가 코드이고 text는 사용자 언어의 안내 문구다(메모 원문 아님). 같은 안내는 하나로
+    합친다(소득 대체 연도 메모는 소득 점수와 최소 소득 요건 두 항목에 같이 붙는다).
+    """
+    merged: dict[tuple[str, str], dict[str, Any]] = {}
+    for note in notes:
+        code, text = review_notice(note.note, language)
+        entry = merged.setdefault((code, text), {"code": code, "ruleCodes": [], "text": text})
+        if note.rule_code is not None and note.rule_code not in entry["ruleCodes"]:
+            entry["ruleCodes"].append(note.rule_code)
+    return list(merged.values())
+
+
+def e74_records(response: E74AssessmentToolResponse, language: str = "en") -> VisaToolRecords:
+    """E-7-4 평가 결과 → LLM 요약(사용자 언어), 결과 참조, 근거, 점수 카드(+ 재질의 카드).
+
+    language는 채팅 요청의 사용자 언어(Spring users.preferred_language)다. LLM 문구와 재질의
+    카드(MISSING_INPUTS) 질문을 이 언어로 고른다. 점수 카드 숫자는 언어와 상관없다.
+    """
     result = response.result
     data = result.model_dump(mode="json", by_alias=True)
     requirements = [
@@ -328,7 +485,8 @@ def e74_records(response: E74AssessmentToolResponse) -> VisaToolRecords:
     ]
     llm_output = {
         "assessmentId": response.assessment_id,
-        "status": data["status"],
+        # 상태 코드(INELIGIBLE 등) 대신 사용자 언어 문구를 준다. 카드 status는 코드 그대로다.
+        "statusText": status_text(data["status"], language),
         "ruleVersion": data["ruleVersion"],
         "ruleStatus": data["ruleStatus"],
         "asOfDate": data["asOfDate"],
@@ -338,11 +496,13 @@ def e74_records(response: E74AssessmentToolResponse) -> VisaToolRecords:
         "scoreGap": data["scoreGap"],
         "koreanDeferralApplied": data["koreanDeferralApplied"],
         "requirements": requirements,
-        "missingInputs": _llm_missing(data["missingInputs"]),
+        "missingInputs": _llm_missing(result.missing_inputs, language),
         "needsEvidence": data["needsEvidence"],
-        "improvements": data["improvements"][:TOP_IMPROVEMENTS],
+        "improvements": [
+            _llm_improvement(i, language) for i in data["improvements"][:TOP_IMPROVEMENTS]
+        ],
         "planToRequired": data["planToRequired"],
-        "reviewNotes": data["reviewNotes"],
+        "reviewNotices": _llm_review_notices(result.review_notes, language),
     }
     card = E74ScoreCardBlock(
         assessment_id=response.assessment_id,
@@ -358,7 +518,7 @@ def e74_records(response: E74AssessmentToolResponse) -> VisaToolRecords:
         llm_output=llm_output,
         result_ref=ResultRef(type=ResultRefType.E74_ASSESSMENT, id=response.assessment_id),
         sources=(SourceRef(type=SourceType.E74_ASSESSMENT, id=response.assessment_id),),
-        blocks=(card, *_missing_block(result.missing_inputs)),
+        blocks=(card, *_missing_block(result.missing_inputs, language)),
     )
 
 
@@ -393,7 +553,7 @@ def roadmap_records(response: RoadmapToolResponse) -> VisaToolRecords:
         "score": data["score"],
         "steps": steps,
         "projectedScore": data["projectedScore"],
-        "missingInputs": _llm_missing(data["missingInputs"]),
+        "missingInputs": _roadmap_llm_missing(data["missingInputs"]),
         "warnings": data["warnings"],
         "isMock": data["isMock"],
     }

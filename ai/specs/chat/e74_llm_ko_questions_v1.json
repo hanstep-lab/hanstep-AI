@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "description": "E-7-4 도구 LLM 입력 언어 측정(#108) 한국어 문항. e74_llm_en_questions_v1.json(e74en)의 같은 id 문항을 한국어로 옮겼다. 사용자 언어 ko 측정에 쓴다(질문 언어 = 설정 언어). E04는 개선 방안의 서류(documents), E05는 가정 계산(scenario)을 본다. 모두 사용자 본인의 E-7-4 질문이라 기대 도구는 calculate_e74_score다.",
+  "latencySubset": [],
+  "holdoutSubset": [],
+  "questions": [
+    {"id": "E01", "category": "e74", "text": "내 E-7-4 점수가 몇 점이야?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E02", "category": "e74", "text": "지금 E-7-4 비자를 신청할 수 있어?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E03", "category": "e74", "text": "E-7-4 점수를 올리려면 뭘 하면 돼?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E04", "category": "e74", "text": "E-7-4 점수를 올리려면 어떤 서류를 준비해야 해?", "history": [], "expectedTools": ["calculate_e74_score"]},
+    {"id": "E05", "category": "e74", "text": "한국 운전면허를 따면 내 E-7-4 점수가 몇 점이 돼?", "history": [], "expectedTools": ["calculate_e74_score"]}
+  ]
+}

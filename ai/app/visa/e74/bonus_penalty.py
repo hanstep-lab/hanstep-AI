@@ -52,6 +52,7 @@ from app.visa.e74.schemas import (
     VerificationStatus,
     VisaEvidenceIn,
 )
+from app.visa.e74.texts import review_text
 
 BONUS = RuleCategory.BONUS
 PENALTY = RuleCategory.PENALTY
@@ -327,9 +328,7 @@ def calculate_qualification_bonus(profile: E74Profile, rule_set: RuleSet) -> Ite
             continue
         if _certificate_grade(name, condition.certificate_grades) is None:
             if name.endswith(HIGHER_CERTIFICATE_GRADES):
-                review_note = (
-                    "기술사·기능장은 선발계획 인정 목록(기사·산업기사·기능사)에 없어 확인 필요"
-                )
+                review_note = review_text("CERTIFICATE_GRADE_NOT_LISTED")
             detail["excluded"] = "GRADE_NOT_LISTED"
             continue
         if condition.require_job_related and ev.related_to_current_job is not True:

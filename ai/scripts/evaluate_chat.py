@@ -105,6 +105,10 @@ POLICY_QUESTIONS = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json
 V44_QUESTIONS = AI_ROOT / "specs" / "chat" / "v44_questions_v1.json"
 # 답변 언어 측정(#106): E-7-4·비자 정책·금융 정책·대조군(환율·송금). 언어는 --language.
 LANG_QUESTIONS = AI_ROOT / "specs" / "chat" / "answer_language_questions_v1.json"
+# E-7-4 도구 LLM 입력 영어화 측정(#108): 사용자 본인의 E-7-4 점수·신청·개선·서류·가정 계산 문항.
+E74_EN_QUESTIONS = AI_ROOT / "specs" / "chat" / "e74_llm_en_questions_v1.json"
+# 같은 5문항의 한국어(사용자 언어 ko 측정, --language ko와 함께 쓴다).
+E74_KO_QUESTIONS = AI_ROOT / "specs" / "chat" / "e74_llm_ko_questions_v1.json"
 # 프롬프트 v4.5 측정(#114): 입력값 기준 숫자·출처, 열린 질문의 고른 목표(scripts/_v45_check.py).
 V45_QUESTIONS = AI_ROOT / "specs" / "chat" / "v45_questions_v1.json"
 QUESTION_SETS = {
@@ -114,6 +118,8 @@ QUESTION_SETS = {
     "policy": POLICY_QUESTIONS,
     "v44": V44_QUESTIONS,
     "lang": LANG_QUESTIONS,
+    "e74en": E74_EN_QUESTIONS,
+    "e74ko": E74_KO_QUESTIONS,
     "v45": V45_QUESTIONS,
 }
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
