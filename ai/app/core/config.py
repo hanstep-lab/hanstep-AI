@@ -21,8 +21,9 @@ PLACEHOLDER_MARKERS = ("your-", "CHANGE_ME", "example.", "username:password")
 ChatThinking = Literal["model_default", "adaptive", "between_tools", "disabled"]
 ChatEffort = Literal["", "low", "medium", "high"]
 ChatPromptVersion = Literal[
-    "v1", "v1.1", "v2", "v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.4d"
-]
+    "v1", "v1.1", "v2", "v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.5",
+    "v4.4d", "v4.6",
+]  # fmt: skip
 # Efforts allowed when thinking is turned off (between_tools / disabled).
 _EFFORTS_WITHOUT_THINKING = {"", "low", "medium", "high"}
 
@@ -129,12 +130,12 @@ class Settings(BaseSettings):
     # Add code-computed judgment facts (judgmentFacts) to the finance tool result.
     chat_judgment_facts: bool = True
     # System prompt version (app/chat/prompts):
-    # v1 | v1.1 | v2 | v3 | v3.1 | v3.2 | v4 | v4.1 | v4.2 | v4.3a | v4.4 | v4.4d.
-    # 비자 도구는 v2~v4.4d, 송금 조회 도구는 v3.x·v4~v4.4d, 상품 추천 도구는 v4~v4.4d,
-    # 금융 정책 검색 도구(#88)는 v4.2·v4.3a·v4.4·v4.4d, 환율 진단 도구(#91)는 v4.4·v4.4d에서만
-    # 붙는다(app/api/routes/chat.py). v4.4d = v4.4 + 답변 표시 규칙(#116).
-    # 운영 값은 hanstep-backend deploy/compose.prod.yml의 기본값(2026-11-20 기준 v4.4)이다.
-    chat_prompt_version: ChatPromptVersion = "v4.4d"
+    # v1 | v1.1 | v2 | v3 | v3.1 | v3.2 | v4 | v4.1 | v4.2 | v4.3a | v4.4 | v4.5 | v4.4d | v4.6.
+    # 비자 도구는 v2~v4.6, 송금 조회 도구는 v3.x·v4~v4.6, 상품 추천 도구는 v4~v4.6,
+    # 금융 정책 검색 도구(#88)는 v4.2 이후, 환율 진단 도구(#91)는 v4.4·v4.5·v4.4d·v4.6,
+    # 상품 추천 카드(#114)는 v4.5·v4.6에서만 붙는다(app/api/routes/chat.py).
+    # v4.6 = v4.5 + 답변 표시 규칙(#116). v4.4d = v4.4 + 같은 표시 규칙(11/20 측정 재현용).
+    chat_prompt_version: ChatPromptVersion = "v4.1"
     # Measurement only: honour the per-request X-Chat-Config header (and X-Chat-Product-Profile
     # for the product tool's fixture profile).
     chat_allow_config_override: bool = False

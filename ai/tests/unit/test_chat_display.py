@@ -207,13 +207,15 @@ def _fx_tool_kwargs(version: str, language: str, monkeypatch: pytest.MonkeyPatch
     return kwargs
 
 
-@pytest.mark.parametrize(("version", "display"), [("v4.4", False), ("v4.4d", True)])
+@pytest.mark.parametrize(
+    ("version", "display"), [("v4.4", False), ("v4.5", False), ("v4.4d", True), ("v4.6", True)]
+)
 @pytest.mark.parametrize("language", ["ko", "en", "vi"])
 def test_route_passes_the_request_language_to_the_fx_tool(
     version: str, display: bool, language: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # #111과 같은 방식: 요청마다 도구를 만들 때 language=body.language를 넘긴다(LLM 인자가 아님).
-    # 표시값은 표시 규칙이 있는 버전(v4.4d)에서만 켠다.
+    # 표시값은 표시 규칙이 있는 버전(v4.6, 측정 재현용 v4.4d)에서만 켠다.
     kwargs = _fx_tool_kwargs(version, language, monkeypatch)
     assert (kwargs["language"], kwargs["display_text"]) == (language, display)
-    assert chat_routes.DISPLAY_PROMPT_VERSIONS == frozenset({"v4.4d"})
+    assert chat_routes.DISPLAY_PROMPT_VERSIONS == frozenset({"v4.4d", "v4.6"})

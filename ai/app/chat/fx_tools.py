@@ -16,10 +16,10 @@
   결과가 아니라 Spring 원본에서 만든다(송금 환율 sendRate·receiveRate는 LLM에 주지 않는다).
   필드 이름은 환율 화면 API(FX-001)와 같다. 버튼(환율 상세 보기 등)은 앱이 고정으로 붙인다.
 - 한 턴에 여러 번 불러도 카드는 하나다: 스트림이 merge_fx_card로 통화 기준으로 합친다.
-- 표시값(#116): display_text가 켜지면(프롬프트 v4.4d) 원래 숫자 옆에 사용자 언어의 표시용 문자열
-  (rateText·changeText·averageText·differenceText, 통화명, 출처, 기준 시각)을 더한다.
-  숫자는 app.chat.display가 만들고 LLM은 그대로 옮긴다. 끄면 결과는 v4.4와 바이트 단위로 같다.
-  카드는 그대로다.
+- 표시값(#116): display_text가 켜지면(프롬프트 v4.6·v4.4d) 원래 숫자 옆에 사용자 언어의
+  표시용 문자열(rateText·changeText·averageText·differenceText, 통화명, 출처, 기준 시각)을
+  더한다. 숫자는 app.chat.display가 만들고 LLM은 그대로 옮긴다. 끄면 결과는 v4.4·v4.5와
+  바이트 단위로 같다. 카드는 그대로다.
 """
 
 from __future__ import annotations
@@ -193,8 +193,8 @@ def _currency_display(item: dict[str, Any], language: DisplayLanguage) -> dict[s
 def summary_for_llm(data: dict[str, Any], language: str | None = None) -> dict[str, Any]:
     """Spring fx-summary 응답 → LLM에 줄 값(문장 없음). 본문이 계약과 다르면 KeyError·TypeError.
 
-    language가 있으면(프롬프트 v4.4d) 원래 숫자 옆에 그 언어의 표시값을 더한다(#116).
-    없으면 v4.4와 같은 값이다.
+    language가 있으면(프롬프트 v4.6·v4.4d) 원래 숫자 옆에 그 언어의 표시값을 더한다(#116).
+    없으면 v4.4·v4.5와 같은 값이다.
     """
     shown = None if language is None else display_language(language)
     currencies = []
@@ -344,7 +344,7 @@ class FxTools:
         self._user_id = user_id
         self._request_id = request_id
         self._timeout = timeout
-        # 채팅 요청의 사용자 언어. 표시값(display_text, 프롬프트 v4.4d)의 언어를 고른다
+        # 채팅 요청의 사용자 언어. 표시값(display_text, 프롬프트 v4.6·v4.4d)의 언어를 고른다
         # (ko면 한국어, 그 밖이면 영어).
         self._language = language
         self._display_text = display_text

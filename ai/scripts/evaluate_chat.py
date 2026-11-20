@@ -75,6 +75,7 @@ import _bootstrap  # noqa: F401
 import _fx_check
 import _lang_check
 import _product_check
+import _v45_check
 import httpx
 
 from app.api.routes.chat import PRODUCT_PROMPT_VERSIONS, REMITTANCE_PROMPT_VERSIONS
@@ -108,6 +109,8 @@ LANG_QUESTIONS = AI_ROOT / "specs" / "chat" / "answer_language_questions_v1.json
 E74_EN_QUESTIONS = AI_ROOT / "specs" / "chat" / "e74_llm_en_questions_v1.json"
 # 같은 5문항의 한국어(사용자 언어 ko 측정, --language ko와 함께 쓴다).
 E74_KO_QUESTIONS = AI_ROOT / "specs" / "chat" / "e74_llm_ko_questions_v1.json"
+# 프롬프트 v4.5 측정(#114): 입력값 기준 숫자·출처, 열린 질문의 고른 목표(scripts/_v45_check.py).
+V45_QUESTIONS = AI_ROOT / "specs" / "chat" / "v45_questions_v1.json"
 # 답변 표시 규칙 측정(#116): 환율 질문 5종 × 한국어(DK)·영어(DE). 언어는 --language.
 DISPLAY_QUESTIONS = AI_ROOT / "specs" / "chat" / "display_questions_v1.json"
 QUESTION_SETS = {
@@ -119,6 +122,7 @@ QUESTION_SETS = {
     "lang": LANG_QUESTIONS,
     "e74en": E74_EN_QUESTIONS,
     "e74ko": E74_KO_QUESTIONS,
+    "v45": V45_QUESTIONS,
     "display": DISPLAY_QUESTIONS,
 }
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
@@ -131,7 +135,9 @@ PROMPT_BASE = {
     "v4.2": "v4.1",
     "v4.3a": "v4.2",
     "v4.4": "v4.2",
+    "v4.5": "v4.4",
     "v4.4d": "v4.4",
+    "v4.6": "v4.5",
 }
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
 PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
@@ -1188,6 +1194,9 @@ def score(row: dict[str, Any]) -> None:
     row["languageCheck"] = _lang_check.language_check(
         answer, row.get("language") or "en", row["contextTexts"]
     )
+    if row.get("v45Check"):
+        # v4.5 지표(#114): 기대값은 이 행의 toolResult(측정 때 읽은 INT-06 요약)에서 정한다.
+        row["v45Result"] = _v45_check.check(row, answer)
     if row.get("wantsImprovementCheck"):
         # LE03 보조 지표(#106): 개선 방안(한국어 능력·점수 증가·필요 서류) 언급.
         row["improvementCheck"] = _lang_check.improvement_check(answer, row.get("language") or "en")
@@ -1381,6 +1390,7 @@ def render_summary(
         out += fx_summary_lines(mine)
         out += _lang_check.summary_lines(mine)
         out += _lang_check.improvement_lines(mine, answers=answers)
+        out += _v45_check.summary_lines(mine)
         out += source_split_table(mine)
         out += _product_check.summary_lines(mine)
         out += _product_check.tool_summary_lines(mine)
@@ -1715,6 +1725,7 @@ def main(
         "policy: specs/rag/finance_policy_questions_v1.json (finance policy RAG, #88), "
         "v44: v44_questions_v1.json (FX summary, E-7-4 and remittance cards, #101), "
         "lang: answer_language_questions_v1.json (answer language, #106), "
+        "v45: v45_questions_v1.json (input-based numbers and goals, #114), "
         "display: display_questions_v1.json (answer display rules, #116)",
     )
     parser.add_argument(
@@ -1980,6 +1991,9 @@ def main(
                 "language": args.language,
                 # LE03(#106): 개선 방안 언급 보조 지표를 붙일 문항.
                 "wantsImprovementCheck": bool(question.get("improvementCheck")),
+                # v4.5 측정(#114) 문항: 채점 종류(input·goals)와 입력값 질문의 기대 항목.
+                "v45Check": question.get("v45Check"),
+                "v45Expect": question.get("v45Expect"),
                 "at": datetime.now(UTC).isoformat(),
                 "status": result.get("status"),
                 "httpStatus": result.get("httpStatus"),

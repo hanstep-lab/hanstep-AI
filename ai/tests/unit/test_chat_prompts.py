@@ -1,6 +1,7 @@
 """Chat prompt versions: v1 unchanged, v1.1 two lines, v2 visa, v3 remittance, v4 product, v4.4 FX.
 
-v4.4 = v4.2 + exchange rate rules (fx_rules.md). v4.4d = v4.4 + answer display rules (#116).
+v4.4 = v4.2 + exchange rate rules (fx_rules.md). v4.6 = v4.5 + answer display rules (#116);
+v4.4d = v4.4 + the same display rules (kept to reproduce the 2026-11-20 measurement).
 """
 
 from __future__ import annotations
@@ -22,11 +23,11 @@ from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
 from app.chat.fx_tools import FX_RATE_SUMMARY
 from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.prompts import (
+    DISPLAY_CHANGES,
     NO_BOLD_LINE,
     PROMPT_VERSION,
     PROMPT_VERSIONS,
     V4_1_STAY_RULE,
-    V4_4D_CHANGES,
     V4_STAY_RULE,
     _with_display_rules,
     _with_product_rules,
@@ -87,7 +88,9 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v4.2": "chat-v4.2",
         "v4.3a": "chat-v4.3a",
         "v4.4": "chat-v4.4",
+        "v4.5": "chat-v4.5",
         "v4.4d": "chat-v4.4d",
+        "v4.6": "chat-v4.6",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -102,12 +105,12 @@ def test_default_is_judgment_facts_v2_haiku() -> None:
     # Prompt v2: v1.1 vs v2 regression run (2026-11-15).
     settings = _settings()
     assert settings.chat_judgment_facts is True
-    assert settings.chat_prompt_version == "v4.4d"
+    assert settings.chat_prompt_version == "v4.1"
     assert settings.chat_model == "claude-haiku-5-5"
     config = LlmConfig.from_settings(settings)
     assert config.model == "claude-haiku-5-5"
     assert config.judgment_facts is True
-    assert (config.prompt_version, config.prompt_version_id) == ("v4.4d", "chat-v4.4d")
+    assert (config.prompt_version, config.prompt_version_id) == ("v4.1", "chat-v4.1")
 
 
 def test_v2_is_v1_1_plus_visa_rules() -> None:
@@ -186,9 +189,8 @@ def test_v3_x_is_v3_plus_one_rate_rule(version: str, rule: str) -> None:
     assert config.prompt_version_id == f"chat-{version}"
 
 
-def test_default_is_v4_4d() -> None:
-    # #116: AI 코드 기본값 v4.1 → v4.4d. 운영 값은 hanstep-backend compose.prod.yml(v4.4)이 정한다.
-    assert _settings().chat_prompt_version == "v4.4d"
+def test_default_is_v4_1() -> None:
+    assert _settings().chat_prompt_version == "v4.1"
 
 
 def test_v3_fails_fast_when_v2_line_moves() -> None:
@@ -238,12 +240,17 @@ PROMPT_SHA256 = {
     "v4.3a": "ac9c014344e4409b0553ca5f3006010a4e2c1c51d72da32f3a795c7938b4165c",
     # 2026-11-18(#91): v4.2 본문 그대로 + 환율 진단 규칙(fx_rules.md).
     "v4.4": "61f665e249634c23bb469820f82a9d354b7d57c83c5460af433a0d7449541f55",
-    # 2026-11-20(#116): v4.4 + 답변 표시 규칙(영어 규칙, en·vi·zh). ko는 PROMPT_SHA256_KO.
+    # 2026-11-20(#114): v4.4 본문 그대로 + 목표·출처·상품 카드 규칙(goal_rules.md).
+    "v4.5": "47a7a4f73d1b11ed540bc961351fe7489d31ac6cbf992458d04ecffe401d4aad",
+    # 2026-11-20(#116): 답변 표시 규칙(영어 규칙, en·vi·zh). ko는 PROMPT_SHA256_KO.
+    # v4.4d = v4.4 + 표시 규칙(11/20 측정 재현용), v4.6 = v4.5 + 표시 규칙.
     "v4.4d": "6d72bb2bc1a76fc4bb8b3083394e0a41abdb7889c0320bfbd44f9298beec5e95",
+    "v4.6": "29f7942e9dd8b18c18d809d5cdd6e2c2d5740842350331f60d758b3227e4138c",
 }
 # 표시 규칙이 언어별로 다른 버전의 한국어(ko) 프롬프트.
 PROMPT_SHA256_KO = {
     "v4.4d": "e69b2c08fae002baeafa8aae841abae6193cf7abb8688b20d52d49587abc0903",
+    "v4.6": "4efbb464edf6ef0b17cb5a4809fd3733b436e80aedb0cffdd54a717f4746df1a",
 }
 
 
@@ -284,7 +291,10 @@ def test_v4_4_is_v4_2_plus_fx_rules() -> None:
     v42, v44 = system_prompt("en", "v4.2"), system_prompt("en", "v4.4")
     fx_rules = (PROMPTS / "fx_rules.md").read_text(encoding="utf-8")
     assert v44 == v42.rstrip("\n") + "\n\n" + fx_rules
-    assert FX_PROMPT_VERSIONS == frozenset({"v4.4", "v4.4d"})
+    # v4.5(#114)는 v4.4 본문 그대로라 환율 진단 도구도 붙는다.
+    # v4.4d·v4.6(#116)은 v4.4·v4.5에 표시 규칙을 더한 버전이라 같이 붙는다.
+    assert FX_PROMPT_VERSIONS == frozenset({"v4.4", "v4.5", "v4.4d", "v4.6"})
+    assert _settings().chat_prompt_version == "v4.1"
     config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.4"))
     assert config.prompt_version_id == "chat-v4.4"
     for rule in (
@@ -357,6 +367,7 @@ def test_v4_2_is_v4_1_plus_finance_policy_rules() -> None:
         "do not guess",
     ):
         assert phrase in text, phrase
+    assert _settings().chat_prompt_version == "v4.1"
     config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.2"))
     assert config.prompt_version_id == "chat-v4.2"
 
@@ -369,34 +380,50 @@ def test_v4_3a_is_v4_2_plus_direction_rule() -> None:
     assert system_prompt("en", "v4.3a").splitlines() == [*v42, DIRECTION_RULE]
     for phrase in ("수령", "지급", "receiving", "sending", "applies to"):
         assert phrase in DIRECTION_RULE, phrase
+    assert _settings().chat_prompt_version == "v4.1"
     config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.3a"))
     assert config.prompt_version_id == "chat-v4.3a"
 
 
 @pytest.mark.parametrize("language", ["ko", "en"])
-def test_v4_4d_is_v4_4_with_display_rules(language: str) -> None:
-    # v4.4d(#116, display): v4.4 기준 갈래(v4.3a와 같은 방식). 바뀌는 v4.4 줄은 V4_4D_CHANGES뿐이고,
-    # 볼드 금지 두 줄(송금·환율)은 빠지며, 끝에 사용자 언어의 표시 규칙이 붙는다.
-    v44 = system_prompt(language, "v4.4").splitlines()
+@pytest.mark.parametrize(("version", "base"), [("v4.6", "v4.5"), ("v4.4d", "v4.4")])
+def test_display_version_is_base_with_display_rules(version: str, base: str, language: str) -> None:
+    # 표시 규칙(#116): v4.6 = v4.5 + 표시 규칙, v4.4d = v4.4 + 표시 규칙(11/20 측정 재현용).
+    # 바뀌는 바탕 글의 줄은 DISPLAY_CHANGES뿐이고, 볼드 금지 두 줄(송금·환율)은 빠지며,
+    # 끝에 사용자 언어의 표시 규칙이 붙는다.
+    lines = system_prompt(language, base).splitlines()
     rules = (PROMPTS / f"display_rules_{language}.md").read_text(encoding="utf-8")
     changes = {
         old.replace("{language}", language): new.replace("{language}", language)
-        for old, new, _ in V4_4D_CHANGES
+        for old, new, _ in DISPLAY_CHANGES
     }
-    assert v44.count(NO_BOLD_LINE) == 2
-    assert all(old in v44 for old in changes)
-    expected = [changes.get(line, line) for line in v44 if line != NO_BOLD_LINE]
-    assert system_prompt(language, "v4.4d").splitlines() == [
+    assert lines.count(NO_BOLD_LINE) == 2
+    assert all(old in lines for old in changes)
+    expected = [changes.get(line, line) for line in lines if line != NO_BOLD_LINE]
+    assert system_prompt(language, version).splitlines() == [
         *expected,
         "",
         *rules.replace("{language}", language).splitlines(),
     ]
-    # v4.4 글은 언어 코드만 다르다(표시 규칙이 없는 버전).
-    assert system_prompt("ko", "v4.4") == system_prompt("en", "v4.4").replace('"en"', '"ko"')
+    # 바탕 글은 언어 코드만 다르다(표시 규칙이 없는 버전).
+    assert system_prompt("ko", base) == system_prompt("en", base).replace('"en"', '"ko"')
 
 
-def test_v4_4d_rules_by_language() -> None:
-    ko, en = system_prompt("ko", "v4.4d"), system_prompt("en", "v4.4d")
+def test_v4_6_keeps_the_v4_5_goal_and_card_rules() -> None:
+    v45, v46 = system_prompt("en", "v4.5"), system_prompt("en", "v4.6")
+    # v4.5의 목표·출처·상품 카드 규칙(goal_rules.md)은 그대로 남고, 표시 규칙은 그 뒤에 붙는다.
+    goal_rules = (PROMPTS / "goal_rules.md").read_text(encoding="utf-8").rstrip("\n")
+    assert goal_rules in v45 and goal_rules in v46
+    assert v46.index(goal_rules) < v46.index("Display rules:")
+    config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.6"))
+    assert config.prompt_version_id == "chat-v4.6"
+    # 코드 기본값은 이 PR에서 바꾸지 않는다(develop 값 그대로).
+    assert _settings().chat_prompt_version == "v4.1"
+
+
+@pytest.mark.parametrize("version", ["v4.4d", "v4.6"])
+def test_display_rules_by_language(version: str) -> None:
+    ko, en = system_prompt("ko", version), system_prompt("en", version)
     # ko: 원화는 "원"만, 외화는 처음 한 번 "미국 달러(USD)". en: 통화 코드.
     for phrase in ("followed by 원", "Never write KRW, (KRW)", "미국 달러(USD)", "100동당"):
         assert phrase in ko and phrase not in en, phrase
@@ -419,14 +446,12 @@ def test_v4_4d_rules_by_language() -> None:
         assert "3 to 5 short sentences" not in text
     # vi·zh는 영어 표시 규칙을 받고, 답변 언어 줄만 그 언어 코드다.
     for language in ("vi", "zh"):
-        assert system_prompt(language, "v4.4d") == en.replace('"en"', f'"{language}"')
-    config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.4d"))
-    assert config.prompt_version_id == "chat-v4.4d"
+        assert system_prompt(language, version) == en.replace('"en"', f'"{language}"')
 
 
-def test_v4_4d_fails_fast_when_a_v4_4_line_moves() -> None:
+def test_display_rules_fail_fast_when_a_v4_4_line_moves() -> None:
     with pytest.raises(ValueError, match="language line"):
         _with_display_rules("Rules:\n- something else", "Display rules:")
-    base = system_prompt("en", "v4.4").replace('"en"', '"{language}"')
+    base = system_prompt("en", "v4.5").replace('"en"', '"{language}"')
     with pytest.raises(ValueError, match="no-bold line exactly twice"):
         _with_display_rules(base.replace(NO_BOLD_LINE + "\n", "", 1), "Display rules:")

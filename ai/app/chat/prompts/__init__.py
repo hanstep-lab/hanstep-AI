@@ -22,7 +22,9 @@ PROMPT_VERSIONS = {
     "v4.2": "chat-v4.2",
     "v4.3a": "chat-v4.3a",
     "v4.4": "chat-v4.4",
+    "v4.5": "chat-v4.5",
     "v4.4d": "chat-v4.4d",
+    "v4.6": "chat-v4.6",
 }
 PROMPT_VERSION = PROMPT_VERSIONS["v1"]  # the default
 
@@ -158,27 +160,37 @@ def _with_fx_rules(base: str, fx_rules: str) -> str:
 _SYSTEM["v4.4"] = _with_fx_rules(
     _SYSTEM["v4.2"], (_DIR / "fx_rules.md").read_text(encoding="utf-8")
 )
+# v4.5(#114): v4.4 본문 그대로 + 목표·출처·상품 카드 규칙(goal_rules.md). v4.4의 줄은 바꾸지 않는다.
+# product_rules.md의 '금리는 앱·지점에서 확인' 줄은 그대로 두고,
+# 카드가 붙는 v4.5에서만 이 절이 대신한다.
+# 상품 추천 카드(PRODUCT_RECOMMEND_CARD)는 v4.5에서만 붙는다.
+_SYSTEM["v4.5"] = (
+    _SYSTEM["v4.4"].rstrip("\n") + "\n\n" + (_DIR / "goal_rules.md").read_text(encoding="utf-8")
+)
 
 
-# v4.4d(#116, display): v4.4 기준 갈래(v4.3a와 같은 방식). v4.4의 줄 몇 개를 바꾸거나 빼고,
-# 끝에 답변 표시 규칙(display_rules_ko.md·display_rules_en.md)을 더한다. 표시 규칙은 사용자 언어로
-# 고른다: ko면 한국어 규칙, 그 밖(en·vi·zh)은 영어 규칙. 도구 구성은 v4.4와 같고, 환율 도구는
-# LLM에 표시값(rateText 등)을 더 준다. v4.4·fx_rules.md 문구는 바꾸지 않는다.
+# 답변 표시 규칙(#116): v4.4 본문의 줄 몇 개를 바꾸거나 빼고, 끝에 답변 표시 규칙
+# (display_rules_ko.md·display_rules_en.md)을 더한다. 표시 규칙은 사용자 언어로 고른다: ko면 한국어
+# 규칙, 그 밖(en·vi·zh)은 영어 규칙. 환율 도구는 LLM에 표시값(rateText 등)을 더 준다.
+# - v4.6 = v4.5 + 표시 규칙. 도구 묶음은 v4.5와 같다(환율 진단·상품 카드 포함).
+# - v4.4d = v4.4 + 표시 규칙(v4.3a와 같은 갈래). 11/20 측정 재현용으로 남긴다.
+# v4.4·v4.5·fx_rules.md·goal_rules.md 문구는 바꾸지 않는다. 바꿀 줄은 v4.4 본문에 있고, v4.5도
+# v4.4 본문을 그대로 담는다.
 V4_4_LANGUAGE_LINE = (
     '- Write the answer in the language with code "{language}". Keep official names and currency '
     "codes (KRW) as they are."
 )
-V4_4D_LANGUAGE_LINE = (
+DISPLAY_LANGUAGE_LINE = (
     '- Write the answer in the language with code "{language}". Keep official names as they are. '
     "Write numbers and currencies and lay out the answer as the display rules at the end say."
 )
 V4_4_LENGTH_LINE = "- Answer in 3 to 5 short sentences in plain words."
-V4_4D_LENGTH_LINE = "- Keep the answer short and in plain words."
+DISPLAY_LENGTH_LINE = "- Keep the answer short and in plain words."
 V4_4_FX_NUMBERS_LINE = (
     "- Use only numbers that appear in the fx_rate_summary result, exactly as given (same digits "
     "and decimals). Do not calculate, round or convert any number."
 )
-V4_4D_FX_NUMBERS_LINE = (
+DISPLAY_FX_NUMBERS_LINE = (
     "- Use only numbers that appear in the fx_rate_summary result. Copy its display texts "
     "exactly: rateText for the rate, changeText for the change from the previous business day, "
     "and averageText and differenceText for each period average. Do not calculate, round or "
@@ -188,14 +200,14 @@ V4_4_FX_RATE_LINE = (
     "- Rates are KRW per `unit` of the currency. When you give a rate, write it as "
     '"<unit> <currency> = <rate> KRW".'
 )
-V4_4D_FX_RATE_LINE = (
+DISPLAY_FX_RATE_LINE = (
     "- Rates are KRW per `unit` of the currency. Write them as the display rules at the end say."
 )
 V4_4_FX_BASIS_LINE = (
     "- Give the basis with the numbers: the source, the as-of date (asOf) and, for each average "
     "you mention, the number of business days in it."
 )
-V4_4D_FX_BASIS_LINE = (
+DISPLAY_FX_BASIS_LINE = (
     "- In the last line, give the basis of each currency you mention: its sourceText and "
     "basisText. Do not mention the number of business days in an average."
 )
@@ -203,27 +215,31 @@ V4_4_FX_SOURCE_LINE = (
     '- Source names: say "market reference rate" for MARKET_REF (ECB-based, not a remittance '
     'rate) and "Korea Eximbank published rate" for KOREAEXIM.'
 )
-V4_4D_FX_SOURCE_LINE = (
+DISPLAY_FX_SOURCE_LINE = (
     "- Name the source with sourceText. MARKET_REF is an ECB-based market reference rate, not a "
     "remittance rate; KOREAEXIM is the rate the Korea Eximbank publishes."
 )
-# v4.4에 두 번(송금 규칙·환율 규칙) 있다. v4.4d는 둘 다 빼고 표시 규칙의 볼드 규칙을 따른다.
+# v4.4에 두 번(송금 규칙·환율 규칙) 있다. 표시 규칙 버전은 둘 다 빼고
+# 표시 규칙의 볼드 규칙을 따른다.
 NO_BOLD_LINE = "- Do not use bold or any other markdown emphasis."
-# v4.4 줄 → v4.4d 줄. 바꿀 줄이 v4.4에 정확히 한 번 있지 않으면 시작할 때 실패한다.
-V4_4D_CHANGES = (
-    (V4_4_LANGUAGE_LINE, V4_4D_LANGUAGE_LINE, "language"),
-    (V4_4_LENGTH_LINE, V4_4D_LENGTH_LINE, "answer-length"),
-    (V4_4_FX_NUMBERS_LINE, V4_4D_FX_NUMBERS_LINE, "fx-numbers"),
-    (V4_4_FX_RATE_LINE, V4_4D_FX_RATE_LINE, "fx-rate"),
-    (V4_4_FX_BASIS_LINE, V4_4D_FX_BASIS_LINE, "fx-basis"),
-    (V4_4_FX_SOURCE_LINE, V4_4D_FX_SOURCE_LINE, "fx-source"),
+# v4.4 줄 → 표시 규칙 버전의 줄. 바꿀 줄이 바탕 글에 정확히 한 번 있지 않으면 시작할 때 실패한다.
+DISPLAY_CHANGES = (
+    (V4_4_LANGUAGE_LINE, DISPLAY_LANGUAGE_LINE, "language"),
+    (V4_4_LENGTH_LINE, DISPLAY_LENGTH_LINE, "answer-length"),
+    (V4_4_FX_NUMBERS_LINE, DISPLAY_FX_NUMBERS_LINE, "fx-numbers"),
+    (V4_4_FX_RATE_LINE, DISPLAY_FX_RATE_LINE, "fx-rate"),
+    (V4_4_FX_BASIS_LINE, DISPLAY_FX_BASIS_LINE, "fx-basis"),
+    (V4_4_FX_SOURCE_LINE, DISPLAY_FX_SOURCE_LINE, "fx-source"),
 )
 
 
 def _with_display_rules(base: str, display_rules: str) -> str:
-    """v4.4 → v4.4d: V4_4D_CHANGES의 줄을 바꾸고 볼드 금지 두 줄을 뺀 뒤 끝에 표시 규칙을 더한다."""
+    """바탕 글(v4.4·v4.5)의 DISPLAY_CHANGES 줄을 바꾸고, 볼드 금지 두 줄을 빼고, 표시 규칙을 더한다.
+
+    바꿀 줄이 바탕 글에 정확히 한 번 있지 않거나 볼드 금지 줄이 두 번이 아니면 실패한다.
+    """
     text = base
-    for old, new, what in V4_4D_CHANGES:
+    for old, new, what in DISPLAY_CHANGES:
         text = "\n".join(_replace_line(text, old, new, what))
     lines = text.splitlines()
     if lines.count(NO_BOLD_LINE) != 2:
@@ -233,14 +249,23 @@ def _with_display_rules(base: str, display_rules: str) -> str:
 
 
 _DISPLAY_LANGUAGES: tuple[DisplayLanguage, ...] = ("ko", "en")
-# 표시 규칙이 사용자 언어별로 다른 버전. system_prompt가 language로 고른다.
-_SYSTEM_BY_DISPLAY: dict[str, dict[DisplayLanguage, str]] = {
-    "v4.4d": {
-        language: _with_display_rules(
-            _SYSTEM["v4.4"], (_DIR / f"display_rules_{language}.md").read_text(encoding="utf-8")
-        )
+_DISPLAY_RULES = {
+    language: (_DIR / f"display_rules_{language}.md").read_text(encoding="utf-8")
+    for language in _DISPLAY_LANGUAGES
+}
+
+
+def _display_versions(base: str) -> dict[DisplayLanguage, str]:
+    return {
+        language: _with_display_rules(base, _DISPLAY_RULES[language])
         for language in _DISPLAY_LANGUAGES
     }
+
+
+# 표시 규칙이 사용자 언어별로 다른 버전. system_prompt가 language로 고른다.
+_SYSTEM_BY_DISPLAY: dict[str, dict[DisplayLanguage, str]] = {
+    "v4.4d": _display_versions(_SYSTEM["v4.4"]),
+    "v4.6": _display_versions(_SYSTEM["v4.5"]),
 }
 
 

@@ -771,14 +771,14 @@ def test_graded_numbers_are_counted_apart() -> None:
         ),
         (
             {"name": "v1", "model": "claude-haiku-5-5", "promptVersion": "v1"},
-            "promptVersion chat-v4.4d != chat-v1",
+            "promptVersion chat-v4.1 != chat-v1",
         ),
     ],  # fmt: skip
 )
 def test_stops_when_server_ignores_the_variant(
     tmp_path: Path, variant: dict[str, Any], problem: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # CHAT_ALLOW_CONFIG_OVERRIDE is off, so the server runs its defaults (haiku, facts, v4.4d).
+    # CHAT_ALLOW_CONFIG_OVERRIDE is off, so the server runs its defaults (haiku, facts, v4.1).
     variants = tmp_path / "variants.json"
     variants.write_text(json.dumps([variant]), encoding="utf-8")
     output = tmp_path / "run.jsonl"
@@ -1159,16 +1159,17 @@ def test_e74_english_question_set() -> None:
 
 
 def test_display_question_set_pairs_ko_and_en() -> None:
-    # 답변 표시 규칙 측정(#116): 환율 질문 5종 × 한국어(DK)·영어(DE). v4.4d는 v4.4의 기대값을 쓴다.
+    # 답변 표시 규칙 측정(#116): 환율 질문 5종 × 한국어(DK)·영어(DE).
+    # 표시 규칙 버전은 바탕 버전의 기대값을 쓴다(v4.6 → v4.5, v4.4d → v4.4).
     spec = EVAL.load_questions(EVAL.QUESTION_SETS["display"])
     ids = [q["id"] for q in spec["questions"]]
     assert ids == [f"D{lang}0{n}" for lang in "KE" for n in range(1, 6)]
     ko, en = spec["questions"][:5], spec["questions"][5:]
     for a, b in zip(ko, en, strict=True):
         assert (a["category"], a["kind"]) == (b["category"], b["kind"])
-        for version in ("v4.4", "v4.4d"):
+        for version in ("v4.4", "v4.4d", "v4.5", "v4.6"):
             assert EVAL.expected_tools(a, version) == EVAL.expected_tools(b, version)
-    assert EVAL.PROMPT_BASE["v4.4d"] == "v4.4"
+    assert (EVAL.PROMPT_BASE["v4.4d"], EVAL.PROMPT_BASE["v4.6"]) == ("v4.4", "v4.5")
     assert all(not q["history"] for q in spec["questions"])
 
 
@@ -1233,6 +1234,28 @@ def test_language_is_sent_and_checked(tmp_path: Path) -> None:
     assert row["languageCheck"]["inLanguage"] is True
     assert row["languageCheck"]["mixed"] is False
     assert "사용자 언어 vi" in output.with_suffix(".md").read_text(encoding="utf-8")
+
+
+def test_v45_question_set_and_check_hook() -> None:
+    # v4.5 측정(#114): 입력값 2 + 열린 질문 3 + 상품 1, 채점 종류가 행에 붙는다.
+    spec = EVAL.load_questions(EVAL.QUESTION_SETS["v45"])
+    kinds = [(q["id"], q.get("v45Check")) for q in spec["questions"]]
+    assert kinds == [
+        ("V01", "input"), ("V02", "input"), ("V03", "goals"), ("V04", "goals"), ("V05", "goals"),
+        ("V06", "product"),
+    ]  # fmt: skip
+    row: dict[str, Any] = {
+        "answer": "You have 675,317 won left.",
+        "toolResult": EVAL.fixture_context(),
+        "judgmentFacts": False,
+        "contextTexts": ["How much money do I have left?"],
+        "tools": [],
+        "expectedTools": [],
+        "v45Check": "input",
+        "v45Expect": "spare",
+    }
+    EVAL.score(row)
+    assert row["v45Result"]["kind"] == "input"
 
 
 def test_language_needs_the_ai_target() -> None:
