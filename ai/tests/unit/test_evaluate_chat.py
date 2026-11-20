@@ -1173,6 +1173,20 @@ def test_display_question_set_pairs_ko_and_en() -> None:
     assert all(not q["history"] for q in spec["questions"])
 
 
+def test_product_card_question_set() -> None:
+    # 상품 추천 카드 반복 제거 측정(#119): 영어 상품 질문 6개(PC06은 기권 확인용),
+    # 모두 v4.5 상품 지표로 채점한다.
+    spec = EVAL.load_questions(EVAL.QUESTION_SETS["pcard"])
+    questions = spec["questions"]
+    assert [q["id"] for q in questions] == [f"PC0{n}" for n in range(1, 7)]
+    for q in questions:
+        assert q["v45Check"] == "product" and not q["history"]
+        assert EVAL.expected_tools(q, "v4.6") == ["recommend_savings_products"]
+    # PC01은 v4.5 측정 세트의 V06과 같은 질문이다.
+    v45 = {q["id"]: q for q in EVAL.load_questions(EVAL.QUESTION_SETS["v45"])["questions"]}
+    assert questions[0]["text"] == v45["V06"]["text"]
+
+
 def test_lang_question_set_and_subsets() -> None:
     # 답변 언어 측정(#106): 10문항, vi·ko 확인 문항은 세트 안의 id.
     spec = EVAL.load_questions(EVAL.QUESTION_SETS["lang"])
