@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from app.visa.e74.engine import assess_e74
+from app.visa.e74.engine import EligibilityStatus, assess_e74
 from app.visa.e74.rules import RuleCategory, load_rule_sets
 from app.visa.e74.texts import (
     CONDITION_TERMS,
@@ -20,6 +20,7 @@ from app.visa.e74.texts import (
     MANUAL_CHECK_TEXT_KO,
     REVIEW_NOTES,
     RULES,
+    STATUSES,
     Text,
     english_documents,
     english_improvement,
@@ -31,6 +32,7 @@ from app.visa.e74.texts import (
     review_notice,
     review_text,
     rule_text,
+    status_text,
     terms_text,
     visa_types_text,
 )
@@ -99,6 +101,7 @@ def _params(text: Text, sample: dict[str, object]) -> dict[str, object]:
             ("RULES", RULES),
             ("DOCUMENTS", DOCUMENTS),
             ("REVIEW_NOTES", REVIEW_NOTES),
+            ("STATUSES", STATUSES),
         )
         for key in texts
     ],
@@ -109,6 +112,7 @@ def test_every_text_has_korean_and_english(table: str, key: str) -> None:
         "RULES": RULES,
         "DOCUMENTS": DOCUMENTS,
         "REVIEW_NOTES": REVIEW_NOTES,
+        "STATUSES": STATUSES,
     }[table][key]
     assert text.ko.strip() and HANGUL.search(text.ko)
     assert text.en is not None and text.en.strip()
@@ -193,6 +197,17 @@ def test_korean_for_llm_replaces_only_texts_with_internal_marks() -> None:
     )
     assert korean_for_llm(built.ko) == f"{stay.llm_ko}: 증빙 서류를 내면 요건이 확정됨"
     assert korean_for_llm("모르는 문구") == "모르는 문구"
+
+
+def test_every_eligibility_status_has_a_text_without_the_code() -> None:
+    """판정 상태 코드(INELIGIBLE 등) 대신 LLM에 줄 문구가 언어별로 있고, 문구에 코드가 없다."""
+    assert set(STATUSES) == {s.value for s in EligibilityStatus}
+    for status in EligibilityStatus:
+        for language in ("ko", "en"):
+            text = status_text(status.value, language)
+            assert status.value not in text and not re.search(r"[A-Z]{2,}_?[A-Z]+", text)
+        assert status_text(status.value, "ko") == STATUSES[status.value].ko
+        assert status_text(status.value, "vi") == status_text(status.value, "en")
 
 
 def test_only_korean_users_get_korean_llm_texts() -> None:

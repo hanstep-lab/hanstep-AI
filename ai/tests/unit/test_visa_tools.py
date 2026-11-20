@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from app.rag.retrieval import SearchHit
 from app.visa.e74.schemas import E74CalculateRequest
 from app.visa.e74.service import calculate
+from app.visa.e74.texts import STATUSES
 from app.visa.tools import (
     CALCULATE_E74_SCORE,
     E74_SCHEMA_DESCRIPTIONS,
@@ -110,6 +111,8 @@ def test_e74_tool_definition_is_english_and_keeps_the_two_instructions() -> None
     assert "Always call it for questions about the user's own E-7-4 score" in e74["description"]
     legal = e74["input_schema"]["properties"]["legalDeclaration"]["description"]
     assert "include only answers the user gave when asked" in legal
+    # 상태 코드·코드값은 답변에 쓰지 않는다(INELIGIBLE 노출 결함).
+    assert "Do not write status codes or other code values" in e74["description"]
     # 모양(인자 이름·타입·제약)은 그대로다.
     raw = CalculateE74ScoreInput.model_json_schema(by_alias=True)
     assert _without_descriptions(e74["input_schema"]) == _without_descriptions(
@@ -413,6 +416,10 @@ def test_e74_llm_output_keeps_the_shape_and_uses_english_texts() -> None:
     output = llm.llm_output
 
     assert "reviewNotes" not in output and output["reviewNotices"] == []
+    # 판정 상태는 코드 대신 문구다(INELIGIBLE 노출 결함). 카드 status는 코드 그대로다.
+    assert "status" not in output
+    assert output["statusText"] == STATUSES[result.status.value].en
+    assert llm.blocks[0].status == result.status
     first, imp = output["improvements"][0], result.improvements[0]
     # 개선 방안 모양은 그대로(descriptionEn·documentsEn 키 없음)이고 값만 영어다.
     assert list(first) == [
@@ -471,7 +478,7 @@ def test_e74_sample_saved_before_english_gives_english_llm_output() -> None:
 
 # 내부 표기: 확인 번호(Q8·Q9), 양식 번호("(붙임5)"), 사람 검토 표시. ko·en 모두 LLM에 주지 않는다.
 INTERNAL_MARKS = re.compile(r"\bQ\d+\b|붙임|검토 필요|확인 필요")
-TEXT_KEYS = ("question", "description", "documents", "text")
+TEXT_KEYS = ("question", "description", "documents", "text", "statusText")
 
 
 def _strings(value: Any, path: str = "") -> list[tuple[str, str]]:
@@ -504,6 +511,10 @@ def test_e74_korean_llm_output_has_no_internal_marks_and_keeps_the_shape(
     # 숫자·코드·모양은 언어와 상관없다. 점수 카드도 같다.
     assert _without_texts(ko.llm_output) == _without_texts(en.llm_output)
     assert ko.blocks[0] == en.blocks[0]
+    # 판정 상태는 언어별 문구이고 코드는 LLM 결과 최상위에 없다.
+    assert ko.llm_output["statusText"] == STATUSES[result.status.value].ko
+    assert en.llm_output["statusText"] == STATUSES[result.status.value].en
+    assert "status" not in ko.llm_output and "status" not in en.llm_output
     # 질문은 엔진 한국어 문구 그대로다. 재질의 카드도 같은 한국어 질문이다.
     korean = [m.question for m in result.missing_inputs]
     assert [m["question"] for m in ko.llm_output["missingInputs"]] == korean
