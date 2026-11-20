@@ -15,8 +15,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY pipeline/ pipeline/
 
-# 빌드할 때 모델을 이미지에 넣어 둔다 (실행 시 다운로드 없음)
-RUN python -W ignore -c "from pipeline.engine import load; load()"
+# 빌드할 때 모델을 이미지에 넣어 둔다 (실행 시 다운로드 없음). 검출 모델은 기본(mobile_det)과
+# OCR_DET_MODEL로 고를 수 있는 server_det 둘 다 넣는다(#110). 인식 모델은 둘이 같이 쓴다.
+RUN python -W ignore -c "from pipeline.engine import load; load()" \
+    && OCR_DET_MODEL=PP-OCRv5_server_det python -W ignore -c "from pipeline.engine import load; load()"
 
 # Worker(오지수). 모델 층 뒤에 두어 Worker 의존성·코드를 바꿔도 paddle 설치와 모델 다운로드를
 # 다시 하지 않는다. pip check로 엔진 의존성과 충돌이 없는지 빌드 때 확인한다.

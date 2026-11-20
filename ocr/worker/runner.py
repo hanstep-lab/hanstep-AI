@@ -90,7 +90,12 @@ def build_resources(settings: Settings) -> WorkerResources:
     engine_thread = EngineThread()
     started = monotonic()
     engine_thread.call(engine.load)
-    logger.info("ocr model %s loaded in %.1fs", engine.MODEL_VERSION, monotonic() - started)
+    logger.info(
+        "ocr model %s loaded in %.1fs (%s)",
+        engine.MODEL_VERSION,
+        monotonic() - started,
+        engine_thread.call(engine.settings),
+    )
 
     def recognize(front_path: str) -> Mapping[str, Any]:
         result: Mapping[str, Any] = engine_thread.call(engine.recognize, front_path)

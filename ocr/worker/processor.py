@@ -2,13 +2,15 @@
 
 실패는 단계별 코드로 :class:`JobFailure`를 던진다. 연결 오류만 일시 오류(transient)다.
 임시 파일은 성공·실패와 관계없이 엔진을 부른 뒤 바로 지운다.
-로그에는 jobId·documentId·latencyMs·단계별 시간만 남기고 이미지·OCR 값·원본 키는 넣지 않는다.
+로그에는 jobId·documentId·latencyMs·단계별 시간과 이미지 원본·처리 크기(#110)만 남기고
+이미지·OCR 값·원본 키는 넣지 않는다.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -26,6 +28,9 @@ logger = logging.getLogger(__name__)
 
 # 엔진에 넘길 임시 파일 확장자. BE는 JPEG·PNG만 받는다(arc/{side}/{UUID}.jpg|png).
 _IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
+# 엔진 결과 image(#110) 중 로그 timings에 옮길 값: 원본·처리 크기("4032x3024")와 resize_ms.
+_IMAGE_KEYS = ("original", "processed", "resize_ms")
+_SIZE = re.compile(r"^\d{1,5}x\d{1,5}$")
 
 Recognize = Callable[[str], Mapping[str, Any]]
 
@@ -67,7 +72,7 @@ class OcrProcessor:
         deps = self._deps
         document_id = message.resource_id
         tag = f"jobId={message.job_id} documentId={document_id} requestId={message.request_id}"
-        timings: dict[str, int] = {}
+        timings: dict[str, int | str] = {}
 
         with _timed(timings, "lookup_ms"):
             try:
@@ -85,6 +90,7 @@ class OcrProcessor:
             )
 
         raw = self._recognize(source, timings)
+        timings.update(_image_timings(raw))
         result = build_ocr_result(document_id, raw)
 
         with _timed(timings, "callback_ms"):
@@ -104,7 +110,9 @@ class OcrProcessor:
             timings,
         )
 
-    def _recognize(self, source: DocumentSource, timings: dict[str, int]) -> Mapping[str, Any]:
+    def _recognize(
+        self, source: DocumentSource, timings: dict[str, int | str]
+    ) -> Mapping[str, Any]:
         """원본을 임시 파일로 받아 엔진에 넘긴다. 임시 파일은 여기서 반드시 지운다."""
         deps = self._deps
         assert source.object_key is not None
@@ -144,8 +152,23 @@ class OcrProcessor:
             path.unlink(missing_ok=True)
 
 
+def _image_timings(raw: Mapping[str, Any]) -> dict[str, int | str]:
+    """엔진이 준 크기·resize_ms 중 모양이 맞는 값만 로그에 옮긴다(다른 값이 섞이지 않게)."""
+    image = raw.get("image") if isinstance(raw, Mapping) else None
+    if not isinstance(image, Mapping):
+        return {}
+    out: dict[str, int | str] = {}
+    for key in _IMAGE_KEYS:
+        value = image.get(key)
+        if key == "resize_ms" and isinstance(value, int) and not isinstance(value, bool):
+            out[key] = value
+        elif key != "resize_ms" and isinstance(value, str) and _SIZE.fullmatch(value):
+            out[key] = value
+    return out
+
+
 @contextmanager
-def _timed(timings: dict[str, int], name: str) -> Iterator[None]:
+def _timed(timings: dict[str, int | str], name: str) -> Iterator[None]:
     started = monotonic()
     try:
         yield
