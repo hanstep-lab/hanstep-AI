@@ -1150,3 +1150,71 @@ def test_e74_english_question_set() -> None:
         if q["id"] in v44:
             assert q["text"] == v44[q["id"]]["text"]
     assert questions[0]["text"] == "What's my E-7-4 score?"
+
+
+def test_lang_question_set_and_subsets() -> None:
+    # 답변 언어 측정(#106): 10문항, vi·ko 확인 문항은 세트 안의 id.
+    spec = EVAL.load_questions(EVAL.QUESTION_SETS["lang"])
+    ids = [q["id"] for q in spec["questions"]]
+    assert len(ids) == len(set(ids)) == 10
+    for subset in spec["languageSubsets"].values():
+        assert set(subset) <= set(ids)
+    by_id = {q["id"]: q for q in spec["questions"]}
+    assert EVAL.expected_tools(by_id["LE01"], "v4.4") == ["calculate_e74_score"]
+    assert EVAL.expected_tools(by_id["LC01"], "v4.4") == ["fx_rate_summary"]
+    assert all(not q["history"] for q in spec["questions"])
+    assert [q["id"] for q in spec["questions"] if q.get("improvementCheck")] == ["LE03"]
+
+
+def test_le03_gets_the_improvement_check(tmp_path: Path) -> None:
+    stream = (
+        'event: agent.delta\ndata: {"text": "Reach TOPIK level 4 to add 40 points."}\n\n'
+        'event: agent.done\ndata: {"blocks": []}\n\n'
+    )
+    output = tmp_path / "run.jsonl"
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, text=stream))
+    code = _run(
+        _settings(),
+        "--question-set", "lang", "--questions", "LE01,LE03", "--output", str(output),
+        client=httpx.Client(transport=transport),
+    )  # fmt: skip
+    assert code == 0
+    le01, le03 = _rows(output)
+    assert "improvementCheck" not in le01
+    assert le03["improvementCheck"]["mentioned"] is True
+    summary = output.with_suffix(".md").read_text(encoding="utf-8")
+    assert "| server-default LE03#1 | en | O | O | O | X |" in summary
+
+
+def test_language_is_sent_and_checked(tmp_path: Path) -> None:
+    sent: list[dict[str, Any]] = []
+    stream = (
+        'event: agent.delta\ndata: {"text": "Điểm của bạn là 172 điểm."}\n\n'
+        'event: agent.done\ndata: {"blocks": []}\n\n'
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, text=stream)
+
+    output = tmp_path / "run.jsonl"
+    code = _run(
+        _settings(),
+        "--question-set", "lang", "--questions", "LE01", "--language", "vi",
+        "--output", str(output),
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )  # fmt: skip
+    assert code == 0
+    assert sent[0]["language"] == "vi"
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["language"] == "vi"
+    (row,) = _rows(output)
+    assert row["language"] == "vi"
+    assert row["languageCheck"]["inLanguage"] is True
+    assert row["languageCheck"]["mixed"] is False
+    assert "사용자 언어 vi" in output.with_suffix(".md").read_text(encoding="utf-8")
+
+
+def test_language_needs_the_ai_target() -> None:
+    with pytest.raises(SystemExit):
+        _run(_settings(), "--target", "spring", "--jwt", "x", "--language", "vi", "--output", "o")

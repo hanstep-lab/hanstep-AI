@@ -66,12 +66,14 @@ def engine_result(**overrides: Any) -> dict[str, Any]:
     }
     values.update(overrides)
     return {
-        "modelVersion": "ppocrv5-ko-v0lite",
+        "modelVersion": "ppocrv5-ko-mdet-mrec",
         "latencyMs": 640,
         "fields": [
             {"name": name, "value": value, "confidence": None if value is None else 0.97}
             for name, value in values.items()
         ],
+        # 로그용 크기 정보(#110). Spring 본문에는 들어가지 않는다.
+        "image": {"original": "4032x3024", "processed": "1600x1200", "resize_ms": 41},
     }
 
 

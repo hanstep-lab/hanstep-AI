@@ -139,3 +139,37 @@ def test_e74_rows_skip_number_check_and_check_card_values() -> None:
     row["answer"] = "Your score is 235 points."
     assert CMP.e74_card_in_answer(row) is False
     assert CMP.failed(row) == ["e74CardValue"]
+
+
+def test_language_section_and_language_failures(tmp_path: Path) -> None:
+    korean = "현재 E-7-4 확정 점수는 172점입니다."
+    rows = [
+        # #106 전 측정 행(languageCheck·language 없음): 답변으로 다시 계산하고 en으로 본다.
+        _row("v4.2", "E01", 1, answer=korean),
+        _row("v4.4", "E01", 1, answer="Your score is 172 points."),
+        _row(
+            "v4.4",
+            "E01",
+            2,
+            answer="Điểm của bạn là 172 điểm.",
+            languageCheck={
+                "language": "vi",
+                "mixed": False,
+                "mixedRaw": False,
+                "mostlyKorean": False,
+                "inLanguage": True,
+                "hangulShare": 0.0,
+                "viShare": 0.4,
+                "disallowedRuns": [],
+            },
+        ),
+    ]
+    path = _write(tmp_path / "lang.jsonl", rows)
+    out = tmp_path / "cmp.md"
+    assert CMP.main(["--base", "v4.2", "--new", "v4.4", "--output", str(out), str(path)]) == 0
+    text = out.read_text(encoding="utf-8")
+    assert "| v4.2 | en | 1 | 1/1 | 1/1 | 1/1 | 1/1 | 0/1 |" in text
+    assert "| v4.4 | en | 1 | 0/1 | 0/1 | 0/1 | 0/1 | 1/1 |" in text
+    assert "| v4.4 | vi | 1 | 0/1 | 0/1 | 0/1 | 0/1 | 1/1 |" in text
+    assert CMP.failed(rows[0]) == ["language"]
+    assert CMP.failed(rows[1]) == []

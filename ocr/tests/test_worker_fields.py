@@ -23,7 +23,7 @@ def test_converts_engine_fields_to_callback_body() -> None:
 
     assert body == {
         "documentId": 42,
-        "modelVersion": "ppocrv5-ko-v0lite",
+        "modelVersion": "ppocrv5-ko-mdet-mrec",
         "latencyMs": 640,
         "side": "FRONT",
         "fields": [
