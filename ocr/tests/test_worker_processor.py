@@ -257,8 +257,36 @@ def test_end_to_end_success_acks_and_logs_only_ids_and_timings(
     assert len(spring.results) == 1 and spring.failed == []
     assert "jobId=7 documentId=42" in caplog.text
     assert "latencyMs=640" in caplog.text and "timings=" in caplog.text
+    # 원본·처리 크기와 resize_ms(#110)가 단계별 시간과 함께 남는다.
+    assert "'original': '4032x3024', 'processed': '1600x1200', 'resize_ms': 41" in caplog.text
+    assert "modelVersion=ppocrv5-ko-mdet-mrec" in caplog.text
     for secret in ("REYES", "PHL", "1995-08-15", "E-9", "950815", OBJECT_KEY, str(tmp_path)):
         assert secret not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        None,
+        "4032x3024",
+        {"original": "MARK ANTHONY REYES", "processed": "1600 x 1200", "resize_ms": "41"},
+        {"original": "4032x3024", "resize_ms": True, "lines": ["MARK ANTHONY REYES"]},
+    ],
+)
+def test_only_well_formed_image_sizes_reach_the_log(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, image: object
+) -> None:
+    raw = engine_result()
+    raw["image"] = image
+    proc, _, _, _ = processor(tmp_path, engine=FakeEngine(result=raw))
+
+    with caplog.at_level(logging.INFO):
+        proc(MESSAGE)
+
+    assert "REYES" not in caplog.text and "1600 x 1200" not in caplog.text
+    assert "resize_ms" not in caplog.text
+    if isinstance(image, dict) and image.get("original") == "4032x3024":
+        assert "'original': '4032x3024'" in caplog.text
 
 
 def test_end_to_end_ocr_failed_goes_to_dlq_without_retry(tmp_path: Path) -> None:
