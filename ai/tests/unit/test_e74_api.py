@@ -12,9 +12,11 @@ from app.core.config import Settings
 from app.integrations.policy_gateway import UnconfiguredPolicyGateway
 from app.main import AppState, create_app
 from app.rag.embeddings import BgeM3Embedder
-from app.visa.e74.engine import assess_e74
+from app.visa.e74.engine import assess_e74, request_key
 from app.visa.e74.scenario import apply_scenario
-from app.visa.e74.schemas import MAX_VISA_EVIDENCES, E74Scenario
+from app.visa.e74.schemas import MAX_VISA_EVIDENCES, E74CalculateRequest, E74Scenario
+from app.visa.roadmap.schemas import RoadmapRequest
+from app.visa.roadmap.service import build_roadmap
 from tests.unit._e74_builders import AS_OF, draft_rules_2026, eligible_body, profile
 
 pytestmark = pytest.mark.unit
@@ -183,3 +185,57 @@ def test_apply_scenario_keeps_original_profile() -> None:
     # 원래 프로필은 그대로
     assert len(original.visa_evidences) == 3
     assert {r.annual_amount for r in original.income_records} == {31_500_000, 33_800_000}
+
+
+# --- 사용자 언어(requestKey에만 쓴다) -------------------------------------------------------
+
+
+def _with_language(language: str, scenario: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {**_request(scenario), "language": language}
+
+
+def test_language_defaults_to_korean_and_ko_keeps_the_old_key(client: TestClient) -> None:
+    assert E74CalculateRequest.model_validate(_request()).language == "ko"
+    old = _post(client, _request()).json()
+    assert _post(client, _with_language("ko")).json() == old
+    assert old["requestKey"] == request_key(old["ruleVersion"], AS_OF, profile(eligible_body()))
+
+
+@pytest.mark.parametrize("scenario", [None, {"asOfDate": "2026-12-01"}])
+def test_other_languages_change_only_the_request_key(
+    client: TestClient, scenario: dict[str, Any] | None
+) -> None:
+    korean = _post(client, _request(scenario)).json()
+    keys = {korean["requestKey"]}
+    for language in ("en", "vi", "zh"):
+        body = _post(client, _with_language(language, scenario)).json()
+        # 응답 문구(description·documents·question·reviewNotes)는 언어와 상관없이 그대로다.
+        assert {**body, "requestKey": None} == {**korean, "requestKey": None}
+        keys.add(body["requestKey"])
+    assert len(keys) == 4
+
+
+def test_calculate_and_roadmap_make_the_same_key_for_each_language(client: TestClient) -> None:
+    body = eligible_body()
+    for language in ("ko", "en", "vi", "zh"):
+        calculated = _post(
+            client, {"asOfDate": AS_OF.isoformat(), "profile": body, "language": language}
+        ).json()["requestKey"]
+        roadmap = build_roadmap(
+            RoadmapRequest.model_validate(
+                {
+                    "asOfDate": AS_OF.isoformat(),
+                    "stayExpiresOn": "2030-01-01",
+                    "profile": body,
+                    "language": language,
+                }
+            ),
+            include_draft=True,
+        )
+        assert roadmap.assessment_request_key == calculated, language
+
+
+def test_rejects_unknown_language(client: TestClient) -> None:
+    response = _post(client, _with_language("fr"))
+    assert response.status_code == 400
+    assert response.json()["code"] == "VALIDATION_ERROR"
