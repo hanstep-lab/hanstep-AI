@@ -69,4 +69,15 @@ def test_국가_영문라벨이_값보다_먼저_나와도_읽음():
 def test_정식_국가명도_코드로_변환(country, code):
     lines = [(country if t == "REPUBLIC OF UTOPIA" else t, s) for t, s in SAMPLE]
     assert fields(lines)["NATIONALITY"]["value"] == code
-    
+
+
+
+# 11/23 01_normal_c: OCR이 라벨과 국가명을 한 줄로 묶어 읽으면 다음 줄만 보다가 놓쳤다
+def test_국가_라벨과_값이_한줄일때():
+    f = fields([
+        ("국가/지역 REPUBLIC OF THE PHILIPPINES", 0.98),
+        ("Country/Rogion", 0.99),
+        ("체류자격", 0.90),
+        ("비전문취업(E-9)", 1.00),
+    ])
+    assert f["NATIONALITY"]["value"] == "PHL"

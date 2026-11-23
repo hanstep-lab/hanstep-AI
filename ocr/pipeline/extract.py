@@ -88,11 +88,16 @@ def _country_code(text):
             return COUNTRY_CODES[name]
     return None
 
-
 def _nationality(lines):
     i = _find_anchor(lines, COUNTRY_KEYWORDS)
     if i is None:
         return _field("NATIONALITY")
+    # 라벨과 값이 한 줄로 붙어 나오는 경우 (예: '국가/지역 REPUBLIC OF THE PHILIPPINES')
+    label_text, label_score = lines[i]
+    code = _country_code(label_text)
+    if code:
+        return _field("NATIONALITY", code, label_score)
+    # 라벨 다음 줄에 값이 있는 경우
     text, score = _next_upper_line(lines, i, STATUS_KEYWORDS + ISSUE_KEYWORDS)
     if text is None:
         return _field("NATIONALITY")
