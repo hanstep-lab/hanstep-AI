@@ -30,6 +30,7 @@ from app.visa.e74.rules import (
     RuleCategory,
 )
 from app.visa.e74.schemas import EvidenceType
+from app.visa.e74.texts import KOREAN, is_korean, rule_text
 
 logger = logging.getLogger(__name__)
 
@@ -75,101 +76,226 @@ class StepText:
 
 
 # --- 템플릿 ------------------------------------------------------------------------------
+# 문구는 (한국어, 영어) 표로 둔다. ko면 한국어(예전과 같은 글자), 그 밖(en·vi·zh)이면 영어.
+# 개선 방안 설명·서류 이름·규칙 설명의 영어는 엔진 값(descriptionEn·documentsEn, texts.RULES)을
+# 쓰고, 영어가 없으면(#108 전 저장 결과 등) 한국어를 그대로 둔다.
+
+TITLES: dict[str, tuple[str, str]] = {
+    "SUBMIT_INCOME": ("소득금액증명원 제출", "Submit your income certificate"),
+    "SUBMIT_KOREAN": ("한국어 성적 증빙 제출", "Submit your Korean test results"),
+    "SUBMIT_EMPLOYER_RECOMMENDATION": (
+        "고용기업 추천서 제출",
+        "Submit the employer recommendation letter",
+    ),
+    "SUBMIT_EVIDENCE": ("증빙 서류 제출", "Submit supporting documents"),
+    "RAISE_TOPIK": ("TOPIK {level}급 취득", "Get TOPIK level {level}"),
+    "RAISE_INCOME": (
+        "최근 2년 평균소득 올리기",
+        "Raise your average income for the last 2 years",
+    ),
+    "BONUS_EMPLOYER_RECOMMENDATION": (
+        "고용기업 추천서 받기",
+        "Get an employer recommendation letter",
+    ),
+    "BONUS_GOVERNMENT_RECOMMENDATION": (
+        "중앙부처·광역지자체 추천 받기",
+        "Get a ministry or provincial government recommendation",
+    ),
+    "BONUS_QUALIFICATION": ("국내 자격증·학위 취득", "Get a Korean certificate or degree"),
+    "BONUS_DRIVER_LICENSE": ("국내 운전면허 취득", "Get a Korean driver's license"),
+    "BONUS": ("가점 받기", "Earn bonus points"),
+    "FIX_MIN_INCOME": (
+        "최근 2년 평균소득 기준 맞추기",
+        "Meet the average income requirement for the last 2 years",
+    ),
+    "FIX_MIN_KOREAN": (
+        "한국어 최소 기준 맞추기",
+        "Meet the minimum Korean language requirement",
+    ),
+    "FIX_CONTRACT": (
+        "E-7-4 고용계약 조건 맞추기",
+        "Meet the E-7-4 employment contract conditions",
+    ),
+    "FIX_CURRENT_EMPLOYMENT": (
+        "현재 근무처에서 계속 일하기",
+        "Keep working at your current workplace",
+    ),
+    "FIX_EMPLOYER_RECOMMENDATION": (
+        "고용기업 추천 조건 갖추기",
+        "Meet the employer recommendation conditions",
+    ),
+    "FIX_REQUIREMENT": ("필수 요건 갖추기", "Meet the required conditions"),
+    "APPLY": ("E-7-4 전환 신청", "Apply to change to E-7-4"),
+}
+
+SENTENCES: dict[str, tuple[str, str]] = {
+    "REQUIRED_TAIL": (". 신청하려면 꼭 필요함", ". Required before you apply"),
+    "MERGED_WITH_BONUS": (
+        "{bonus}: 증빙 서류를 내면 필수요건 충족과 가점 +{points}점이 함께 확정됨. "
+        "필수요건: {requirements}",
+        "{bonus}: Submitting the documents confirms the required conditions and"
+        " +{points} bonus points together. Required conditions: {requirements}",
+    ),
+    "MERGED": (
+        "증빙 서류를 내면 필수요건이 함께 확정됨: {requirements}",
+        "Submitting the documents confirms these required conditions together: {requirements}",
+    ),
+    "APPLY_NEEDS_STAY": (
+        "체류기간 정보를 확인하면 신청 가능일을 계산할 수 있음(아래 질문에 답해 주세요)",
+        "Once your stay period is confirmed, the date you can apply from can be calculated"
+        " (please answer the questions below)",
+    ),
+    "APPLY_STAY_EXPIRES_FIRST": (
+        "신청 가능일({applicable})보다 체류 만료일({expires})이 먼저 옴. "
+        "체류기간 연장 여부를 먼저 확인해야 함",
+        "Your stay expires ({expires}) before the date you can apply from ({applicable})."
+        " Check first whether you can extend your stay",
+    ),
+    "APPLY_WINDOW": (
+        "{applicable}부터 체류 만료일({expires}) 전까지 출입국·외국인관서에 신청",
+        "Apply at an immigration office from {applicable} until your stay expires ({expires})",
+    ),
+    "APPLY_AFTER_REQUIRED": (
+        "위 필수 단계를 모두 마친 뒤 {applicable}부터 체류 만료일({expires}) 전까지 "
+        "출입국·외국인관서에 신청",
+        "After you finish all the required steps above, apply at an immigration office"
+        " from {applicable} until your stay expires ({expires})",
+    ),
+}
+# 필수요건 나열 구분자(한국어, 영어). 영어 규칙 설명에는 쉼표가 들어 있어 세미콜론으로 나눈다.
+REQUIREMENT_SEPARATORS = (", ", "; ")
 
 
-def _title(imp: Improvement, rule: Rule) -> str:
+def _pick(pair: tuple[str, str], language: str) -> str:
+    return pair[0] if is_korean(language) else pair[1]
+
+
+def _sentence(key: str, language: str, **params: object) -> str:
+    return _pick(SENTENCES[key], language).format(**params)
+
+
+def _title_key(imp: Improvement, rule: Rule) -> tuple[str, dict[str, object]]:
     c = rule.condition
     kind = imp.kind
     if kind is ImprovementKind.SUBMIT_EVIDENCE:
         if rule.category is RuleCategory.BASE_INCOME:
-            return "소득금액증명원 제출"
+            return "SUBMIT_INCOME", {}
         if rule.category is RuleCategory.BASE_KOREAN:
-            return "한국어 성적 증빙 제출"
+            return "SUBMIT_KOREAN", {}
         if (
             isinstance(c, EvidencePresent)
             and c.evidence_type is EvidenceType.RECOMMENDATION_EMPLOYER
         ):
-            return "고용기업 추천서 제출"
-        return "증빙 서류 제출"
+            return "SUBMIT_EMPLOYER_RECOMMENDATION", {}
+        return "SUBMIT_EVIDENCE", {}
     if kind is ImprovementKind.RAISE_LEVEL:
         if isinstance(c, KoreanLevel):
-            return f"TOPIK {c.topik_level_min}급 취득"
-        return "최근 2년 평균소득 올리기"
+            return "RAISE_TOPIK", {"level": c.topik_level_min}
+        return "RAISE_INCOME", {}
     if kind is ImprovementKind.OBTAIN_BONUS:
         if isinstance(c, EvidencePresent):
             if c.evidence_type is EvidenceType.RECOMMENDATION_EMPLOYER:
-                return "고용기업 추천서 받기"
-            return "중앙부처·광역지자체 추천 받기"
+                return "BONUS_EMPLOYER_RECOMMENDATION", {}
+            return "BONUS_GOVERNMENT_RECOMMENDATION", {}
         if isinstance(c, Qualification):
-            return "국내 자격증·학위 취득"
+            return "BONUS_QUALIFICATION", {}
         if isinstance(c, DriverLicense):
-            return "국내 운전면허 취득"
-        return "가점 받기"
+            return "BONUS_DRIVER_LICENSE", {}
+        return "BONUS", {}
     if isinstance(c, MinAverageIncome):
-        return "최근 2년 평균소득 기준 맞추기"
+        return "FIX_MIN_INCOME", {}
     if isinstance(c, MinKorean):
-        return "한국어 최소 기준 맞추기"
+        return "FIX_MIN_KOREAN", {}
     if isinstance(c, Contract):
-        return "E-7-4 고용계약 조건 맞추기"
+        return "FIX_CONTRACT", {}
     if isinstance(c, CurrentEmployment):
-        return "현재 근무처에서 계속 일하기"
+        return "FIX_CURRENT_EMPLOYMENT", {}
     if isinstance(c, EmployerRecommendation):
-        return "고용기업 추천 조건 갖추기"
-    return "필수 요건 갖추기"
+        return "FIX_EMPLOYER_RECOMMENDATION", {}
+    return "FIX_REQUIREMENT", {}
 
 
-def template_step_text(imp: Improvement, rule: Rule, *, required: bool) -> StepText:
-    description = imp.description
+def _title(imp: Improvement, rule: Rule, language: str = KOREAN) -> str:
+    key, params = _title_key(imp, rule)
+    return _pick(TITLES[key], language).format(**params)
+
+
+def improvement_description(imp: Improvement, language: str = KOREAN) -> str:
+    """개선 방안 설명. ko가 아니면 descriptionEn, 없으면 한국어."""
+    if is_korean(language) or imp.description_en is None:
+        return imp.description
+    return imp.description_en
+
+
+def improvement_documents(imp: Improvement, language: str = KOREAN) -> tuple[str, ...]:
+    """서류 이름(requiredEvidence). ko가 아니면 documentsEn, 없으면 한국어."""
+    if is_korean(language) or imp.documents_en is None:
+        return imp.documents
+    return imp.documents_en
+
+
+def rule_description(rule: Rule, language: str = KOREAN) -> str:
+    """규칙 설명. ko가 아니면 texts.RULES의 영어, 없으면 한국어."""
+    if is_korean(language):
+        return rule.description
+    return rule_text(rule.rule_code, rule.description).en or rule.description
+
+
+def template_step_text(
+    imp: Improvement, rule: Rule, *, required: bool, language: str = KOREAN
+) -> StepText:
+    description = improvement_description(imp, language)
     if required and imp.kind is not ImprovementKind.FIX_REQUIREMENT:
-        description += ". 신청하려면 꼭 필요함"
-    return StepText(title=_title(imp, rule), description=description)
+        description += _sentence("REQUIRED_TAIL", language)
+    return StepText(title=_title(imp, rule, language), description=description)
 
 
 def template_merged_text(
-    members: Sequence[tuple[Improvement, Rule]], *, required: bool
+    members: Sequence[tuple[Improvement, Rule]], *, required: bool, language: str = KOREAN
 ) -> StepText:
     """같은 서류로 끝나는 방안을 합친 단계(steps.group_steps). 필수요건 충족과 가점을 함께 말한다.
 
     합친 서류 제출 방안 중 점수가 없는 것은 필수요건이다(엔진의 요건 증빙 제출 방안).
     """
     lead, lead_rule = members[0]
-    requirements = ", ".join(rule.description for imp, rule in members if imp.points_gain is None)
+    separator = _pick(REQUIREMENT_SEPARATORS, language)
+    requirements = separator.join(
+        rule_description(rule, language) for imp, rule in members if imp.points_gain is None
+    )
     scored = next(((imp, rule) for imp, rule in members if imp.points_gain is not None), None)
     if scored is not None:
         bonus, bonus_rule = scored
-        description = (
-            f"{bonus_rule.description}: 증빙 서류를 내면 필수요건 충족과 "
-            f"가점 +{bonus.points_gain}점이 함께 확정됨. 필수요건: {requirements}"
+        description = _sentence(
+            "MERGED_WITH_BONUS",
+            language,
+            bonus=rule_description(bonus_rule, language),
+            points=bonus.points_gain,
+            requirements=requirements,
         )
     else:
-        description = f"증빙 서류를 내면 필수요건이 함께 확정됨: {requirements}"
+        description = _sentence("MERGED", language, requirements=requirements)
     if required:
-        description += ". 신청하려면 꼭 필요함"
-    return StepText(title=_title(lead, lead_rule), description=description)
+        description += _sentence("REQUIRED_TAIL", language)
+    return StepText(title=_title(lead, lead_rule, language), description=description)
 
 
 def template_apply_text(
-    applicable: date | None, expires: date, *, required_steps_pending: bool = False
+    applicable: date | None,
+    expires: date,
+    *,
+    required_steps_pending: bool = False,
+    language: str = KOREAN,
 ) -> StepText:
     """신청 단계 문장. 필수 단계가 남아 있으면 그 날짜에 바로 신청할 수 있다고 쓰지 않는다."""
-    title = "E-7-4 전환 신청"
+    title = _pick(TITLES["APPLY"], language)
     if applicable is None:
-        return StepText(
-            title, "체류기간 정보를 확인하면 신청 가능일을 계산할 수 있음(아래 질문에 답해 주세요)"
-        )
+        return StepText(title, _sentence("APPLY_NEEDS_STAY", language))
+    dates = {"applicable": applicable.isoformat(), "expires": expires.isoformat()}
     if applicable > expires:
-        return StepText(
-            title,
-            f"신청 가능일({applicable.isoformat()})보다 체류 만료일({expires.isoformat()})이 "
-            "먼저 옴. 체류기간 연장 여부를 먼저 확인해야 함",
-        )
-    window = (
-        f"{applicable.isoformat()}부터 체류 만료일({expires.isoformat()}) 전까지 "
-        "출입국·외국인관서에 신청"
-    )
+        return StepText(title, _sentence("APPLY_STAY_EXPIRES_FIRST", language, **dates))
     if required_steps_pending:
-        return StepText(title, f"위 필수 단계를 모두 마친 뒤 {window}")
-    return StepText(title, window)
+        return StepText(title, _sentence("APPLY_AFTER_REQUIRED", language, **dates))
+    return StepText(title, _sentence("APPLY_WINDOW", language, **dates))
 
 
 # --- LLM ---------------------------------------------------------------------------------

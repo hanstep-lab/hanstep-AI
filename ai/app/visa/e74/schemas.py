@@ -14,10 +14,13 @@ from __future__ import annotations
 
 from datetime import date
 from enum import StrEnum
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
+
+# 사용자 언어(users.preferred_language). 채팅 요청 language와 같은 값이다.
+Language = Literal["en", "ko", "vi", "zh"]
 
 # 금액 상한(1조 원). 금융 분석 INT-01과 같은 값.
 MAX_AMOUNT = 1_000_000_000_000
@@ -307,3 +310,7 @@ class E74CalculateRequest(CamelRequest):
     as_of_date: date = Field(description="계산 기준일. Spring이 정해서 보낸다")
     profile: E74Profile
     scenario: E74Scenario | None = None
+    language: Language = Field(
+        default="ko",
+        description="사용자 언어. 응답 문구는 그대로고 requestKey에만 쓴다(ko가 아니면 키에 넣음)",
+    )

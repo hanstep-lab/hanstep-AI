@@ -14,7 +14,7 @@ from typing import Any, Protocol
 from pydantic import ValidationError
 
 from app.visa.e74.dates import full_months_between
-from app.visa.e74.engine import E74Assessment, assess_e74
+from app.visa.e74.engine import E74Assessment, assess_e74, request_key
 from app.visa.e74.improvements import Improvement, ImprovementKind
 from app.visa.e74.results import ItemResult, ItemStatus
 from app.visa.e74.rules import (
@@ -27,6 +27,7 @@ from app.visa.e74.rules import (
 )
 from app.visa.e74.scenario import apply_scenario
 from app.visa.e74.schemas import E74Profile, ProfileEvidenceStatus
+from app.visa.e74.texts import KOREAN, is_korean
 from app.visa.roadmap.schemas import (
     Basis,
     ProjectedScore,
@@ -51,6 +52,7 @@ from app.visa.roadmap.steps import (
 from app.visa.roadmap.text import (
     LlmTextError,
     StepText,
+    improvement_documents,
     template_apply_text,
     template_merged_text,
     template_step_text,
@@ -206,10 +208,11 @@ def _llm_input(steps: Sequence[RoadmapStep]) -> list[dict[str, Any]]:
 
 
 def _write_text(
-    steps: tuple[RoadmapStep, ...], writer: StepWriter | None
+    steps: tuple[RoadmapStep, ...], writer: StepWriter | None, language: str = KOREAN
 ) -> tuple[tuple[RoadmapStep, ...], TextInfo]:
+    """LLM 문장(설정으로 켤 때). LLM 프롬프트는 한국어 전용이라 ko가 아니면 템플릿을 쓴다."""
     template = TextInfo(source=TextSource.TEMPLATE, model_id=None, prompt_version=None)
-    if writer is None:
+    if writer is None or not is_korean(language):
         return steps, template
     try:
         texts = writer.write(_llm_input(steps))
@@ -249,13 +252,17 @@ def _warnings(
     return tuple(warnings)
 
 
-def _action_step(order: int, group: StepGroup, rule_set: RuleSet) -> RoadmapStep:
+def _action_step(
+    order: int, group: StepGroup, rule_set: RuleSet, language: str = KOREAN
+) -> RoadmapStep:
     lead = group.lead
     if len(group.improvements) == 1:
-        text = template_step_text(lead, rule_set.rule(lead.rule_code), required=group.blocking)
+        text = template_step_text(
+            lead, rule_set.rule(lead.rule_code), required=group.blocking, language=language
+        )
     else:
         members = [(imp, rule_set.rule(imp.rule_code)) for imp in group.improvements]
-        text = template_merged_text(members, required=group.blocking)
+        text = template_merged_text(members, required=group.blocking, language=language)
     return RoadmapStep(
         order=order,
         kind=StepKind(lead.kind.value),
@@ -266,7 +273,7 @@ def _action_step(order: int, group: StepGroup, rule_set: RuleSet) -> RoadmapStep
         estimated_additional_score=group.points_gain,
         available_from=group.available_from,
         target_date=None,
-        required_evidence=lead.documents,
+        required_evidence=improvement_documents(lead, language),
         title=text.title,
         description=text.description,
     )
@@ -285,6 +292,7 @@ def build_roadmap(
 ) -> RoadmapResponse:
     available = default_rule_sets() if rule_sets is None else rule_sets
     profile, as_of, expires = request.profile, request.as_of_date, request.stay_expires_on
+    language = request.language
     assessment = assess_e74(profile, as_of, rule_sets=available, include_draft=include_draft)
     rule_set = _rule_set_of(assessment, available)
 
@@ -295,11 +303,14 @@ def build_roadmap(
         applicable = applicable_from(assessment, rule_set)
         chosen = select_steps(assessment, rule_set)
         steps = [
-            _action_step(order, group, rule_set)
+            _action_step(order, group, rule_set, language)
             for order, group in enumerate(group_steps(chosen), start=1)
         ]
     apply_text = template_apply_text(
-        applicable, expires, required_steps_pending=any(imp.blocking for imp in chosen)
+        applicable,
+        expires,
+        required_steps_pending=any(imp.blocking for imp in chosen),
+        language=language,
     )
     steps.append(
         RoadmapStep(
@@ -316,7 +327,7 @@ def build_roadmap(
             description=apply_text.description,
         )
     )
-    final_steps, text_info = _write_text(tuple(steps), writer)
+    final_steps, text_info = _write_text(tuple(steps), writer, language)
 
     if rule_set is None:
         projected = ProjectedScore(after_required_steps=None, after_all_steps=None)
@@ -342,7 +353,10 @@ def build_roadmap(
         as_of_date=as_of,
         rule_version=assessment.rule_version,
         rule_status=rule_status,
-        assessment_request_key=assessment.request_key,
+        # E-7-4 계산 API와 같은 키(ko면 예전과 같음, 그 밖이면 언어를 넣음).
+        assessment_request_key=request_key(
+            assessment.rule_version, as_of, profile, language=language
+        ),
         stay=StayInfo(
             visa_type_code=visa.visa_type_code,
             stay_started_on=visa.current_stay_started_on,
