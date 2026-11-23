@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 import pytest
@@ -17,6 +19,7 @@ from app.main import AppState, _roadmap_writer, create_app
 from app.rag.embeddings import BgeM3Embedder
 from app.visa.e74.improvements import Improvement, ImprovementKind
 from app.visa.e74.rules import RuleActor
+from app.visa.e74.texts import placeholders
 from app.visa.roadmap.schemas import RoadmapRequest, RoadmapResponse
 from app.visa.roadmap.service import StepWriter, build_roadmap
 from app.visa.roadmap.steps import group_steps
@@ -24,10 +27,15 @@ from app.visa.roadmap.text import (
     FORBIDDEN_PHRASE_CODES,
     FORBIDDEN_PHRASES,
     PROMPT_VERSION,
+    SENTENCES,
     SYSTEM_PROMPT,
+    TITLES,
     LlmStepWriter,
+    improvement_description,
+    improvement_documents,
     numbers_in,
     strip_disclaimers,
+    template_apply_text,
 )
 from tests.unit._e74_builders import draft_rules_2026
 from tests.unit._e74_cases import profile_json
@@ -742,3 +750,197 @@ def test_api_rejects_stay_already_expired() -> None:
     body = response.json()
     assert body["code"] == "VALIDATION_ERROR"
     assert body["requestId"] == "req-roadmap-2"
+
+
+# --- 사용자 언어 --------------------------------------------------------------------------
+
+HANGUL = re.compile(r"[가-힣]")
+TEXT_FIELDS = ("title", "description", "requiredEvidence")
+
+
+def _english(language: str = "en", **request_changes: Any) -> dict[str, Any]:
+    return _dump(_roadmap({**_request(**request_changes), "language": language}))
+
+
+def _without_text(d: dict[str, Any]) -> dict[str, Any]:
+    """문장(제목·설명·서류)과 키를 뺀 나머지. 숫자·코드값은 언어와 상관없이 같아야 한다."""
+    steps = [{k: v for k, v in s.items() if k not in TEXT_FIELDS} for s in d["steps"]]
+    return {**d, "steps": steps, "assessmentRequestKey": None}
+
+
+def test_language_defaults_to_korean_with_the_same_result() -> None:
+    assert RoadmapRequest.model_validate(_request()).language == "ko"
+    assert _english("ko") == _dump(_roadmap(_request()))
+
+
+def test_english_roadmap_writes_p04_steps_in_english() -> None:
+    steps = _english()["steps"]
+    assert [(s["title"], s["description"], s["requiredEvidence"]) for s in steps] == [
+        (
+            "Get an employer recommendation letter",
+            "Get this for +50 points: Employer recommendation (a requirement that also gives"
+            " bonus points). Required before you apply",
+            ["Employer recommendation letter (official form)", "Copy of the recommender's ID"],
+        ),
+        (
+            "Submit your income certificate",
+            "Average annual income over the last 2 years of KRW 25,000,000 or more and under"
+            " KRW 30,000,000: submit the documents to confirm +50 points",
+            ["Income certificate issued by the tax office (last 2 years)"],
+        ),
+        (
+            "Get TOPIK level 4",
+            "Raise your Korean to TOPIK level 4, KIIP stage 4, or a KIIP pre-test score of 81"
+            " or more: +40 points",
+            ["TOPIK score report, or KIIP completion certificate or pre-test score report"],
+        ),
+        (
+            "Apply to change to E-7-4",
+            "After you finish all the required steps above, apply at an immigration office"
+            " from 2026-12-05 until your stay expires (2027-10-04)",
+            [],
+        ),
+    ]
+
+
+@pytest.mark.parametrize("language", ["vi", "zh"])
+def test_other_languages_get_the_english_text(language: str) -> None:
+    assert _english(language)["steps"] == _english()["steps"]
+
+
+def test_numbers_and_codes_do_not_change_with_language() -> None:
+    korean = _without_text(_dump(_roadmap(_request())))
+    for language in ("en", "vi", "zh"):
+        assert _without_text(_english(language)) == korean
+
+
+@pytest.mark.parametrize("case_id", ["P03", "P04", "P05"])
+def test_english_steps_have_no_korean_and_fit_spring_columns(case_id: str) -> None:
+    body = {"asOfDate": AS_OF, "stayExpiresOn": EXPIRES, "profile": profile_json(case_id)}
+    steps = _dump(_roadmap({**body, "language": "en"}))["steps"]
+    for s in steps:
+        for text in (s["title"], s["description"], *s["requiredEvidence"]):
+            assert not HANGUL.search(text), text
+        # visa_roadmap_steps.title VARCHAR(200), description VARCHAR(1000)
+        assert len(s["title"]) <= 200 and len(s["description"]) <= 1000
+
+
+def test_english_merged_step_lists_the_requirement_in_english() -> None:
+    body = {"asOfDate": AS_OF, "stayExpiresOn": EXPIRES, "profile": profile_json("P03")}
+    ko = _dump(_roadmap(body))["steps"][0]
+    en = _dump(_roadmap({**body, "language": "en"}))["steps"][0]
+    assert ko["ruleCodes"] == en["ruleCodes"] == ["REC_EMPLOYER", "REQ_EMPLOYER_REC"]
+    assert ko["description"] == (
+        "고용기업 추천(필수요건이면서 가점): 증빙 서류를 내면 필수요건 충족과 가점 +50점이 함께"
+        " 확정됨. 필수요건: 현재 1년 이상 근무 중인 기업의 추천(귀책 없는 이직이면 직전 근무처와"
+        " 합산). 신청하려면 꼭 필요함"
+    )
+    assert en["title"] == "Submit the employer recommendation letter"
+    assert en["description"] == (
+        "Employer recommendation (a requirement that also gives bonus points): Submitting the"
+        " documents confirms the required conditions and +50 bonus points together. Required"
+        " conditions: A recommendation from the company where you have worked for 1 year or"
+        " more (the previous workplace counts if you left it through no fault of your own)."
+        " Required before you apply"
+    )
+
+
+@pytest.mark.parametrize(
+    ("applicable", "pending", "ko", "en"),
+    [
+        (
+            None,
+            False,
+            "체류기간 정보를 확인하면 신청 가능일을 계산할 수 있음(아래 질문에 답해 주세요)",
+            "Once your stay period is confirmed, the date you can apply from can be calculated"
+            " (please answer the questions below)",
+        ),
+        (
+            date(2027, 11, 1),
+            False,
+            "신청 가능일(2027-11-01)보다 체류 만료일(2027-10-04)이 먼저 옴. 체류기간 연장 여부를"
+            " 먼저 확인해야 함",
+            "Your stay expires (2027-10-04) before the date you can apply from (2027-11-01)."
+            " Check first whether you can extend your stay",
+        ),
+        (
+            date(2026, 12, 5),
+            False,
+            "2026-12-05부터 체류 만료일(2027-10-04) 전까지 출입국·외국인관서에 신청",
+            "Apply at an immigration office from 2026-12-05 until your stay expires (2027-10-04)",
+        ),
+        (
+            date(2026, 12, 5),
+            True,
+            "위 필수 단계를 모두 마친 뒤 2026-12-05부터 체류 만료일(2027-10-04) 전까지"
+            " 출입국·외국인관서에 신청",
+            "After you finish all the required steps above, apply at an immigration office"
+            " from 2026-12-05 until your stay expires (2027-10-04)",
+        ),
+    ],
+)
+def test_apply_step_text_in_each_language(
+    applicable: date | None, pending: bool, ko: str, en: str
+) -> None:
+    expires = date(2027, 10, 4)
+    korean = template_apply_text(applicable, expires, required_steps_pending=pending)
+    english = template_apply_text(
+        applicable, expires, required_steps_pending=pending, language="en"
+    )
+    assert (korean.title, korean.description) == ("E-7-4 전환 신청", ko)
+    assert (english.title, english.description) == ("Apply to change to E-7-4", en)
+
+
+def test_every_template_has_korean_and_english_with_the_same_slots() -> None:
+    for table in (TITLES, SENTENCES):
+        for key, (ko, en) in table.items():
+            assert HANGUL.search(ko), key
+            assert not HANGUL.search(en), key
+            assert placeholders(ko) == placeholders(en), key
+
+
+def test_english_falls_back_to_korean_when_engine_english_is_missing() -> None:
+    # #108 전 저장 결과처럼 descriptionEn·documentsEn이 없는 개선 방안.
+    imp = _imp("INCOME_25_30", SUBMIT, INCOME_DOCUMENTS, 50)
+    assert imp.description_en is None and imp.documents_en is None
+    assert improvement_description(imp, "en") == "INCOME_25_30"
+    assert improvement_documents(imp, "en") == INCOME_DOCUMENTS
+    english = imp.model_copy(update={"description_en": "x", "documents_en": ("y",)})
+    assert (improvement_description(english, "en"), improvement_documents(english, "en")) == (
+        "x",
+        ("y",),
+    )
+    assert (improvement_description(english), improvement_documents(english)) == (
+        "INCOME_25_30",
+        INCOME_DOCUMENTS,
+    )
+
+
+def test_english_roadmap_does_not_call_the_korean_llm_writer() -> None:
+    writer, messages = _writer(_rewrite("준비해요."))
+    d = _dump(_roadmap({**_request(), "language": "en"}, writer))
+    assert messages.calls == []
+    assert d["text"] == {
+        "source": "TEMPLATE",
+        "modelId": None,
+        "promptVersion": None,
+        "fallbackReason": None,
+    }
+    assert d["steps"] == _english()["steps"]
+
+
+def test_request_key_has_language_only_when_not_korean() -> None:
+    ko = _dump(_roadmap(_request()))["assessmentRequestKey"]
+    keys = {lang: _english(lang)["assessmentRequestKey"] for lang in ("ko", "en", "vi", "zh")}
+    assert keys["ko"] == ko
+    assert len({ko, keys["en"], keys["vi"], keys["zh"]}) == 4
+
+
+def test_api_takes_language_and_rejects_unknown_values() -> None:
+    headers = {"X-Internal-Token": TOKEN}
+    response = _client().post(ROADMAP, json={**_request(), "language": "en"}, headers=headers)
+    assert response.status_code == 200
+    assert response.json() == _english()
+    rejected = _client().post(ROADMAP, json={**_request(), "language": "fr"}, headers=headers)
+    assert rejected.status_code == 400
+    assert rejected.json()["code"] == "VALIDATION_ERROR"

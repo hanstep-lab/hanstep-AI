@@ -47,7 +47,7 @@ from app.visa.e74.rules import (
     select_rule_set,
 )
 from app.visa.e74.schemas import E74Profile, E74Scenario
-from app.visa.e74.texts import review_text
+from app.visa.e74.texts import KOREAN, is_korean, review_text
 
 BASE_CATEGORIES = (RuleCategory.BASE_INCOME, RuleCategory.BASE_KOREAN, RuleCategory.BASE_AGE)
 GATE_CATEGORIES = (RuleCategory.REQUIREMENT, RuleCategory.EXCLUSION)
@@ -128,11 +128,14 @@ def request_key(
     profile: E74Profile,
     *,
     scenario: E74Scenario | None = None,
+    language: str = KOREAN,
 ) -> str:
     """누적·재사용 키. 목록 순서가 달라도 같은 키가 나오게 정렬한 뒤 해시한다.
 
     시나리오 계산은 원래 프로필 + 시나리오로 키를 만든다. 가정을 반영한 프로필이 우연히
     실제 프로필과 같아져도 기본 계산과 키가 겹치지 않는다. 시나리오가 없으면 키는 예전과 같다.
+    언어가 ko가 아니면 언어도 넣는다. 언어별 결과(로드맵 문장)가 섞이지 않게 하고, ko 키는
+    예전과 같다. E-7-4 계산 API와 로드맵 API가 이 함수로 같은 키를 만든다.
     """
     body = profile.model_dump(mode="json", by_alias=True)
     body["employmentHistories"].sort(key=lambda r: r["employmentHistoryId"])
@@ -145,6 +148,8 @@ def request_key(
     }
     if scenario is not None:
         payload["scenario"] = scenario.model_dump(mode="json", by_alias=True)
+    if not is_korean(language):
+        payload["language"] = language
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

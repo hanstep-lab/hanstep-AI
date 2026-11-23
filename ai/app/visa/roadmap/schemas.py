@@ -12,7 +12,7 @@ from app.visa.e74.engine import MissingInputSummary
 from app.visa.e74.improvements import ImprovementKind
 from app.visa.e74.results import CamelResponse, ItemStatus
 from app.visa.e74.rules import ApprovalStatus, RuleActor, RuleCategory
-from app.visa.e74.schemas import CamelRequest, E74Profile
+from app.visa.e74.schemas import CamelRequest, E74Profile, Language
 
 
 class RoadmapRequest(CamelRequest):
@@ -23,6 +23,10 @@ class RoadmapRequest(CamelRequest):
         description="현재 체류 만료일(외국인등록증). 프로필에 없어 따로 받는다"
     )
     profile: E74Profile
+    language: Language = Field(
+        default="ko",
+        description="사용자 언어. ko면 한국어, 그 밖이면 영어 문장. ko가 아니면 requestKey에 넣음",
+    )
 
     @model_validator(mode="after")
     def _not_expired(self) -> Self:

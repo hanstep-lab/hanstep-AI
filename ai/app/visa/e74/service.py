@@ -14,6 +14,7 @@ from app.visa.e74.engine import E74Assessment, assess_e74, request_key
 from app.visa.e74.rules import ApprovalStatus, RuleSet, default_rule_sets
 from app.visa.e74.scenario import apply_scenario, scenario_as_of
 from app.visa.e74.schemas import E74CalculateRequest, E74Scenario
+from app.visa.e74.texts import is_korean
 
 
 class E74ScenarioError(ValueError):
@@ -58,10 +59,15 @@ def calculate(
 
     assessment = assess_e74(profile, as_of, rule_sets=available, include_draft=include_draft)
     key = assessment.request_key
-    if scenario is not None:
+    if scenario is not None or not is_korean(request.language):
         # 원래 프로필 + 요청 기준일 + 시나리오로 키를 만든다(기본 계산과 겹치지 않게).
+        # ko가 아니면 언어도 넣는다(로드맵 assessmentRequestKey와 같은 키). 응답 문구는 그대로다.
         key = request_key(
-            assessment.rule_version, request.as_of_date, request.profile, scenario=scenario
+            assessment.rule_version,
+            request.as_of_date,
+            request.profile,
+            scenario=scenario,
+            language=request.language,
         )
     rule_status = next(
         (rs.approval_status for rs in available if rs.rule_version == assessment.rule_version),
