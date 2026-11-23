@@ -1,5 +1,7 @@
 """extract.py 회귀 테스트. OCR 없이 글자 목록만 넣어서 필드 추출 규칙을 확인한다."""
 
+from datetime import date
+
 import pytest
 
 from pipeline.extract import extract_fields
@@ -81,3 +83,53 @@ def test_국가_라벨과_값이_한줄일때():
         ("비전문취업(E-9)", 1.00),
     ])
     assert f["NATIONALITY"]["value"] == "PHL"
+
+
+# 값 검증: 신뢰도가 높아도 규칙에 안 맞으면 신뢰도를 0.5로 낮춰 사용자 확인으로 넘긴다 (값은 그대로)
+TODAY = date(2026, 11, 23)
+
+
+def checked(lines):
+    return {f["name"]: f for f in extract_fields(lines, today=TODAY)}
+
+
+def test_등록번호_7번째_숫자가_외국인_번호면_신뢰도_유지():
+    f = checked([("950101-5234567", 0.99)])
+    assert f["REGISTRATION_NO"] == {"name": "REGISTRATION_NO", "value": "950101-5******", "confidence": 0.99}
+    assert f["BIRTH_DATE"] == {"name": "BIRTH_DATE", "value": "1995-01-01", "confidence": 0.99}
+
+
+def test_등록번호_7번째_숫자가_5678이_아니면_등록번호와_생년월일_신뢰도_낮춤():
+    f = checked([("950101-1234567", 0.99)])
+    assert f["REGISTRATION_NO"] == {"name": "REGISTRATION_NO", "value": "950101-1******", "confidence": 0.5}
+    assert f["BIRTH_DATE"] == {"name": "BIRTH_DATE", "value": "1995-01-01", "confidence": 0.5}
+
+
+def test_생년월일이_정상_범위면_신뢰도_유지():
+    f = checked([("110101-7234567", 0.99)])  # 2011-11-23 기준 만 15세 (경계)
+    assert f["BIRTH_DATE"] == {"name": "BIRTH_DATE", "value": "2011-01-01", "confidence": 0.99}
+
+
+@pytest.mark.parametrize("reg, birth", [
+    ("300101-7234567", "2030-01-01"),  # 미래 날짜
+    ("150101-7234567", "2015-01-01"),  # 만 11세
+    ("200101-5234567", "1920-01-01"),  # 만 106세
+])
+def test_생년월일이_범위를_벗어나면_신뢰도_낮춤(reg, birth):
+    f = checked([(reg, 0.99)])
+    assert f["BIRTH_DATE"] == {"name": "BIRTH_DATE", "value": birth, "confidence": 0.5}
+    assert f["REGISTRATION_NO"]["confidence"] == 0.99  # 생년월일 규칙은 등록번호를 건드리지 않음
+
+
+def test_체류자격_첫글자가_A부터_H면_신뢰도_유지():
+    assert checked([("E-9", 0.99)])["VISA_TYPE"] == {"name": "VISA_TYPE", "value": "E-9", "confidence": 0.99}
+
+
+def test_체류자격_첫글자가_A부터_H가_아니면_신뢰도_낮춤():
+    assert checked([("K-9", 0.99)])["VISA_TYPE"] == {"name": "VISA_TYPE", "value": "K-9", "confidence": 0.5}
+
+
+def test_값이_없는_필드는_검사하지_않음():
+    f = checked([("관련 없는 줄", 0.99)])
+    for name in ["REGISTRATION_NO", "BIRTH_DATE", "VISA_TYPE"]:
+        assert f[name] == {"name": name, "value": None, "confidence": None}
