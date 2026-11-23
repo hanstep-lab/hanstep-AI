@@ -1,4 +1,5 @@
-"""챗봇 비자 도구: 정책 검색(search_visa_policies)과 E-7-4 점수(calculate_e74_score).
+"""챗봇 비자 도구: 정책 검색(search_visa_policies), E-7-4 점수(calculate_e74_score),
+로드맵(get_visa_roadmap, #127. 로드맵 규칙이 있는 프롬프트 버전에서만 붙는다).
 
 입력·출력 형식은 app.visa.tools(#22)를 따른다.
 - 사용자 id와 요청 id는 요청마다 고정된다. LLM 인자로는 다른 사용자를 지정할 수 없다.
@@ -8,6 +9,10 @@
   계산(scenario.asOfDate)으로 옮긴다. 일반 계산으로 저장되면 앱의 최신 평가(일반 계산 중 마지막
   행)를 덮기 때문이다. LLM이 보는 도구 설명은 그대로이고, 결과의 asOfDate도 계산한 날짜 그대로다
   (isScenario만 true).
+- 로드맵: Spring 내부 API가 MySQL 프로필·체류 만료일로 만들고 저장한 뒤 행 id를 준다. 기준일은 늘
+  오늘(KST)이다. 앱 비자 탭은 마지막으로 저장된 로드맵을 보여 주므로 다른 날짜는 거절한다.
+  단계 문장의 언어는 Spring이 정한다(로드맵 요청 language). 카드·결과 참조는 roadmap_records로
+  만든다.
 - 검색: 운영 검색(SearchService: MongoDB 벡터 검색 + Spring 승인 확인). 근거는 실제 검색 결과의
   문서·청크 id만 쓴다.
 - 채팅 기록(agent.tool_call의 arguments)에는 recorded_arguments를 거친 값만 남긴다(감점 6문항 답
@@ -20,9 +25,9 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import date, datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -35,25 +40,32 @@ from app.rag.retrieval import SearchHit, SearchService, SearchUnavailableError
 from app.visa.e74.schemas import E74Scenario
 from app.visa.tools import (
     CALCULATE_E74_SCORE,
+    GET_VISA_ROADMAP,
     SEARCH_VISA_POLICIES,
     TOOL_INPUTS,
     CalculateE74ScoreInput,
     E74AssessmentToolRequest,
     E74AssessmentToolResponse,
+    GetVisaRoadmapInput,
+    RoadmapToolRequest,
+    RoadmapToolResponse,
     SearchVisaPoliciesInput,
     VisaToolRecords,
     e74_records,
     policy_search_records,
     recorded_arguments,
+    roadmap_records,
     tool_definitions,
 )
 
 logger = logging.getLogger(__name__)
 
 SEOUL = ZoneInfo("Asia/Seoul")
+# 늘 붙는 비자 도구. 로드맵(GET_VISA_ROADMAP)은 VisaTools(roadmap=True)일 때만 더한다.
 VISA_TOOL_NAMES = (SEARCH_VISA_POLICIES, CALCULATE_E74_SCORE)
 # 상태·LLM에 줄 내용(+ 결과 참조·근거·카드)으로 ToolOutcome을 만든다. 지연 시간은 이 함수가 잰다.
 OutcomeFn = Callable[..., ToolOutcome]
+T = TypeVar("T")
 
 # Spring 실패 이유별로 LLM에 알려 줄 문장. 그 밖의 실패는 UNAVAILABLE.
 E74_FAILURES = {
@@ -82,9 +94,29 @@ E74_REJECTIONS = {
         "(RULE_SET_NOT_REGISTERED). Changing the arguments will not help"
     ),
 }
+# 로드맵(#127) Spring 실패 이유별 문장. 점수와 같은 이유(프로필·규칙)에 체류 만료일 이유가 더 있다.
+ROADMAP_FAILURES = {
+    "NO_VISA_PROFILE": E74_FAILURES["NO_VISA_PROFILE"],
+    "RULE_SET_NOT_APPROVED": (
+        "E-7-4 scoring rules are not approved yet, so no roadmap is available"
+    ),
+    "NO_APPLICABLE_RULE_SET": "no E-7-4 scoring rules apply to today",
+    "NO_STAY_EXPIRY": (
+        "the user's stay expiry date is not saved: they need to register their visa information "
+        "(alien registration card) in the app first"
+    ),
+    "STAY_EXPIRED": (
+        "the user's saved stay has already expired, so no roadmap can be made; suggest checking "
+        "with HiKorea (1345)"
+    ),
+}
 # asOfDate(오늘이 아님)와 scenario.asOfDate가 둘 다 있고 서로 다를 때.
 AS_OF_CONFLICT = (
     "invalid arguments: asOfDate (differs from scenario.asOfDate). Give the date only once"
+)
+# 로드맵에 오늘이 아닌 asOfDate를 줬을 때. 저장된 로드맵이 앱의 최신 로드맵이 되기 때문이다.
+ROADMAP_TODAY_ONLY = (
+    "invalid arguments: asOfDate. The roadmap is made only for today; call again without asOfDate"
 )
 # Spring은 감점·제외 답을 profile.legalDeclaration 아래로 검증한다. LLM이 쓰는 인자 이름으로 바꾼다.
 _LEGAL_FIELD_PREFIX = "profile.legalDeclaration"
@@ -116,6 +148,34 @@ class SpringE74Source:
             request_id=request_id,
         )
         return E74AssessmentToolResponse.model_validate(data)
+
+
+class VisaRoadmapSource(Protocol):
+    """로드맵을 만들어(또는 저장된 것을 재사용해) 돌려주는 곳."""
+
+    async def create(
+        self, user_id: int, request: RoadmapToolRequest, request_id: str | None
+    ) -> RoadmapToolResponse: ...
+
+
+class SpringRoadmapSource:
+    """Spring POST /internal/v1/ai-context/users/{userId}/visa-roadmaps."""
+
+    def __init__(self, client: SpringInternalClient, timeout: float) -> None:
+        self._client = client
+        self._timeout = timeout
+
+    async def create(
+        self, user_id: int, request: RoadmapToolRequest, request_id: str | None
+    ) -> RoadmapToolResponse:
+        data = await asyncio.to_thread(
+            self._client.visa_roadmap,
+            user_id,
+            request.model_dump(mode="json", by_alias=True),
+            timeout=self._timeout,
+            request_id=request_id,
+        )
+        return RoadmapToolResponse.model_validate(data)
 
 
 class PolicySearchSource(Protocol):
@@ -152,6 +212,8 @@ class VisaTools:
         request_id: str | None,
         timeout: float,
         language: str = "en",
+        roadmap: bool = False,
+        roadmap_source: VisaRoadmapSource | None = None,
     ) -> None:
         self._e74 = e74_source
         self._search = search_source
@@ -160,10 +222,14 @@ class VisaTools:
         self._timeout = timeout
         # 채팅 요청의 사용자 언어. E-7-4 결과의 LLM 문구를 고른다(ko면 한국어, 그 밖이면 영어).
         self._language = language
+        # 로드맵 도구는 로드맵 규칙이 있는 프롬프트 버전에서만 붙인다(#127). 붙었는데 Spring 설정이
+        # 없으면(roadmap_source None) 점수와 같이 FAILED로 답한다.
+        self._names = (*VISA_TOOL_NAMES, GET_VISA_ROADMAP) if roadmap else VISA_TOOL_NAMES
+        self._roadmap = roadmap_source
 
     @property
     def schemas(self) -> list[dict[str, Any]]:
-        return [d for d in tool_definitions() if d["name"] in VISA_TOOL_NAMES]
+        return [d for d in tool_definitions() if d["name"] in self._names]
 
     async def run(self, name: str, arguments: dict[str, Any]) -> ToolOutcome:
         started = time.perf_counter()
@@ -174,7 +240,7 @@ class VisaTools:
             latency = round((time.perf_counter() - started) * 1000)
             return ToolOutcome(name, recorded, status, text, latency, **extra)
 
-        model = TOOL_INPUTS.get(name) if name in VISA_TOOL_NAMES else None
+        model = TOOL_INPUTS.get(name) if name in self._names else None
         if model is None:
             return outcome("REJECTED", "unknown tool", error_code="UNKNOWN_TOOL")
         try:
@@ -189,6 +255,8 @@ class VisaTools:
             )
         if isinstance(parsed, CalculateE74ScoreInput):
             return await self._calculate(parsed, outcome)
+        if isinstance(parsed, GetVisaRoadmapInput):
+            return await self._create_roadmap(parsed, outcome)
         assert isinstance(parsed, SearchVisaPoliciesInput)
         return await self._search_policies(parsed, outcome)
 
@@ -212,26 +280,34 @@ class VisaTools:
             scenario=scenario,
             legal_declaration=parsed.legal_declaration,
         )
-        try:
-            response = await asyncio.wait_for(
-                self._e74.assess(self._user_id, request, self._request_id), self._timeout
-            )
-        except (TimeoutError, httpx.TimeoutException):
-            return outcome("TIMEOUT", UNAVAILABLE, error_code="SPRING_TIMEOUT")
-        except SpringApiError as exc:
-            error_code = f"SPRING_HTTP_{exc.status}"
-            rejection = E74_REJECTIONS.get(exc.reason or exc.code)
-            if rejection is not None and 400 <= exc.status < 500:
-                content = rejection.format(fields=_field_list(exc.fields))
-                return outcome("REJECTED", content, error_code=error_code)
-            message = E74_FAILURES.get(exc.reason or "", UNAVAILABLE)
-            return outcome("FAILED", message, error_code=error_code)
-        except ValidationError:
-            return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
-        except Exception as exc:  # 연결 실패 등: 점수 없이 답하게 한다
-            logger.warning("e74 assessment failed: %s", type(exc).__name__)
-            return outcome("FAILED", UNAVAILABLE, error_code="SPRING_ERROR")
-        return _succeeded(outcome, lambda: e74_records(response, self._language))
+        result = await _spring_result(
+            self._e74.assess(self._user_id, request, self._request_id),
+            self._timeout,
+            outcome,
+            E74_FAILURES,
+            "e74 assessment",
+        )
+        if isinstance(result, ToolOutcome):
+            return result
+        return _succeeded(outcome, lambda: e74_records(result, self._language))
+
+    async def _create_roadmap(self, parsed: GetVisaRoadmapInput, outcome: OutcomeFn) -> ToolOutcome:
+        if self._roadmap is None:
+            return outcome("FAILED", UNAVAILABLE, error_code="SPRING_NOT_CONFIGURED")
+        today = kst_today()
+        if parsed.as_of_date not in (None, today):
+            return outcome("REJECTED", ROADMAP_TODAY_ONLY, error_code="INVALID_ARGUMENTS")
+        request = RoadmapToolRequest(as_of_date=today)
+        result = await _spring_result(
+            self._roadmap.create(self._user_id, request, self._request_id),
+            self._timeout,
+            outcome,
+            ROADMAP_FAILURES,
+            "visa roadmap",
+        )
+        if isinstance(result, ToolOutcome):
+            return result
+        return _succeeded(outcome, lambda: roadmap_records(result, self._language))
 
     async def _search_policies(
         self, parsed: SearchVisaPoliciesInput, outcome: OutcomeFn
@@ -254,6 +330,37 @@ class VisaTools:
             logger.warning("policy search failed: %s", type(exc).__name__)
             return outcome("FAILED", UNAVAILABLE, error_code="SEARCH_ERROR")
         return _succeeded(outcome, lambda: policy_search_records(hits))
+
+
+async def _spring_result(
+    call: Awaitable[T],
+    seconds: float,
+    outcome: OutcomeFn,
+    failures: Mapping[str, str],
+    what: str,
+) -> T | ToolOutcome:
+    """Spring 도구 API 결과. 실패하면 상태·LLM 문장·오류 코드를 담은 ToolOutcome을 돌려준다.
+
+    입력·저장 데이터 문제(4xx 중 E74_REJECTIONS)는 REJECTED, 이유를 아는 실패는 failures 문장,
+    그 밖(5xx·시간 초과·연결 오류·응답 형식 오류)은 "지금 쓸 수 없음"이다.
+    """
+    try:
+        return await asyncio.wait_for(call, seconds)
+    except (TimeoutError, httpx.TimeoutException):
+        return outcome("TIMEOUT", UNAVAILABLE, error_code="SPRING_TIMEOUT")
+    except SpringApiError as exc:
+        error_code = f"SPRING_HTTP_{exc.status}"
+        rejection = E74_REJECTIONS.get(exc.reason or exc.code)
+        if rejection is not None and 400 <= exc.status < 500:
+            content = rejection.format(fields=_field_list(exc.fields))
+            return outcome("REJECTED", content, error_code=error_code)
+        message = failures.get(exc.reason or "", UNAVAILABLE)
+        return outcome("FAILED", message, error_code=error_code)
+    except ValidationError:
+        return outcome("FAILED", UNAVAILABLE, error_code="INVALID_RESPONSE")
+    except Exception as exc:  # 연결 실패 등: 결과 없이 답하게 한다
+        logger.warning("%s failed: %s", what, type(exc).__name__)
+        return outcome("FAILED", UNAVAILABLE, error_code="SPRING_ERROR")
 
 
 def _field_list(fields: tuple[tuple[str, str], ...]) -> str:

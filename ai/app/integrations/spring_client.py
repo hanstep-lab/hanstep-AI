@@ -317,15 +317,33 @@ class SpringInternalClient:
         timeout: float,
         request_id: str | None = None,
     ) -> dict[str, Any]:
+        return self._tool_post(
+            f"/internal/v1/ai-context/users/{user_id}/e74-assessments", body, timeout, request_id
+        )
+
+    # 채팅 도구 get_visa_roadmap(#127): MySQL 프로필·체류 만료일로 로드맵 생성·저장.
+    # Spring이 AI 로드맵 API를 부르고 visa_roadmaps에 저장한다(같은 평가·만료일이면 저장된 것).
+    # 오류는 e74_assessment와 같다.
+    def visa_roadmap(
+        self,
+        user_id: int,
+        body: dict[str, Any],
+        *,
+        timeout: float,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._tool_post(
+            f"/internal/v1/ai-context/users/{user_id}/visa-roadmaps", body, timeout, request_id
+        )
+
+    def _tool_post(
+        self, path: str, body: dict[str, Any], timeout: float, request_id: str | None
+    ) -> dict[str, Any]:
+        """채팅 도구용 POST 한 번. 2xx가 아니면 code·message·details를 담아 올린다."""
         headers = dict(self._headers)
         if request_id:
             headers["X-Request-Id"] = request_id
-        response = self._client.post(
-            f"/internal/v1/ai-context/users/{user_id}/e74-assessments",
-            json=body,
-            headers=headers,
-            timeout=timeout,
-        )
+        response = self._client.post(path, json=body, headers=headers, timeout=timeout)
         if not response.is_success:
             code, message, reason = "HTTP_ERROR", "", None
             fields: tuple[tuple[str, str], ...] = ()

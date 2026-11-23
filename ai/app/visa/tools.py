@@ -164,6 +164,18 @@ E74_SCHEMA_DESCRIPTIONS: dict[str, str] = {
         " records for that year)."
     ),
 }
+# LLM에 보이는 get_visa_roadmap 설명(영어, #127). 입력 모델 docstring은 코드 문서로 둔다.
+# 채팅 도구는 늘 오늘(KST) 로드맵만 만든다(app.chat.visa_tools). 다른 날짜는 거절한다.
+ROADMAP_TOOL_DESCRIPTION = (
+    "Make the user's E-7-4 roadmap from their saved profile: the steps to take in order, the"
+    " expected score after them and the date they can apply. Call it for questions about how"
+    " the user can switch to E-7-4, what to prepare and in what order, or their visa roadmap."
+    " Do not write code values from the result (for example kind, actor or rule codes) in the"
+    " answer; use the step titles and descriptions."
+)
+ROADMAP_SCHEMA_DESCRIPTIONS: dict[str, str] = {
+    "properties.asOfDate": "Leave it out. The roadmap is always made for today (KST).",
+}
 
 
 def _with_descriptions(node: Any, texts: Mapping[str, str], path: str = "") -> Any:
@@ -185,7 +197,8 @@ def _with_descriptions(node: Any, texts: Mapping[str, str], path: str = "") -> A
 def tool_definitions() -> list[dict[str, Any]]:
     """LLM 도구 정의(name, description, input_schema). 설명은 입력 모델의 docstring이다.
 
-    calculate_e74_score만 영어 설명(E74_TOOL_DESCRIPTION, E74_SCHEMA_DESCRIPTIONS)을 쓴다(#108).
+    calculate_e74_score(#108)와 get_visa_roadmap(#127)은 영어 설명(*_TOOL_DESCRIPTION,
+    *_SCHEMA_DESCRIPTIONS)을 쓴다.
     """
     definitions = []
     for name, model in TOOL_INPUTS.items():
@@ -195,6 +208,9 @@ def tool_definitions() -> list[dict[str, Any]]:
         if name == CALCULATE_E74_SCORE:
             description = E74_TOOL_DESCRIPTION
             schema = _with_descriptions(schema, E74_SCHEMA_DESCRIPTIONS)
+        elif name == GET_VISA_ROADMAP:
+            description = ROADMAP_TOOL_DESCRIPTION
+            schema = _with_descriptions(schema, ROADMAP_SCHEMA_DESCRIPTIONS)
         definitions.append({"name": name, "description": description, "input_schema": schema})
     return definitions
 
@@ -413,14 +429,9 @@ def _missing_block(
     return (MissingInputsBlock(fields=fields),)
 
 
-def _roadmap_llm_missing(missing: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """로드맵 LLM 결과의 missingInputs. questionEn은 빼서 #101에서 잰 모양을 그대로 둔다."""
-    return [{k: v for k, v in m.items() if k != "questionEn"} for m in missing]
-
-
 def _llm_missing(missing: Sequence[MissingInputSummary], language: str) -> list[dict[str, Any]]:
-    """E-7-4 LLM 결과의 missingInputs(#108). 모양은 그대로({field, question, ruleCodes})이고
-    question은 ko면 엔진 한국어 문구, 그 밖이면 카드와 같은 영어 문구다."""
+    """E-7-4·로드맵 LLM 결과의 missingInputs(#108, #127). 모양은 그대로({field, question,
+    ruleCodes})이고 question은 ko면 엔진 한국어 문구, 그 밖이면 카드와 같은 영어 문구다."""
     return [
         {
             "field": m.field,
@@ -522,8 +533,13 @@ def e74_records(response: E74AssessmentToolResponse, language: str = "en") -> Vi
     )
 
 
-def roadmap_records(response: RoadmapToolResponse) -> VisaToolRecords:
-    """로드맵 결과 → LLM 요약, 결과 참조, 근거, 로드맵 카드(+ 재질의 카드)."""
+def roadmap_records(response: RoadmapToolResponse, language: str = "en") -> VisaToolRecords:
+    """로드맵 결과 → LLM 요약, 결과 참조, 근거, 로드맵 카드(+ 재질의 카드).
+
+    language는 채팅 요청의 사용자 언어다. 재질의 질문(LLM 결과와 MISSING_INPUTS 카드)을 E-7-4와
+    같은 규칙으로 고른다(#127). 단계 문장(title·description)은 Spring이 사용자 언어로 만들어
+    저장한 로드맵 그대로다(로드맵 요청 language, #125).
+    """
     roadmap = response.roadmap
     data = roadmap.model_dump(mode="json", by_alias=True)
     steps = [
@@ -553,7 +569,7 @@ def roadmap_records(response: RoadmapToolResponse) -> VisaToolRecords:
         "score": data["score"],
         "steps": steps,
         "projectedScore": data["projectedScore"],
-        "missingInputs": _roadmap_llm_missing(data["missingInputs"]),
+        "missingInputs": _llm_missing(roadmap.missing_inputs, language),
         "warnings": data["warnings"],
         "isMock": data["isMock"],
     }
@@ -567,7 +583,7 @@ def roadmap_records(response: RoadmapToolResponse) -> VisaToolRecords:
         llm_output=llm_output,
         result_ref=ResultRef(type=ResultRefType.VISA_ROADMAP, id=response.roadmap_id),
         sources=(SourceRef(type=SourceType.VISA_ROADMAP, id=response.roadmap_id),),
-        blocks=(card, *_missing_block(roadmap.missing_inputs)),
+        blocks=(card, *_missing_block(roadmap.missing_inputs, language)),
     )
 
 
