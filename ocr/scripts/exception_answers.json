@@ -1,0 +1,12 @@
+{
+  "card": "견본 합성 카드 (Reyes)",
+  "photo_dir": "D:/ocr-test-photos",
+  "answer": {
+    "NAME_EN": "MARK ANTHONY REYES",
+    "NATIONALITY": "PHL",
+    "BIRTH_DATE": "1995-08-15",
+    "VISA_TYPE": "E-9",
+    "REGISTRATION_NO": "950815-5******",
+    "STAY_EXPIRES_ON": null
+  }
+}
