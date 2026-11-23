@@ -2,7 +2,7 @@
 
 v4.4 = v4.2 + exchange rate rules (fx_rules.md). v4.6 = v4.5 + answer display rules (#116) +
 product card display rules (#119); v4.4d = v4.4 + the same answer display rules (kept to reproduce
-the 2026-11-20 measurement).
+the 2026-11-20 measurement). v4.7 = v4.6 + visa roadmap rules (#127).
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from app.api.routes.chat import (
     FX_PROMPT_VERSIONS,
     PRODUCT_PROMPT_VERSIONS,
     REMITTANCE_PROMPT_VERSIONS,
+    ROADMAP_PROMPT_VERSIONS,
     VISA_PROMPT_VERSIONS,
 )
 from app.chat.finance_policy_tools import SEARCH_FINANCE_POLICY
@@ -31,12 +32,14 @@ from app.chat.prompts import (
     PRODUCT_ORDER_LINE,
     PROMPT_VERSION,
     PROMPT_VERSIONS,
+    ROADMAP_CHANGES,
     V4_1_STAY_RULE,
     V4_STAY_RULE,
     _with_display_rules,
     _with_product_card_lines,
     _with_product_rules,
     _with_remittance_rules,
+    _with_roadmap_rules,
     _with_stay_rule,
     _with_visa_rules,
     system_prompt,
@@ -46,6 +49,7 @@ from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import build_messages
 from app.chat.visa_tools import VISA_TOOL_NAMES
 from app.core.config import ChatPromptVersion, Settings
+from app.visa.tools import GET_VISA_ROADMAP
 
 pytestmark = pytest.mark.unit
 
@@ -96,6 +100,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v4.5": "chat-v4.5",
         "v4.4d": "chat-v4.4d",
         "v4.6": "chat-v4.6",
+        "v4.7": "chat-v4.7",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -252,11 +257,14 @@ PROMPT_SHA256 = {
     "v4.4d": "6d72bb2bc1a76fc4bb8b3083394e0a41abdb7889c0320bfbd44f9298beec5e95",
     # 2026-11-20(#119): v4.6에만 상품 카드 표시 규칙. v4.5·v4.4d는 그대로다.
     "v4.6": "da47484349d4097eeea8c83794365fd839a397e1ce9205a049a32a12426d8c87",
+    # 2026-11-23(#127): v4.6 그대로 + 비자 로드맵 규칙. v4.6은 그대로다.
+    "v4.7": "03ed5aa80458eafcdc6f9bf480fbafb4910443ba9753bff7dbcfa6cd21e67a9f",
 }
 # 표시 규칙이 언어별로 다른 버전의 한국어(ko) 프롬프트.
 PROMPT_SHA256_KO = {
     "v4.4d": "e69b2c08fae002baeafa8aae841abae6193cf7abb8688b20d52d49587abc0903",
     "v4.6": "16329bb42ef5421b077ccce03c482d3f8f984dd0d57ad5ef43d77cad4aed8078",
+    "v4.7": "1ab42a393922e4525902d12c91af8e5e6fc74e5319f87280762cd1ea400a623c",
 }
 
 
@@ -289,6 +297,7 @@ def test_prompt_rules_and_attached_tools_agree() -> None:
         policy = SEARCH_FINANCE_POLICY in prompt
         assert policy == (version in FINANCE_POLICY_PROMPT_VERSIONS), version
         assert (FX_RATE_SUMMARY in prompt) == (version in FX_PROMPT_VERSIONS), version
+        assert (GET_VISA_ROADMAP in prompt) == (version in ROADMAP_PROMPT_VERSIONS), version
 
 
 def test_v4_4_is_v4_2_plus_fx_rules() -> None:
@@ -299,7 +308,8 @@ def test_v4_4_is_v4_2_plus_fx_rules() -> None:
     assert v44 == v42.rstrip("\n") + "\n\n" + fx_rules
     # v4.5(#114)는 v4.4 본문 그대로라 환율 진단 도구도 붙는다.
     # v4.4d·v4.6(#116)은 v4.4·v4.5에 표시 규칙을 더한 버전이라 같이 붙는다.
-    assert FX_PROMPT_VERSIONS == frozenset({"v4.4", "v4.5", "v4.4d", "v4.6"})
+    # v4.7(#127)은 v4.6에 로드맵 규칙을 더한 버전이라 같이 붙는다.
+    assert FX_PROMPT_VERSIONS == frozenset({"v4.4", "v4.5", "v4.4d", "v4.6", "v4.7"})
     assert _settings().chat_prompt_version == "v4.1"
     config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.4"))
     assert config.prompt_version_id == "chat-v4.4"
@@ -520,3 +530,56 @@ def test_product_card_lines_fail_fast_when_a_product_line_moves() -> None:
         _with_product_card_lines(base.replace(PRODUCT_FACTS_LINE, "- something else"))
     with pytest.raises(ValueError, match="product-order line"):
         _with_product_card_lines(base.replace(PRODUCT_ORDER_LINE, "- something else"))
+
+
+@pytest.mark.parametrize("language", ["ko", "en"])
+def test_v4_7_is_v4_6_plus_roadmap_rules(language: str) -> None:
+    # #127: v4.6 그대로 + 바꾸는 두 줄(ROADMAP_CHANGES: 점수 규칙·SETTLEMENT 목표)
+    # + 끝에 로드맵 규칙.
+    lines = system_prompt(language, "v4.6").splitlines()
+    changes = {old: new for old, new, _ in ROADMAP_CHANGES}
+    assert all(lines.count(old) == 1 for old in changes)
+    rules = (PROMPTS / "roadmap_rules.md").read_text(encoding="utf-8")
+    expected = [changes.get(line, line) for line in lines] + ["", *rules.splitlines()]
+    assert system_prompt(language, "v4.7").splitlines() == expected
+    config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.7"))
+    assert config.prompt_version_id == "chat-v4.7"
+
+
+def test_v4_7_roadmap_rules() -> None:
+    v47 = system_prompt("en", "v4.7")
+    # 내 전환 방법·준비 순서·점수 올리기·로드맵 질문은 로드맵 도구로,
+    # 점수·신청 가능 여부만 점수 도구로.
+    for phrase in (
+        "how they can switch or upgrade their visa to E-7-4",
+        "how to raise their E-7-4 score",
+        "call get_visa_roadmap first",
+        "Do not also call calculate_e74_score or search_visa_policies",
+        "Do not list every step",
+        "at most three",
+        "pre-check, not a visa decision",
+        "Do not make up steps",
+        "own E-7-4 score or eligibility, call calculate_e74_score",
+        "Do not call calculate_e74_score or get_visa_roadmap unless",
+    ):
+        assert phrase in v47, phrase
+    assert "eligibility or how to raise the score, call calculate_e74_score" not in v47
+    # 로드맵 규칙은 맨 끝(표시 규칙·상품 카드 표시 규칙 뒤)에 온다.
+    assert v47.index("Product card display rules:") < v47.index("Visa roadmap rules:")
+
+
+@pytest.mark.parametrize("version", ["v4.5", "v4.6"])
+def test_roadmap_rules_are_v4_7_only(version: str) -> None:
+    # 운영 v4.6과 그 바탕 v4.5는 문구가 그대로다(바꾸는 두 줄도 그대로).
+    for language in ("ko", "en"):
+        text = system_prompt(language, version)
+        assert "Visa roadmap rules:" not in text and GET_VISA_ROADMAP not in text
+        lines = text.splitlines()
+        assert all(old in lines for old, _, _ in ROADMAP_CHANGES)
+
+
+def test_roadmap_rules_fail_fast_when_a_line_moves() -> None:
+    base = system_prompt("en", "v4.6")
+    for old, _, what in ROADMAP_CHANGES:
+        with pytest.raises(ValueError, match=f"{what} line"):
+            _with_roadmap_rules(base.replace(old, "- something else"))

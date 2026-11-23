@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
 from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGenerationChunk
+from pydantic import SecretStr
 
 from app.chat.fake_llm import FAKE_MODEL_ID, FakeChatModel
 from app.chat.remittance_tools import GET_FX_RATE, GET_REMITTANCE_RECIPIENTS, QUOTE_REMITTANCE
@@ -23,7 +24,7 @@ from app.chat.schemas import ChatStreamRequest, LlmConfig
 from app.chat.stream import ChatRunOptions, run_chat
 from app.chat.tools import TOOL_NAME, ChatToolset, FinanceTool, FixtureFinanceContext
 from app.chat.visa_tools import VisaTools, kst_today
-from app.core.config import Settings
+from app.core.config import ChatPromptVersion, Settings
 from app.integrations.policy_gateway import UnconfiguredPolicyGateway
 from app.integrations.spring_client import SpringApiError, SpringInternalClient
 from app.main import AppState, create_app
@@ -32,9 +33,12 @@ from app.rag.errors import ValidationFailedError
 from app.rag.retrieval import SearchHit, SearchUnavailableError
 from app.visa.tools import (
     CALCULATE_E74_SCORE,
+    GET_VISA_ROADMAP,
     SEARCH_VISA_POLICIES,
     E74AssessmentToolRequest,
     E74AssessmentToolResponse,
+    RoadmapToolRequest,
+    RoadmapToolResponse,
 )
 
 pytestmark = pytest.mark.unit
@@ -605,3 +609,226 @@ def test_route_attaches_tools_by_prompt_version(
     )
     assert response.status_code == 200
     assert seen == [names]
+
+
+# --- get_visa_roadmap(#127) ---------------------------------------------------------------
+
+
+def _roadmap_response() -> RoadmapToolResponse:
+    """Spring 로드맵 응답 샘플(roadmapId 31, 단계 4개, 신청 가능일 2026-10-25)."""
+    data = json.loads((FIXTURE / "roadmap_tool_response.json").read_text(encoding="utf-8"))
+    return RoadmapToolResponse.model_validate(data)
+
+
+class FakeRoadmapSource:
+    """받은 요청을 기록하고 정해 둔 응답이나 오류를 돌려주는 가짜 Spring 로드맵 API."""
+
+    def __init__(self, error: BaseException | None = None, delay: float = 0) -> None:
+        self.calls: list[tuple[int, RoadmapToolRequest, str | None]] = []
+        self.error = error
+        self.delay = delay
+
+    async def create(
+        self, user_id: int, request: RoadmapToolRequest, request_id: str | None
+    ) -> RoadmapToolResponse:
+        self.calls.append((user_id, request, request_id))
+        if self.delay:
+            await asyncio.sleep(self.delay)
+        if self.error is not None:
+            raise self.error
+        return _roadmap_response()
+
+
+def _roadmap_tools(source: Any = None, timeout: float = 5) -> VisaTools:
+    return VisaTools(
+        e74_source=FakeE74Source(),
+        search_source=None,
+        user_id=185,
+        request_id="req_v",
+        timeout=timeout,
+        roadmap=True,
+        roadmap_source=source,
+    )
+
+
+def test_roadmap_tool_is_offered_only_when_turned_on() -> None:
+    assert [s["name"] for s in _tools().schemas] == [SEARCH_VISA_POLICIES, CALCULATE_E74_SCORE]
+    assert [s["name"] for s in _roadmap_tools().schemas] == [
+        SEARCH_VISA_POLICIES,
+        CALCULATE_E74_SCORE,
+        GET_VISA_ROADMAP,
+    ]
+    # 꺼져 있으면(v4.6 이하) 이름을 불러도 모르는 도구다.
+    off = asyncio.run(_tools().run(GET_VISA_ROADMAP, {}))
+    assert (off.status, off.error_code) == ("REJECTED", "UNKNOWN_TOOL")
+
+
+@pytest.mark.parametrize("arguments", [{}, {"asOfDate": "2026-11-12"}])
+def test_roadmap_returns_summary_ref_source_and_link_card(
+    today: date, arguments: dict[str, Any]
+) -> None:
+    source = FakeRoadmapSource()
+
+    outcome = asyncio.run(_roadmap_tools(source).run(GET_VISA_ROADMAP, arguments))
+
+    assert outcome.status == "SUCCEEDED"
+    # 사용자 id·요청 id는 요청에 고정된 값이고, 기준일은 늘 오늘(KST)이다.
+    user_id, request, request_id = source.calls[0]
+    assert (user_id, request_id, request.as_of_date) == (185, "req_v", today)
+    assert outcome.arguments == arguments
+    summary = json.loads(outcome.content)
+    assert (summary["roadmapId"], len(summary["steps"])) == (31, 4)
+    assert outcome.result_ref == {"type": "VISA_ROADMAP", "id": 31}
+    assert outcome.sources == [
+        {"type": "VISA_ROADMAP", "id": 31, "chunkRef": None, "pageLabel": None}
+    ]
+    assert outcome.blocks == [
+        {
+            "type": "VISA_ROADMAP_LINK",
+            "roadmapId": 31,
+            "stepCount": 4,
+            "applicableFrom": "2026-10-25",
+            "ruleStatus": "DRAFT",
+        }
+    ]
+
+
+def test_roadmap_rejects_other_dates_without_calling_spring(today: date) -> None:
+    # 저장된 로드맵이 앱 비자 탭의 최신 로드맵이 되므로 오늘이 아닌 날짜로는 만들지 않는다.
+    source = FakeRoadmapSource()
+    outcome = asyncio.run(_roadmap_tools(source).run(GET_VISA_ROADMAP, {"asOfDate": "2027-01-01"}))
+
+    assert (outcome.status, outcome.error_code) == ("REJECTED", "INVALID_ARGUMENTS")
+    assert "only for today" in outcome.content
+    assert source.calls == [] and outcome.blocks == []
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "code", "content"),
+    [
+        (
+            SpringApiError(422, "INSUFFICIENT_DATA", "", "NO_VISA_PROFILE"),
+            "FAILED",
+            "SPRING_HTTP_422",
+            "no saved visa profile",
+        ),
+        (
+            SpringApiError(422, "INSUFFICIENT_DATA", "", "NO_STAY_EXPIRY"),
+            "FAILED",
+            "SPRING_HTTP_422",
+            "stay expiry date is not saved",
+        ),
+        (
+            SpringApiError(422, "INSUFFICIENT_DATA", "", "STAY_EXPIRED"),
+            "FAILED",
+            "SPRING_HTTP_422",
+            "already expired",
+        ),
+        (
+            SpringApiError(409, "INVALID_STATE", "", "RULE_SET_NOT_APPROVED"),
+            "FAILED",
+            "SPRING_HTTP_409",
+            "no roadmap is available",
+        ),
+        (
+            SpringApiError(
+                422,
+                "INSUFFICIENT_DATA",
+                "",
+                "PROFILE_REJECTED",
+                (("profile.employments.1", "value_error"),),
+            ),
+            "REJECTED",
+            "SPRING_HTTP_422",
+            "(PROFILE_REJECTED): profile.employments.1 (value_error)",
+        ),
+        (SpringApiError(502, "AI_UPSTREAM_ERROR", ""), "FAILED", "SPRING_HTTP_502", "unavailable"),
+        (httpx.ReadTimeout("slow"), "TIMEOUT", "SPRING_TIMEOUT", "unavailable"),
+        (httpx.ConnectError("refused"), "FAILED", "SPRING_ERROR", "unavailable"),
+    ],
+)
+def test_roadmap_failures_become_tool_errors(
+    error: BaseException, status: str, code: str, content: str
+) -> None:
+    outcome = asyncio.run(_roadmap_tools(FakeRoadmapSource(error)).run(GET_VISA_ROADMAP, {}))
+    assert (outcome.status, outcome.error_code) == (status, code)
+    assert content in outcome.content
+    assert outcome.blocks == [] and outcome.result_ref is None
+
+
+def test_roadmap_timeout_budget_and_missing_spring() -> None:
+    slow = asyncio.run(
+        _roadmap_tools(FakeRoadmapSource(delay=1), timeout=0.01).run(GET_VISA_ROADMAP, {})
+    )
+    assert (slow.status, slow.error_code) == ("TIMEOUT", "SPRING_TIMEOUT")
+
+    missing = asyncio.run(_roadmap_tools(None).run(GET_VISA_ROADMAP, {}))
+    assert (missing.status, missing.error_code) == ("FAILED", "SPRING_NOT_CONFIGURED")
+
+
+def test_spring_visa_roadmap_posts_once_to_the_chat_tool_path() -> None:
+    seen: list[httpx.Request] = []
+
+    def ok(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(201, json={"roadmapId": 31, "reused": False, "roadmap": {}})
+
+    body = {"asOfDate": "2026-11-12"}
+    data = _spring(ok).visa_roadmap(185, body, timeout=5, request_id="req_x")
+    assert data["roadmapId"] == 31
+    assert seen[0].url.path == "/internal/v1/ai-context/users/185/visa-roadmaps"
+    assert seen[0].headers["X-Request-Id"] == "req_x"
+    assert json.loads(seen[0].content) == body
+
+    def expired(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        payload = {"code": "INSUFFICIENT_DATA", "details": {"reason": "STAY_EXPIRED"}}
+        return httpx.Response(422, json=payload)
+
+    seen.clear()
+    with pytest.raises(SpringApiError) as info:
+        _spring(expired).visa_roadmap(1, body, timeout=5)
+    assert (info.value.status, info.value.reason) == (422, "STAY_EXPIRED")
+    assert len(seen) == 1  # 재시도하지 않는다
+
+
+@pytest.mark.parametrize(("version", "roadmap"), [("v4.6", False), ("v4.7", True)])
+def test_route_attaches_the_roadmap_tool_only_in_v4_7(
+    monkeypatch: pytest.MonkeyPatch, version: ChatPromptVersion, roadmap: bool
+) -> None:
+    seen: list[list[str]] = []
+
+    def spy(*tools: Any) -> ChatToolset:
+        toolset = ChatToolset(*tools)
+        seen.append([schema["name"] for schema in toolset.schemas])
+        return toolset
+
+    monkeypatch.setattr("app.api.routes.chat.ChatToolset", spy)
+    token = "f" * 40
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None,
+        ai_internal_api_token=SecretStr(token),
+        chat_fake_delta_delay_ms=0,
+        chat_prompt_version=version,
+    )
+    app = create_app()
+    app.state.rag = AppState(
+        settings=settings, gateway=UnconfiguredPolicyGateway(), embedder=BgeM3Embedder()
+    )
+    body = {
+        "runId": "run_" + "c" * 32,
+        "userId": 185,
+        "sessionId": 1,
+        "language": "en",
+        "history": [],
+        "message": "hi",
+    }
+    response = TestClient(app).post(
+        "/internal/v1/agent/chat/stream", json=body, headers={"X-Internal-Token": token}
+    )
+    assert response.status_code == 200
+    (names,) = seen
+    assert (GET_VISA_ROADMAP in names) is roadmap
+    # 로드맵 도구는 비자 도구 묶음 안에서 점수 도구 바로 뒤에 붙는다.
+    if roadmap:
+        assert names[names.index(CALCULATE_E74_SCORE) + 1] == GET_VISA_ROADMAP

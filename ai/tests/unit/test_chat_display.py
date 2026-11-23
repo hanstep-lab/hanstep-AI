@@ -218,4 +218,5 @@ def test_route_passes_the_request_language_to_the_fx_tool(
     # 표시값은 표시 규칙이 있는 버전(v4.6, 측정 재현용 v4.4d)에서만 켠다.
     kwargs = _fx_tool_kwargs(version, language, monkeypatch)
     assert (kwargs["language"], kwargs["display_text"]) == (language, display)
-    assert chat_routes.DISPLAY_PROMPT_VERSIONS == frozenset({"v4.4d", "v4.6"})
+    # v4.7(#127) = v4.6 + 로드맵 규칙이라 표시값도 같이 켠다.
+    assert chat_routes.DISPLAY_PROMPT_VERSIONS == frozenset({"v4.4d", "v4.6", "v4.7"})
