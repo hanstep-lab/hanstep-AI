@@ -137,8 +137,49 @@ def _visa_type(lines):
     return _field("VISA_TYPE")
 
 
-def extract_fields(lines):
-    """lines: [(인식된 글자, 신뢰도), ...] → 계약 형식 fields 배열"""
+# 값 검증. 규칙에 안 맞으면 값은 두고 신뢰도만 낮춰 사용자 확인으로 넘긴다 (서버는 0.8 미만이면 needsReview)
+SUSPECT_CONFIDENCE = 0.5
+FOREIGNER_GENDER_DIGITS = {"5", "6", "7", "8"}  # 외국인등록번호 7번째 숫자: 5·7 남성, 6·8 여성
+MIN_AGE = 15   # 임시값: 등록증 소지자 최소 나이
+MAX_AGE = 100  # 임시값: 이보다 많으면 오인식으로 본다
+VISA_CLASSES = set("ABCDEFGH")  # 체류자격 대분류 첫 글자
+
+
+def _suspect(field):
+    """신뢰도를 SUSPECT_CONFIDENCE 이하로 낮춘다. 값이 없는 칸은 건드리지 않는다"""
+    if field["value"] is not None and field["confidence"] is not None:
+        field["confidence"] = min(field["confidence"], SUSPECT_CONFIDENCE)
+
+
+def _age(birth, today):
+    return today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+
+
+def _validate(found, today):
+    """규칙에 안 맞는 필드의 신뢰도를 낮춘다. found를 직접 고친다"""
+    reg, birth = found["REGISTRATION_NO"], found["BIRTH_DATE"]
+
+    # 1. 등록번호 7번째 숫자가 5·6·7·8이 아니면 내국인 번호거나 오인식 → 등록번호·생년월일 둘 다 의심
+    if reg["value"] is not None and reg["value"][7] not in FOREIGNER_GENDER_DIGITS:
+        _suspect(reg)
+        _suspect(birth)
+
+    # 2. 생년월일이 미래거나 만 MIN_AGE세 미만, 만 MAX_AGE세 초과면 의심
+    if birth["value"] is not None:
+        born = date.fromisoformat(birth["value"])
+        if born > today or not MIN_AGE <= _age(born, today) <= MAX_AGE:
+            _suspect(birth)
+
+    # 3. 체류자격 첫 글자가 A~H가 아니면 의심
+    visa = found["VISA_TYPE"]
+    if visa["value"] is not None and visa["value"][0] not in VISA_CLASSES:
+        _suspect(visa)
+
+
+def extract_fields(lines, today=None):
+    """lines: [(인식된 글자, 신뢰도), ...] → 계약 형식 fields 배열
+    today: 생년월일 검증 기준 날짜 (테스트용). 없으면 오늘
+    """
     reg, birth = _registration_and_birth(lines)
     found = {
         "NAME_EN": _name_en(lines),
@@ -148,4 +189,5 @@ def extract_fields(lines):
         "STAY_EXPIRES_ON": _field("STAY_EXPIRES_ON"),  # 뒷면 인식은 v0-lite 범위 밖
         "REGISTRATION_NO": reg,
     }
+    _validate(found, today or date.today())
     return [found[n] for n in FIELD_NAMES]
