@@ -74,6 +74,20 @@ def _name_en(lines):
     text, score = _next_upper_line(lines, i, COUNTRY_KEYWORDS + STATUS_KEYWORDS + ISSUE_KEYWORDS)
     return _field("NAME_EN", text, score)
 
+def _country_code(text):
+    """국가 줄 → 국가 코드.
+    정확히 일치하면 바로 쓰고, 아니면 국가 이름이 단어로 들어 있는지 찾는다.
+    예: 'REPUBLIC OF THE PHILIPPINES' → 'PHILIPPINES' → PHL
+    """
+    text = re.sub(r"\s+", " ", text).strip()
+    if text in COUNTRY_CODES:
+        return COUNTRY_CODES[text]
+    # 긴 이름부터 본다. 'VIET NAM'처럼 여러 단어인 이름이 먼저 걸리게
+    for name in sorted(COUNTRY_CODES, key=len, reverse=True):
+        if re.search(rf"\b{re.escape(name)}\b", text):
+            return COUNTRY_CODES[name]
+    return None
+
 
 def _nationality(lines):
     i = _find_anchor(lines, COUNTRY_KEYWORDS)
@@ -82,7 +96,7 @@ def _nationality(lines):
     text, score = _next_upper_line(lines, i, STATUS_KEYWORDS + ISSUE_KEYWORDS)
     if text is None:
         return _field("NATIONALITY")
-    code = COUNTRY_CODES.get(re.sub(r"\s+", " ", text))
+    code = _country_code(text)
     # 사전에 없는 국가는 값 없이 보내서 사용자 확인으로 넘긴다
     return _field("NATIONALITY", code, score) if code else _field("NATIONALITY")
 

@@ -56,3 +56,17 @@ def test_지원하지_않는_체류자격은_일부만_잘라_쓰지_않음():
 def test_국가_영문라벨이_값보다_먼저_나와도_읽음():
     f = fields([("국가/지역", 0.99), ("Country/Region", 0.99), ("PHILIPPINES", 0.99)])
     assert f["NATIONALITY"]["value"] == "PHL"
+
+
+# 11/23 실제 사진 측정에서 국적이 19장 모두 None으로 나온 버그.
+# 카드에는 정식 국가명(REPUBLIC OF THE ...)이 찍히는데 사전은 짧은 이름만 정확히 일치로 찾았다
+@pytest.mark.parametrize("country, code", [
+    ("REPUBLIC OF THE PHILIPPINES", "PHL"),
+    ("SOCIALIST REPUBLIC OF VIET NAM", "VNM"),
+    ("VIETNAM", "VNM"),             # 기존 정확 일치는 그대로
+    ("REPUBLIC OF UTOPIA", None),   # 사전에 없는 나라는 계속 빈칸
+])
+def test_정식_국가명도_코드로_변환(country, code):
+    lines = [(country if t == "REPUBLIC OF UTOPIA" else t, s) for t, s in SAMPLE]
+    assert fields(lines)["NATIONALITY"]["value"] == code
+    
