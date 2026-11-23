@@ -29,7 +29,7 @@
 
 ## 2. 전제·범위 밖
 
-- 단계 문장(`title`·`description`) 언어는 Spring이 로드맵 요청 `language`(#125·#126)에 `users.preferred_language`를 넣는다고 본다(BE 작업, 아직 안 됨). 그 전에는 한국어로 만들어진다.
+- 단계 문장(`title`·`description`) 언어는 Spring이 정한다. hanstep-backend #170·#171(develop `30bbb8d`)부터 로드맵·E-7-4 계산 요청 `language`(#125·#126)에 `users.preferred_language`를 넣는다(ko면 넣지 않음). 그 전 Spring은 늘 한국어로 만들었다.
 - 앱 카드(hanstep-frontend): `VISA_ROADMAP_LINK`를 모르는 type이라 버린다. **운영 기본값을 v4.7로 올리기 전에 FE 카드가 먼저 나가야 한다.**
 - 운영 기본값(hanstep-backend `deploy/compose.prod.yml` `CHAT_PROMPT_VERSION`)은 v4.6 그대로다.
 - 채팅 로드맵 요청에 감점·제외 6문항(`legalDeclaration`)은 넣지 않는다. Spring은 받을 준비가 돼 있다(`VisaRoadmapToolRequest`). 그래서 `MISSING_INPUTS`가 보통 붙는다.
@@ -53,5 +53,13 @@
 - 도구 상태는 모두 SUCCEEDED, 오류 코드 없음. 로드맵 도구 지연 19~193ms(처음 생성 193ms, 그 뒤는 Spring이 같은 로드맵 행을 다시 줌).
 - 답변: 첫 줄 "지금은 신청할 수 없고 2026-12-05부터 가능", 다음 단계 3개(고용기업 추천서 +50점, TOPIK 4급 +40점, 전환 신청 기한 2027-10-04), 재질의, 기준일·카드·사전 점검 줄. 답변의 숫자(235·285·325점, 날짜)는 도구 결과에 있는 값이다(재질의의 KRW 1,000,000은 질문 문구의 값).
 - 결정(2026-11-23): "E-7-4로 바꿀 수 있어?"(전환 가능 여부)는 v4.6에서는 점수 카드였지만 v4.7에서는 로드맵 카드가 나온다. 첫 줄에서 가능 여부·가능 날짜를 답하고 할 일까지 보여 주므로 이대로 둔다. 점수 카드는 점수를 직접 물을 때 나온다.
-- en 답변 12건 중 3건에 한국어 단계 이름("고용기업 추천서 제출" 등)이나 내부 표기 "(붙임5)"가 섞였다. 저장된 단계 문장이 한국어라서다(2절 첫 줄). BE가 `language`를 넘긴 뒤 다시 확인한다.
+- en 답변 12건 중 3건에 한국어 단계 이름("고용기업 추천서 제출" 등)이나 내부 표기 "(붙임5)"가 섞였다. 이 Spring 이미지는 로드맵 요청에 `language`를 넣지 않아 단계 문장이 한국어로 저장됐기 때문이다(3.1절에서 다시 쟀다).
 - 측정하지 않은 것: 정착(SETTLEMENT) 목표가 있는 사용자의 열린 조언 질문(측정 DB의 Reyes는 목표가 없음), 로드맵 실패 경로(프로필·만료일 없음 등, 단위 테스트로만 확인), 운영 환경.
+
+### 3.1 BE `language` 전달 뒤 en 다시 측정 (2026-11-23)
+
+- 바꾼 것: Spring만 hanstep-backend `develop` `30bbb8d`(Merge #171, 로드맵·E-7-4 계산 요청에 `language`)로 새로 빌드했다. MySQL·AI·질문·횟수는 3절과 같다(en 7문항 × 3회). DB에는 3절에서 한국어로 만든 평가·로드맵(id 1)이 남아 있었다.
+- 도구·blocks: 3절 en과 같다(로드맵 질문 5종 15/15 `[VISA_ROADMAP_LINK, MISSING_INPUTS]`, 점수 3/3 `[E74_SCORE_CARD, MISSING_INPUTS]`, 서류 3/3 null). 모두 SUCCEEDED.
+- 저장: en 요청은 `requestKey`가 달라 새 평가(id 2)와 새 로드맵(id 2)이 만들어졌다. 단계 이름이 영어로 저장됐다("Submit the employer recommendation letter", "Get TOPIK level 4", "Apply to change to E-7-4"). 한국어 로드맵(id 1)은 다시 쓰이지 않았다.
+- **en 답변 한글 섞임 0/15**(3절 3/12). 로드맵 도구 지연 25~618ms(새로 만들 때 618ms).
+- 단계는 모든 답변에서 3개다(번호 목록이 6줄인 답변은 재질의 질문 3개에도 번호를 붙인 것).

@@ -242,7 +242,7 @@ Spring 비자 API(E-7-4 평가 `result`, 로드맵 `roadmap`)는 AI 엔진 결�
 - 필드: `roadmapId` int(≥1, `visa_roadmaps.id`) · `stepCount` int(≥0, 단계 수. 단위: 개) · `applicableFrom` date\|null(신청 가능일, 판정할 수 없으면 null) · `ruleStatus` `DRAFT|APPROVED|RETIRED`\|null.
 - 로드맵에 누락 입력이 있으면 바로 뒤에 `MISSING_INPUTS`가 붙는다. `question`은 E-7-4와 같이 사용자 언어다(ko 한국어, 그 밖 영어). 감점·제외 6문항은 채팅 로드맵 요청에 넣지 않으므로(`legalDeclaration` 없음) 보통 들어간다.
 - 결과 참조·근거: `resultRef` `{type: VISA_ROADMAP, id: roadmapId}`, sources `VISA_ROADMAP`.
-- 단계 문장(`title`·`description`)은 Spring이 저장한 로드맵 그대로다. 언어는 Spring이 로드맵 요청 `language`(#125)에 사용자 언어를 넣는다고 본다. Spring이 넣기 전에는 한국어로 만들어진다.
+- 단계 문장(`title`·`description`)은 Spring이 저장한 로드맵 그대로다. 언어는 Spring이 로드맵 요청 `language`(#125)에 사용자 언어를 넣어 정한다(hanstep-backend #171부터. 그 전에는 한국어).
 - 프론트는 아직 이 type을 모른다(`KNOWN_BLOCK_TYPES`에 없음). 운영 기본값을 v4.7로 올리기 전에 프론트 카드가 먼저 나가야 한다.
 - 어떤 질문에 나오는지와 측정 결과: `visa_roadmap_chat_v1.md`.
 
