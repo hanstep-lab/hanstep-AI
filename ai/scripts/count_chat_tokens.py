@@ -28,6 +28,11 @@ Same first/second call as product.
 
     uv run python scripts/count_chat_tokens.py --question-set policy \
         --models claude-haiku-5-5 --output artifacts/chat/policy_baseline_tokens.md
+
+--question-set system (#130): system prompt tokens alone for each --versions x --languages
+(the same one-word question with and without the system prompt; tools are not included).
+    uv run python scripts/count_chat_tokens.py --question-set system --versions v4.7 \\
+        --models claude-haiku-5-5 --output artifacts/chat/ph_baseline_v47_tokens.md
 """
 
 from __future__ import annotations
@@ -230,6 +235,28 @@ def prefix_tokens(client: Any, model: str) -> int:
     return with_prefix - count(client, model, {"messages": message})
 
 
+SYSTEM_PROBE = [{"role": "user", "content": "hi"}]
+
+
+def system_tokens(client: Any, model: str, system: str) -> int:
+    """시스템 프롬프트만의 토큰 수: 같은 짧은 질문에 system을 붙인 호출 - 붙이지 않은 호출."""
+    with_system = count(client, model, {"system": system, "messages": SYSTEM_PROBE})
+    return with_system - count(client, model, {"messages": SYSTEM_PROBE})
+
+
+def render_system(rows: list[dict[str, Any]]) -> str:
+    out = [
+        "| model | prompt | language | nationality | turn | system tokens |",
+        "|---|---|---|---|---|---|",
+    ]
+    for r in rows:
+        out.append(
+            f"| {r['model']} | {r['prompt']} | {r['language']} | {r['nationality'] or '-'} | "
+            f"{r['turn']} | {r['tokens']} |"
+        )
+    return "\n".join(out) + "\n"
+
+
 def render(rows: list[dict[str, Any]], prefixes: dict[str, int]) -> str:
     out = [
         "# 챗봇 입력 토큰 비교 (count_tokens)",
@@ -270,10 +297,31 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
     parser.add_argument("--output", type=Path, default=None, help="markdown path (required)")
     parser.add_argument(
         "--question-set",
-        choices=["finance", "product", "policy"],
+        choices=["finance", "product", "policy", "system"],
         default="finance",
         help="finance: raw vs tool (eval_questions_v1.json), product: #65 baseline (v3 tools), "
-        "policy: #88 baseline (v4.1 tools)",
+        "policy: #88 baseline (v4.1 tools), system: system prompt tokens per version (#130)",
+    )
+    parser.add_argument(
+        "--versions",
+        default="v4.7",
+        help="system only: comma-separated prompt versions (setting values, e.g. v4.7)",
+    )
+    parser.add_argument(
+        "--languages",
+        default="en,ko",
+        help="system only: comma-separated user languages",
+    )
+    parser.add_argument(
+        "--nationalities",
+        default="none",
+        help="system only: comma-separated nationality codes "
+        "(ISO alpha-3, none = no nationality, #130)",
+    )
+    parser.add_argument(
+        "--turns",
+        default="first",
+        help="system only: comma-separated turns, first and/or later (v4.8 greeting line, #130)",
     )
     parser.add_argument(
         "--prompt-version",
@@ -300,6 +348,48 @@ def main(argv: list[str] | None = None, *, client: Any = None) -> int:
         import anthropic
 
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
+
+    if args.question_set == "system":
+        versions = [v.strip() for v in args.versions.split(",") if v.strip()]
+        unknown = [v for v in versions if v not in PROMPT_VERSIONS]
+        if unknown:
+            parser.error(f"unknown prompt versions: {', '.join(unknown)}")
+        languages = [lang.strip() for lang in args.languages.split(",") if lang.strip()]
+        nationalities = [
+            None if n.strip() == "none" else n.strip() for n in args.nationalities.split(",")
+        ]
+        turns = [t.strip() for t in args.turns.split(",") if t.strip()]
+        if any(t not in ("first", "later") for t in turns):
+            parser.error("--turns takes first and/or later")
+        rows: list[dict[str, Any]] = []
+        for model in models:
+            for version in versions:
+                for language in languages:
+                    for nationality in nationalities:
+                        for turn in turns:
+                            text = system_prompt(
+                                language,
+                                version,
+                                nationality=nationality,
+                                first_turn=turn == "first",
+                            )
+                            tokens = system_tokens(client, model, text)
+                            rows.append(
+                                {
+                                    "model": model,
+                                    "prompt": version,
+                                    "language": language,
+                                    "nationality": nationality,
+                                    "turn": turn,
+                                    "tokens": tokens,
+                                }
+                            )
+                            print(f"{model} {version} {language} {nationality} {turn} {tokens}")
+        report = render_system(rows)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(report, encoding="utf-8")
+        print(report)
+        return EXIT_OK
 
     if args.question_set in ("product", "policy"):
         policy = args.question_set == "policy"

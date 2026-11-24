@@ -74,6 +74,7 @@ from typing import Any
 import _bootstrap  # noqa: F401
 import _fx_check
 import _lang_check
+import _ph_check
 import _product_check
 import _v45_check
 import httpx
@@ -105,6 +106,8 @@ POLICY_QUESTIONS = AI_ROOT / "specs" / "rag" / "finance_policy_questions_v1.json
 V44_QUESTIONS = AI_ROOT / "specs" / "chat" / "v44_questions_v1.json"
 # 답변 언어 측정(#106): E-7-4·비자 정책·금융 정책·대조군(환율·송금). 언어는 --language.
 LANG_QUESTIONS = AI_ROOT / "specs" / "chat" / "answer_language_questions_v1.json"
+# 필리핀 국적 현지화 규칙(#130): 문항별 language·nationality 덮어쓰기가 있다(대조군).
+PH_QUESTIONS = AI_ROOT / "specs" / "chat" / "ph_localization_questions_v1.json"
 # E-7-4 도구 LLM 입력 영어화 측정(#108): 사용자 본인의 E-7-4 점수·신청·개선·서류·가정 계산 문항.
 E74_EN_QUESTIONS = AI_ROOT / "specs" / "chat" / "e74_llm_en_questions_v1.json"
 # 같은 5문항의 한국어(사용자 언어 ko 측정, --language ko와 함께 쓴다).
@@ -127,6 +130,7 @@ QUESTION_SETS = {
     "v45": V45_QUESTIONS,
     "display": DISPLAY_QUESTIONS,
     "pcard": PRODUCT_CARD_QUESTIONS,
+    "ph": PH_QUESTIONS,
 }
 # 상위 버전에 기대 도구 바꿈(byPromptVersion)이 없으면 이 버전의 것을 쓴다(v3 = v2 + 송금 규칙).
 PROMPT_BASE = {
@@ -142,6 +146,7 @@ PROMPT_BASE = {
     "v4.4d": "v4.4",
     "v4.6": "v4.5",
     "v4.7": "v4.6",
+    "v4.8": "v4.7",
 }
 # 프롬프트가 답에 쓰라고 주는 고정 번호. 그 run의 프롬프트에 있을 때만 근거 있는 숫자로 본다.
 PROMPT_FIXED_NUMBERS = ("1345",)  # HiKorea 상담 번호(app/chat/prompts/visa_rules.md)
@@ -873,9 +878,10 @@ def call_ai(
     variant: dict[str, Any],
     user_id: int,
     language: str = "en",
+    nationality: str | None = None,
 ) -> dict[str, Any]:
     run_id = "run_" + uuid.uuid4().hex
-    body = {
+    body: dict[str, Any] = {
         "runId": run_id,
         "userId": user_id,
         "sessionId": 1,
@@ -883,6 +889,9 @@ def call_ai(
         "history": question.get("history", []),
         "message": question["text"],
     }
+    if nationality is not None:
+        # 사용자 국적(#130, ISO 3166-1 alpha-3). 없으면 보내지 않는다(옛 서버와 같은 본문).
+        body["nationalityCode"] = nationality
     headers = {
         "X-Internal-Token": token,
         "X-Chat-Metrics": "1",
@@ -907,6 +916,7 @@ def run_follow_up(
     variant: dict[str, Any],
     user_id: int,
     language: str = "en",
+    nationality: str | None = None,
 ) -> dict[str, Any]:
     """애매한 송금 문항의 2턴째: 1턴 질문·답변을 history로 보내고 followUpReply를 묻는다."""
     second = {
@@ -916,7 +926,7 @@ def run_follow_up(
             {"role": "ASSISTANT", "content": first_answer},
         ],
     }
-    result = call_ai(client, base_url, token, second, variant, user_id, language)
+    result = call_ai(client, base_url, token, second, variant, user_id, language, nationality)
     done = result.get("done") or {}
     metrics = result.get("metrics")
     model = answering_model(done, metrics) or (metrics or {}).get("config", {}).get("model")
@@ -1198,6 +1208,8 @@ def score(row: dict[str, Any]) -> None:
     row["languageCheck"] = _lang_check.language_check(
         answer, row.get("language") or "en", row["contextTexts"]
     )
+    # 필리핀 국적 현지화(#130): 허용 표현 수·첫 턴 아닌 인사·허용 밖 Tagalog·금지 문구(모든 답변).
+    row["phCheck"] = _ph_check.row_check(row)
     if row.get("v45Check"):
         # v4.5 지표(#114): 기대값은 이 행의 toolResult(측정 때 읽은 INT-06 요약)에서 정한다.
         row["v45Result"] = _v45_check.check(row, answer)
@@ -1731,7 +1743,8 @@ def main(
         "lang: answer_language_questions_v1.json (answer language, #106), "
         "v45: v45_questions_v1.json (input-based numbers and goals, #114), "
         "display: display_questions_v1.json (answer display rules, #116), "
-        "pcard: product_card_questions_v1.json (product card answers, #119)",
+        "pcard: product_card_questions_v1.json (product card answers, #119), "
+        "ph: ph_localization_questions_v1.json (Filipino user localization, #130)",
     )
     parser.add_argument(
         "--language",
@@ -1739,6 +1752,12 @@ def main(
         default="en",
         help="ai target: the user's language sent to the agent (#106). spring target: the "
         "user's preferred_language in MySQL is used, so only en is accepted here",
+    )
+    parser.add_argument(
+        "--nationality",
+        default=None,
+        help="ai target: nationalityCode sent to the agent (ISO 3166-1 alpha-3, e.g. PHL, #130). "
+        "A question's own nationality (null included) wins",
     )
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--warmup", type=int, default=0, help="calls per variant, not summarized")
@@ -1797,6 +1816,10 @@ def main(
         )
     if args.repeats < 1 or args.warmup < 0:
         parser.error("--repeats must be >= 1 and --warmup >= 0")
+    if args.nationality is not None and (
+        args.target != "ai" or re.fullmatch(r"[A-Z]{3}", args.nationality) is None
+    ):
+        parser.error("--nationality works with --target ai only and must be 3 capital letters")
     if args.target == "spring" and args.language != "en":
         parser.error(
             "--language works with --target ai only (Spring sends users.preferred_language)"
@@ -1898,6 +1921,8 @@ def main(
         "userId": args.user_id,
         # 사용자 언어(#106). ai 대상은 요청 language, spring 대상은 MySQL 값(여기서는 en으로 둠).
         "language": args.language,
+        # 사용자 국적(#130). 문항에 nationality가 있으면 그 값을 쓴다(행의 nationality).
+        "nationality": args.nationality,
         "variants": [{k: v for k, v in variant.items() if k != "override"} for variant in variants],
         "questionSet": {
             "file": question_file.name,
@@ -1958,9 +1983,12 @@ def main(
                 save("budget_stopped")
                 print(render_summary(conditions, rows, answers=False))
                 return EXIT_OK
+            # 문항별 사용자 언어·국적(#130 대조군). 문항에 없으면 명령줄 값.
+            language = question.get("language") or args.language
+            nationality = question["nationality"] if "nationality" in question else args.nationality
             if args.target == "ai":
                 result = call_ai(
-                    http, base_url, token, question, variant, args.user_id, args.language
+                    http, base_url, token, question, variant, args.user_id, language, nationality
                 )
             else:
                 result = call_spring(http, base_url, args.jwt, question)
@@ -1985,7 +2013,8 @@ def main(
                         answer,
                         variant,
                         args.user_id,
-                        args.language,
+                        language,
+                        nationality,
                     )
             row: dict[str, Any] = {
                 "variant": variant["name"],
@@ -1993,7 +2022,11 @@ def main(
                 "category": question["category"],
                 "repeat": repeat,
                 "warmup": warmup,
-                "language": args.language,
+                "language": language,
+                "nationality": nationality,
+                # 현지화 채점(#130): 첫 턴 = history 없음, 문항 역할(대조군·불만 등).
+                "historyTurns": len(question.get("history") or []),
+                "phRole": question.get("phRole"),
                 # LE03(#106): 개선 방안 언급 보조 지표를 붙일 문항.
                 "wantsImprovementCheck": bool(question.get("improvementCheck")),
                 # v4.5 측정(#114) 문항: 채점 종류(input·goals)와 입력값 질문의 기대 항목.
