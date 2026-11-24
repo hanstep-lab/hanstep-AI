@@ -1,5 +1,7 @@
 """extract.py 회귀 테스트. OCR 없이 글자 목록만 넣어서 필드 추출 규칙을 확인한다."""
 
+from datetime import date
+
 import pytest
 
 from pipeline.extract import extract_fields
@@ -56,3 +58,78 @@ def test_지원하지_않는_체류자격은_일부만_잘라_쓰지_않음():
 def test_국가_영문라벨이_값보다_먼저_나와도_읽음():
     f = fields([("국가/지역", 0.99), ("Country/Region", 0.99), ("PHILIPPINES", 0.99)])
     assert f["NATIONALITY"]["value"] == "PHL"
+
+
+# 11/23 실제 사진 측정에서 국적이 19장 모두 None으로 나온 버그.
+# 카드에는 정식 국가명(REPUBLIC OF THE ...)이 찍히는데 사전은 짧은 이름만 정확히 일치로 찾았다
+@pytest.mark.parametrize("country, code", [
+    ("REPUBLIC OF THE PHILIPPINES", "PHL"),
+    ("SOCIALIST REPUBLIC OF VIET NAM", "VNM"),
+    ("VIETNAM", "VNM"),             # 기존 정확 일치는 그대로
+    ("REPUBLIC OF UTOPIA", None),   # 사전에 없는 나라는 계속 빈칸
+])
+def test_정식_국가명도_코드로_변환(country, code):
+    lines = [(country if t == "REPUBLIC OF UTOPIA" else t, s) for t, s in SAMPLE]
+    assert fields(lines)["NATIONALITY"]["value"] == code
+
+
+
+# 11/23 01_normal_c: OCR이 라벨과 국가명을 한 줄로 묶어 읽으면 다음 줄만 보다가 놓쳤다
+def test_국가_라벨과_값이_한줄일때():
+    f = fields([
+        ("국가/지역 REPUBLIC OF THE PHILIPPINES", 0.98),
+        ("Country/Rogion", 0.99),
+        ("체류자격", 0.90),
+        ("비전문취업(E-9)", 1.00),
+    ])
+    assert f["NATIONALITY"]["value"] == "PHL"
+
+
+# 값 검증: 신뢰도가 높아도 규칙에 안 맞으면 신뢰도를 0.5로 낮춰 사용자 확인으로 넘긴다 (값은 그대로)
+TODAY = date(2026, 11, 23)
+
+
+def checked(lines):
+    return {f["name"]: f for f in extract_fields(lines, today=TODAY)}
+
+
+def test_등록번호_7번째_숫자가_외국인_번호면_신뢰도_유지():
+    f = checked([("950101-5234567", 0.99)])
+    assert f["REGISTRATION_NO"] == {"name": "REGISTRATION_NO", "value": "950101-5******", "confidence": 0.99}
+    assert f["BIRTH_DATE"] == {"name": "BIRTH_DATE", "value": "1995-01-01", "confidence": 0.99}
+
+
+def test_등록번호_7번째_숫자가_5678이_아니면_등록번호와_생년월일_신뢰도_낮춤():
+    f = checked([("950101-1234567", 0.99)])
+    assert f["REGISTRATION_NO"] == {"name": "REGISTRATION_NO", "value": "950101-1******", "confidence": 0.5}
+    assert f["BIRTH_DATE"] == {"name": "BIRTH_DATE", "value": "1995-01-01", "confidence": 0.5}
+
+
+def test_생년월일이_정상_범위면_신뢰도_유지():
+    f = checked([("110101-7234567", 0.99)])  # 2011-11-23 기준 만 15세 (경계)
+    assert f["BIRTH_DATE"] == {"name": "BIRTH_DATE", "value": "2011-01-01", "confidence": 0.99}
+
+
+@pytest.mark.parametrize("reg, birth", [
+    ("300101-7234567", "2030-01-01"),  # 미래 날짜
+    ("150101-7234567", "2015-01-01"),  # 만 11세
+    ("200101-5234567", "1920-01-01"),  # 만 106세
+])
+def test_생년월일이_범위를_벗어나면_신뢰도_낮춤(reg, birth):
+    f = checked([(reg, 0.99)])
+    assert f["BIRTH_DATE"] == {"name": "BIRTH_DATE", "value": birth, "confidence": 0.5}
+    assert f["REGISTRATION_NO"]["confidence"] == 0.99  # 생년월일 규칙은 등록번호를 건드리지 않음
+
+
+def test_체류자격_첫글자가_A부터_H면_신뢰도_유지():
+    assert checked([("E-9", 0.99)])["VISA_TYPE"] == {"name": "VISA_TYPE", "value": "E-9", "confidence": 0.99}
+
+
+def test_체류자격_첫글자가_A부터_H가_아니면_신뢰도_낮춤():
+    assert checked([("K-9", 0.99)])["VISA_TYPE"] == {"name": "VISA_TYPE", "value": "K-9", "confidence": 0.5}
+
+
+def test_값이_없는_필드는_검사하지_않음():
+    f = checked([("관련 없는 줄", 0.99)])
+    for name in ["REGISTRATION_NO", "BIRTH_DATE", "VISA_TYPE"]:
+        assert f[name] == {"name": name, "value": None, "confidence": None}
