@@ -91,6 +91,7 @@ blocks를 만드는 도구는 `calculate_e74_score`, `quote_remittance`, `fx_rat
 | v4.4 | O | O | O | 환율 진단 `fx_rate_summary`가 더 붙는다 |
 
 - v4.7(#127) = v4.6 + 비자 로드맵 규칙. v4.6의 카드가 모두 나오고 `get_visa_roadmap`이 더 붙어 `VISA_ROADMAP_LINK`(+`MISSING_INPUTS`)가 나온다. 다른 버전에는 로드맵 도구가 없다.
+- v4.8(#130) = v4.7 + 필리핀 국적 사용자 현지화 블록(국적 PHL·언어 en 요청에만, `CHAT_PH_LOCALIZATION`). 도구와 blocks는 v4.7과 같다.
 
 - 버전 설정: `CHAT_PROMPT_VERSION`. AI 코드 기본값은 v4.1(`ai/app/core/config.py:136`)이다.
 - 운영은 compose 기본값 **v4.4**다(hanstep-backend `deploy/compose.prod.yml:151`, #144, 2026-11-19 머지). 서버 `deploy/.env`에는 이 값을 두지 않는다. → **운영에서는 네 종류(`E74_SCORE_CARD`, `MISSING_INPUTS`, `REMITTANCE_CONFIRM`, `FX_SUMMARY_CARD`)가 모두 나올 수 있다.**

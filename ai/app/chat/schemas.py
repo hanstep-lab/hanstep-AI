@@ -35,6 +35,9 @@ class ChatStreamRequest(_CamelRequest):
     user_id: int = Field(gt=0)
     session_id: int = Field(gt=0)
     language: Literal["en", "ko", "vi", "zh"]
+    # visa_profiles.nationality_code(ISO 3166-1 alpha-3, 예: PHL, #130).
+    # 선택값이라 Spring이 보내기 전에도 동작한다. v4.8 현지화 블록에만 쓴다.
+    nationality_code: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
     # Oldest first, as Spring sends it.
     history: list[HistoryItem] = Field(default_factory=list, max_length=MAX_HISTORY)
     message: str = Field(min_length=1, max_length=2000)
@@ -59,6 +62,7 @@ class LlmConfig:
     max_tokens: int
     judgment_facts: bool = False
     prompt_version: str = "v1"  # a PROMPT_VERSIONS key
+    ph_localization: bool = True  # v4.8 현지화 블록 스위치(CHAT_PH_LOCALIZATION, #130)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> LlmConfig:
@@ -69,6 +73,7 @@ class LlmConfig:
             max_tokens=settings.chat_max_tokens,
             judgment_facts=settings.chat_judgment_facts,
             prompt_version=settings.chat_prompt_version,
+            ph_localization=settings.chat_ph_localization,
         )
 
     def with_override(self, raw_json: str) -> LlmConfig:

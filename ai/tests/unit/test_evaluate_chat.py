@@ -1275,3 +1275,64 @@ def test_v45_question_set_and_check_hook() -> None:
 def test_language_needs_the_ai_target() -> None:
     with pytest.raises(SystemExit):
         _run(_settings(), "--target", "spring", "--jwt", "x", "--language", "vi", "--output", "o")
+
+
+# --- 사용자 국적(#130) -------------------------------------------------------------------------
+
+
+def test_call_ai_sends_nationality_only_when_given() -> None:
+    bodies: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, text="", headers={"content-type": "text/event-stream"})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    question = {"text": "hi", "history": []}
+    EVAL.call_ai(client, "http://t", TOKEN, question, {"name": "v"}, 1, "en", "PHL")
+    EVAL.call_ai(client, "http://t", TOKEN, question, {"name": "v"}, 1, "en")
+    assert bodies[0]["nationalityCode"] == "PHL"
+    # 국적이 없으면 키를 보내지 않는다(옛 서버와 같은 본문).
+    assert "nationalityCode" not in bodies[1]
+
+
+@pytest.mark.parametrize("value", ["PH", "phl", "PHIL"])
+def test_nationality_option_must_be_three_capital_letters(value: str, tmp_path: Path) -> None:
+    output = str(tmp_path / "run.jsonl")
+    with pytest.raises(SystemExit):
+        _run(_settings(), "--questions", "F01", "--nationality", value, "--output", output)
+
+
+def test_rows_record_nationality_history_and_ph_check(tmp_path: Path) -> None:
+    output = tmp_path / "run.jsonl"
+    code = _run(
+        _settings(chat_prompt_version="v2"), "--questions", "F01", "--nationality", "PHL",
+        "--output", str(output),
+    )  # fmt: skip
+    assert code == 0
+    conditions = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert conditions["nationality"] == "PHL"
+    (row,) = _rows(output)
+    assert (row["nationality"], row["historyTurns"], row["phRole"]) == ("PHL", 0, None)
+    assert set(row["phCheck"]) >= {"expressions", "count", "greetingLater", "forbidden"}
+
+
+def test_ph_question_set_loads_with_roles_and_control_overrides() -> None:
+    spec = json.loads(EVAL.PH_QUESTIONS.read_text(encoding="utf-8"))
+    questions = spec["questions"]
+    roles = {q["phRole"] for q in questions}
+    assert {
+        "first_turn",
+        "multi_turn",
+        "complaint",
+        "english_only",
+        "control_ko",
+        "control_null",
+    } <= roles
+    ko = next(q for q in questions if q["phRole"] == "control_ko")
+    none = next(q for q in questions if q["phRole"] == "control_null")
+    assert ko["language"] == "ko"
+    assert "nationality" in none and none["nationality"] is None
+    multi = next(q for q in questions if q["phRole"] == "multi_turn")
+    assert len(multi["history"]) >= 4  # 3턴 이상 이어지는 대화
+    assert "ph" in EVAL.QUESTION_SETS

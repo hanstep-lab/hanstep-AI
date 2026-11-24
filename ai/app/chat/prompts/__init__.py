@@ -26,6 +26,7 @@ PROMPT_VERSIONS = {
     "v4.4d": "chat-v4.4d",
     "v4.6": "chat-v4.6",
     "v4.7": "chat-v4.7",
+    "v4.8": "chat-v4.8",
 }
 PROMPT_VERSION = PROMPT_VERSIONS["v1"]  # the default
 
@@ -363,8 +364,45 @@ _SYSTEM_BY_DISPLAY["v4.7"] = {
     language: _with_roadmap_rules(text) for language, text in _SYSTEM_BY_DISPLAY["v4.6"].items()
 }
 
+# v4.8(#130): v4.7 그대로 + 필리핀 국적 사용자 현지화 블록(ph_localization_en.md).
+# 블록은 국적이 PHL이고 사용자 언어가 en일 때만 끝에 붙는다. 그 밖의 경우 v4.8 글은
+# v4.7과 같다. v4.7 이하 문구는 그대로다.
+# 블록의 인사 줄({GREETING_LINE})은 첫 턴(history 없음)인지로 코드가 고른다.
+_SYSTEM_BY_DISPLAY["v4.8"] = _SYSTEM_BY_DISPLAY["v4.7"]
+PH_LOCALIZATION_VERSIONS = frozenset({"v4.8"})
+PH_NATIONALITY = "PHL"
+PH_LANGUAGE = "en"
+PH_GREETING_PLACEHOLDER = "{GREETING_LINE}"
+PH_FIRST_TURN_LINE = 'This is the first turn. You may open with "Kumusta po!" once.'
+PH_LATER_TURN_LINE = "This is not the first turn. Do not greet the user again."
+_PH_LOCALIZATION = (_DIR / "ph_localization_en.md").read_text(encoding="utf-8")
+if _PH_LOCALIZATION.count(PH_GREETING_PLACEHOLDER) != 1:
+    raise ValueError("ph_localization_en.md must contain the greeting placeholder exactly once")
 
-def system_prompt(language: str, version: str = "v1") -> str:
+
+def ph_localization_block(first_turn: bool) -> str:
+    """필리핀 국적·영어 사용자 현지화 블록. 인사 줄은 첫 턴인지로 고른다."""
+    line = PH_FIRST_TURN_LINE if first_turn else PH_LATER_TURN_LINE
+    return _PH_LOCALIZATION.replace(PH_GREETING_PLACEHOLDER, line)
+
+
+def system_prompt(
+    language: str,
+    version: str = "v1",
+    nationality: str | None = None,
+    first_turn: bool = True,
+) -> str:
+    """버전·사용자 언어의 시스템 프롬프트.
+
+    nationality(ISO 3166-1 alpha-3)와 first_turn은 v4.8 현지화 블록에만 쓴다.
+    """
     by_display = _SYSTEM_BY_DISPLAY.get(version)
     text = _SYSTEM[version] if by_display is None else by_display[display_language(language)]
-    return text.replace("{language}", language)
+    text = text.replace("{language}", language)
+    if (
+        version in PH_LOCALIZATION_VERSIONS
+        and nationality == PH_NATIONALITY
+        and language == PH_LANGUAGE
+    ):
+        text = text.rstrip("\n") + "\n\n" + ph_localization_block(first_turn)
+    return text

@@ -118,3 +118,36 @@ def test_policy_v4_3a_counts_with_the_same_tools_as_v4_2(tmp_path: Path) -> None
     assert "chat-v4.3a" in output.read_text(encoding="utf-8")
     assert counter.calls[0]["system"] == COUNT.system_prompt("en", "v4.3a")
     assert [t["name"] for t in counter.calls[0]["tools"]][-1] == "search_finance_policy"
+
+
+def test_system_mode_counts_system_prompt_per_version_nationality_and_turn(tmp_path: Path) -> None:
+    # #130: 시스템 프롬프트만의 토큰(system 있는 호출 - 없는 호출). 도구는 넣지 않는다.
+    counter = FakeCounter()
+    output = tmp_path / "system.md"
+    argv = [
+        "--question-set", "system", "--versions", "v4.7,v4.8", "--languages", "en",
+        "--nationalities", "none,PHL", "--turns", "first,later", "--models", "claude-haiku-5-5",
+        "--output", str(output),
+    ]  # fmt: skip
+    assert COUNT.main(argv, client=counter) == 0
+    rows = [line for line in output.read_text(encoding="utf-8").splitlines() if "claude" in line]
+    assert len(rows) == 8
+    assert all("tools" not in c for c in counter.calls)
+
+    def tokens(prompt: str, nationality: str, turn: str) -> int:
+        row = next(r for r in rows if f"| {prompt} | en | {nationality} | {turn} |" in r)
+        return int(row.rsplit("|", 2)[1])
+
+    assert tokens("v4.8", "-", "first") == tokens("v4.7", "-", "first")
+    assert tokens("v4.8", "PHL", "first") > tokens("v4.7", "PHL", "first")
+    assert tokens("v4.7", "PHL", "first") == tokens("v4.7", "-", "first")
+
+
+def test_system_mode_rejects_unknown_versions_and_turns(tmp_path: Path) -> None:
+    output = str(tmp_path / "x.md")
+    with pytest.raises(SystemExit):
+        COUNT.main(["--question-set", "system", "--versions", "v9", "--output", output],
+                   client=FakeCounter())  # fmt: skip
+    with pytest.raises(SystemExit):
+        COUNT.main(["--question-set", "system", "--turns", "second", "--output", output],
+                   client=FakeCounter())  # fmt: skip

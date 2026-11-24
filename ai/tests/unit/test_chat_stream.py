@@ -256,6 +256,15 @@ def test_bad_config_override_is_400_before_stream() -> None:
         assert response.json()["code"] == "VALIDATION_ERROR"
 
 
+def test_nationality_code_is_optional_and_accepted() -> None:
+    # #130: 선택 필드라 Spring 변경 전(필드 없음)에도, null·PHL을 보내도 받는다.
+    for extra in ({}, {"nationalityCode": None}, {"nationalityCode": "PHL"}):
+        response = _post(_client(), _body(**extra))
+        assert response.status_code == 200, extra
+    parsed = ChatStreamRequest.model_validate(_body(nationalityCode="PHL"))
+    assert parsed.nationality_code == "PHL"
+
+
 def test_missing_token_is_401() -> None:
     response = _client().post(STREAM, json=_body())
     assert response.status_code == 401
@@ -273,6 +282,10 @@ def test_missing_token_is_401() -> None:
         {"history": [{"role": "SYSTEM", "content": "q"}]},
         {"userId": 0},
         {"extra": 1},
+        # 국적(#130): ISO 3166-1 alpha-3 대문자 3자만
+        {"nationalityCode": "PH"},
+        {"nationalityCode": "phl"},
+        {"nationalityCode": "PHIL"},
     ],
 )
 def test_invalid_request_is_400_envelope(overrides: dict[str, Any]) -> None:

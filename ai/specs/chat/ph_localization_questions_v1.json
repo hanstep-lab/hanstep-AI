@@ -1,0 +1,107 @@
+{
+  "version": "v1",
+  "description": "필리핀 국적 사용자 현지화 규칙 측정(#130). 프롬프트 v4.8 현지화 블록(app/chat/prompts/ph_localization_en.md)의 규칙을 본다. evaluate_chat.py --question-set ph --language en --nationality PHL로 돌린다. 문항의 language·nationality는 명령줄 값보다 우선한다(대조군: control_ko는 ko, control_null은 국적 없음). 첫 턴은 history가 빈 문항이다. 채점: scripts/_ph_check.py(phRole별). 데모 사용자 Reyes(가상 인물) 기준이고 history의 assistant 답은 측정용 합성 문장이다.",
+  "questions": [
+    {
+      "id": "PH01",
+      "phRole": "first_turn",
+      "category": "greeting",
+      "text": "Hi! I just started using this app. What can you help me with?",
+      "history": [],
+      "expectedTools": []
+    },
+    {
+      "id": "PH02",
+      "phRole": "multi_turn",
+      "category": "product",
+      "text": "Okay. Which savings product fits that amount?",
+      "history": [
+        {"role": "USER", "content": "Hi, what can you do?"},
+        {"role": "ASSISTANT", "content": "Kumusta po! I can check your monthly money, remittances, exchange rates and your E-7-4 visa path."},
+        {"role": "USER", "content": "How much can I save this month?"},
+        {"role": "ASSISTANT", "content": "Based on past averages, you have about KRW 520,000 left each month after your usual spending."}
+      ],
+      "expectedTools": ["recommend_savings_products"]
+    },
+    {
+      "id": "PH03",
+      "phRole": "remit_amount",
+      "category": "remittance",
+      "text": "If I send 300,000 won to my mom, how much will she get?",
+      "history": [],
+      "expectedTools": ["get_remittance_recipients", "quote_remittance"]
+    },
+    {
+      "id": "PH04",
+      "phRole": "fx",
+      "category": "fx",
+      "text": "How is the PHP exchange rate these days?",
+      "history": [],
+      "expectedTools": ["fx_rate_summary"]
+    },
+    {
+      "id": "PH05",
+      "phRole": "complaint",
+      "category": "complaint",
+      "text": "My transfer failed yesterday and I don't know where my money went. This is really frustrating.",
+      "history": [],
+      "expectedTools": []
+    },
+    {
+      "id": "PH06",
+      "phRole": "english_only",
+      "category": "e74",
+      "text": "What is my E-7-4 score?",
+      "history": [
+        {"role": "USER", "content": "Please answer in English only. I don't speak Tagalog."},
+        {"role": "ASSISTANT", "content": "Understood. I will answer in English only. How can I help?"}
+      ],
+      "expectedTools": ["calculate_e74_score"]
+    },
+    {
+      "id": "PH07",
+      "phRole": "farewell",
+      "category": "farewell",
+      "text": "Got it, that's all for today. Thanks, bye!",
+      "history": [
+        {"role": "USER", "content": "How much can I save this month?"},
+        {"role": "ASSISTANT", "content": "Based on past averages, you have about KRW 520,000 left each month after your usual spending."}
+      ],
+      "expectedTools": []
+    },
+    {
+      "id": "PH08",
+      "phRole": "family_burden",
+      "category": "finance",
+      "text": "My family keeps asking me to send more money home, but I also want to save for myself. What should I do?",
+      "history": [],
+      "expectedTools": ["get_financial_analysis"]
+    },
+    {
+      "id": "PH09",
+      "phRole": "feedback",
+      "category": "feedback",
+      "text": "I finished setting up my profile. This app is really helpful, thank you!",
+      "history": [],
+      "expectedTools": []
+    },
+    {
+      "id": "PH10",
+      "phRole": "control_ko",
+      "category": "greeting",
+      "language": "ko",
+      "text": "안녕하세요, 이 앱으로 뭘 할 수 있어요?",
+      "history": [],
+      "expectedTools": []
+    },
+    {
+      "id": "PH11",
+      "phRole": "control_null",
+      "category": "greeting",
+      "nationality": null,
+      "text": "Hi! I just started using this app. What can you help me with?",
+      "history": [],
+      "expectedTools": []
+    }
+  ]
+}
