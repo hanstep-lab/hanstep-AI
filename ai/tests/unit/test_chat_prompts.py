@@ -258,13 +258,13 @@ PROMPT_SHA256 = {
     # 2026-11-20(#119): v4.6에만 상품 카드 표시 규칙. v4.5·v4.4d는 그대로다.
     "v4.6": "da47484349d4097eeea8c83794365fd839a397e1ce9205a049a32a12426d8c87",
     # 2026-11-23(#127): v4.6 그대로 + 비자 로드맵 규칙. v4.6은 그대로다.
-    "v4.7": "03ed5aa80458eafcdc6f9bf480fbafb4910443ba9753bff7dbcfa6cd21e67a9f",
+    "v4.7": "1aac51a46b7bc2d66d4f4736af4aea0ccd1b9d5e9d2fe68413ee9acc98ef4883",
 }
 # 표시 규칙이 언어별로 다른 버전의 한국어(ko) 프롬프트.
 PROMPT_SHA256_KO = {
     "v4.4d": "e69b2c08fae002baeafa8aae841abae6193cf7abb8688b20d52d49587abc0903",
     "v4.6": "16329bb42ef5421b077ccce03c482d3f8f984dd0d57ad5ef43d77cad4aed8078",
-    "v4.7": "1ab42a393922e4525902d12c91af8e5e6fc74e5319f87280762cd1ea400a623c",
+    "v4.7": "b070d4f60471aa2bfe775075861ebe4f3c2c2671ccbfc9f3339856c41146faa1",
 }
 
 
@@ -548,19 +548,25 @@ def test_v4_7_is_v4_6_plus_roadmap_rules(language: str) -> None:
 
 def test_v4_7_roadmap_rules() -> None:
     v47 = system_prompt("en", "v4.7")
-    # 내 전환 방법·준비 순서·점수 올리기·로드맵 질문은 로드맵 도구로,
-    # 점수·신청 가능 여부만 점수 도구로.
+    # 내 체류·E-7-4 길(장기 체류·비자 변경·준비 순서·점수 올리기·로드맵·만료일) 질문은
+    # 로드맵 도구로,
+    # 점수·신청 가능 여부만 점수 도구로. 다른 비자 종류는 정책 검색 그대로.
     for phrase in (
-        "how they can switch or upgrade their visa to E-7-4",
+        "Call get_visa_roadmap first",
+        "staying or living in Korea long-term or settling here",
+        "switching or upgrading their visa",
         "how to raise their E-7-4 score",
-        "call get_visa_roadmap first",
-        "Do not also call calculate_e74_score or search_visa_policies",
+        "when their visa or stay expires",
+        "even when the question sounds like general advice and does not name E-7-4",
+        "Do not also call calculate_e74_score, search_visa_policies or get_financial_analysis",
+        "The roadmap is only for E-7-4",
+        "stay.stayExpiresOn and stay.daysToExpiry",
         "Do not list every step",
         "at most three",
         "pre-check, not a visa decision",
         "Do not make up steps",
         "own E-7-4 score or eligibility, call calculate_e74_score",
-        "Do not call calculate_e74_score or get_visa_roadmap unless",
+        "is about staying in Korea long-term or changing their visa, follow the visa roadmap rules",
     ):
         assert phrase in v47, phrase
     assert "eligibility or how to raise the score, call calculate_e74_score" not in v47
