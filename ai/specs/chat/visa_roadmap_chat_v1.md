@@ -92,4 +92,14 @@
 
 - v4.7: 기대와 다른 답 0/90, 도구 실패 0, en 답변 한글 섞임 0. v4.6: 정책 검색 FAILED 2건(로컬 검색), 한글 섞임 0.
 - 칩2(송금)는 두 버전 모두 저장된 받는 분이 둘이라 먼저 되묻는다. 받는 분을 고르면 다음 턴에 `REMITTANCE_CONFIRM`이 나오는 원래 동작이다(이 PR과 무관).
-- 하지 않은 것: 앱 화면(FE hanstep-frontend#71 + 실기기) 확인은 따로 한다. MyData Mock(거래 내역)은 넣지 않아 금융 분석 답변 내용은 보지 않았다(도구·카드만).
+- 하지 않은 것: MyData Mock(거래 내역)은 넣지 않아 금융 분석 답변 내용은 보지 않았다(도구·카드만).
+- 주의: 측정 DB는 `db/init` 시드라 `policy_documents`가 모두 DRAFT였다. 정책 검색이 Spring 승인 확인에서 모두 걸러져(결과 0건) 정책 질문(서류·F-2·비자 정보) 답은 내용이 모두 "확인되지 않음"이었다. 위 표의 도구·카드 판정은 유효하지만 정책 답변 내용은 이 측정으로 보지 않았다. 4.3절에서 승인 상태를 Mongo·운영과 같게(1~6 APPROVED, 7 RETIRED) 맞춘 뒤 서류 질문을 다시 확인했다. 운영 `policy_documents`도 같은 상태다(2026-11-24 서버 조회).
+
+### 4.3 앱 통합 테스트 (실기기, 2026-11-24)
+
+- 앱: hanstep-frontend `feat/70-visa-roadmap-card`(PR #71)를 Expo Go로 실행, `EXPO_PUBLIC_API_URL`을 4.2절 스택(Spring을 PC LAN 포트로 연결)으로 바꿨다. Reyes는 측정 DB에서 온보딩 6단계 완료·MyData 연결 상태로 맞췄다.
+- 영어(en)·한국어(ko) 화면 모두 확인했다(사람 확인). 서버 기록(`chat_messages`·`chat_tool_calls`)도 같았다.
+  - 칩1(장기 체류)·칩4(비자 만료): `VISA_ROADMAP_LINK` + `MISSING_INPUTS` 카드가 화면 언어로 보이고, 카드 버튼으로 비자 탭 로드맵이 열린다
+  - 점수 `E74_SCORE_CARD`, 환율 `FX_SUMMARY_CARD`, 상품 `PRODUCT_RECOMMEND_CARD`, 송금 `REMITTANCE_CONFIRM`(원화 금액) 그대로
+  - 서류 질문: 정책 문서 승인 상태를 맞춘 뒤 검색 5건, 고용노동부 추천·농축산 분야 서류를 출처와 함께 답하고 법무부 최종 서류는 확인되지 않음 + 하이코리아 안내
+- 시연 대본 송금 시나리오는 재질의 답을 원화로 바꿨다("원화로, 필리핀에 계신 엄마한테"). 페소 금액 요청은 Spring 견적 API가 KRW만 받아(BE #122, `remittance_contract_v1.md` 3절) REJECTED `SPRING_HTTP_400`으로 끝난다. v4.6에서도 같고 이 PR과 무관하다.
