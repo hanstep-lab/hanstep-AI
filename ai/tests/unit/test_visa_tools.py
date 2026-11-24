@@ -20,6 +20,8 @@ from app.visa.tools import (
     GET_VISA_ROADMAP,
     LEGAL_DECLARATION_ITEMS,
     LEGAL_DECLARATION_KEY,
+    ROADMAP_SCHEMA_DESCRIPTIONS,
+    ROADMAP_TOOL_DESCRIPTION,
     SEARCH_VISA_POLICIES,
     CalculateE74ScoreInput,
     E74AssessmentToolResponse,
@@ -134,9 +136,24 @@ def _without_descriptions(node: Any) -> Any:
 
 def test_other_tool_definitions_are_unchanged() -> None:
     definitions = {d["name"]: d for d in tool_definitions()}
-    for name in (SEARCH_VISA_POLICIES, GET_VISA_ROADMAP):
-        model = SearchVisaPoliciesInput if name == SEARCH_VISA_POLICIES else GetVisaRoadmapInput
-        assert definitions[name]["description"] == model.__doc__
+    assert definitions[SEARCH_VISA_POLICIES]["description"] == SearchVisaPoliciesInput.__doc__
+
+
+def test_roadmap_tool_definition_is_english_and_today_only() -> None:
+    """LLM에 보이는 get_visa_roadmap 설명은 영어다(#127). 채팅 도구는 오늘 로드맵만 만든다."""
+    (roadmap,) = [d for d in tool_definitions() if d["name"] == GET_VISA_ROADMAP]
+    texts = [roadmap["description"], *_descriptions(roadmap["input_schema"]).values()]
+    assert not [t for t in texts if re.search(r"[가-힣]", t)]
+    assert _descriptions(roadmap["input_schema"]) == ROADMAP_SCHEMA_DESCRIPTIONS
+    assert roadmap["description"] == ROADMAP_TOOL_DESCRIPTION
+    for phrase in ("how the user can switch to E-7-4", "visa roadmap", "Do not write code values"):
+        assert phrase in roadmap["description"], phrase
+    assert "always made for today" in ROADMAP_SCHEMA_DESCRIPTIONS["properties.asOfDate"]
+    # 모양(인자 이름·타입·제약)은 그대로다.
+    raw = GetVisaRoadmapInput.model_json_schema(by_alias=True)
+    assert _without_descriptions(roadmap["input_schema"]) == _without_descriptions(
+        {k: v for k, v in raw.items() if k not in ("title",)}
+    )
 
 
 def test_tool_inputs_accept_camel_case_and_reject_unknown_fields() -> None:
@@ -605,6 +622,34 @@ def test_roadmap_sample_builds_link_card_ref_and_source() -> None:
     assert [s["order"] for s in records.llm_output["steps"]] == [
         s.order for s in response.roadmap.steps
     ]
+
+
+@pytest.mark.parametrize(
+    ("language", "question"), [("ko", "한국어 질문"), ("en", "English question")]
+)
+def test_roadmap_missing_inputs_follow_the_user_language(language: str, question: str) -> None:
+    # #127: 로드맵 재질의(LLM 결과·MISSING_INPUTS 카드)도 E-7-4와 같이 ko면 한국어, 그 밖이면 영어.
+    data = _fixture("roadmap_tool_response.json")
+    data["roadmap"]["missingInputs"] = [
+        {
+            "field": "visaProfile.currentStayStartedOn",
+            "question": "한국어 질문",
+            "questionEn": "English question",
+            "ruleCodes": ["REQ_STAY_PERIOD"],
+        }
+    ]
+    records = roadmap_records(RoadmapToolResponse.model_validate(data), language)
+
+    assert records.llm_output["missingInputs"] == [
+        {
+            "field": "visaProfile.currentStayStartedOn",
+            "question": question,
+            "ruleCodes": ["REQ_STAY_PERIOD"],
+        }
+    ]
+    card, missing = records.blocks
+    assert isinstance(card, VisaRoadmapLinkBlock) and isinstance(missing, MissingInputsBlock)
+    assert [f.question for f in missing.fields] == [question]
 
 
 def test_policy_search_sources_come_only_from_hits_and_are_deduplicated() -> None:

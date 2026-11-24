@@ -5,6 +5,7 @@
   - `FX_SUMMARY_CARD`가 생겼다(#100).
   - 운영 프롬프트가 v4.4가 됐다(hanstep-backend #144).
   - 프론트가 blocks를 그린다(hanstep-frontend #34 등).
+  - 프롬프트 v4.7에서 `get_visa_roadmap`이 채팅 도구로 붙어 `VISA_ROADMAP_LINK`가 나온다(#127, 2026-11-23). 운영 기본값은 아직 v4.6이라 운영에서는 나오지 않는다. 3.4절.
 - 기준 커밋
   - hanstep-AI `origin/develop` `d465761`(Merge #102) + 이 문서를 넣은 #103(`ai/app/visa/tools.py`, `ai/app/visa/e74/`)
   - hanstep-backend `origin/develop` `f6f3623`(Merge #144)
@@ -19,7 +20,7 @@
 | `MISSING_INPUTS` | 같은 E-7-4 결과에 `missingInputs`가 1개 이상이면 `E74_SCORE_CARD` 바로 뒤 | `fields`(1개 이상) `{field: string, question: string}`. `question`은 사용자 언어(ko 한국어, en·그 밖 영어. #108). null 없음 | `MissingInputsCard`(`question` 그대로, 3개까지) |
 | `REMITTANCE_CONFIRM` | `quote_remittance` SUCCEEDED이고 견적이 요청과 맞을 때. 기본 상품이 보낼 수 없는 금액이면 없다. 프롬프트 v3 이상. fake 모드에서도 fixture로 나온다 | `recipient`{…} · `sendAmount` · `receiveAmount`\|null · `appliedRate`{…}\|null · `transferPath` · `fees`{…} · `rateSources`{…}(#105, 코드·숫자만) | `RemittanceConfirmCard`(`fees`·`rateSources`는 아직 안 씀) |
 | `FX_SUMMARY_CARD` | `fx_rate_summary` SUCCEEDED이고 통화가 1개 이상. 프롬프트 v4.4만. 한 턴에 1개(통화별로 합침) | `currencies`(1개 이상) · `unavailableCurrencies`. 3.5절 | `FxSummaryCard` |
-| `VISA_ROADMAP_LINK` | **채팅에서 안 나온다.** 형식만 있다(`get_visa_roadmap`이 채팅 도구가 아님) | `roadmapId` int · `stepCount` int · `applicableFrom` date\|null · `ruleStatus` enum\|null | 모르는 type이라 버린다 |
+| `VISA_ROADMAP_LINK` | `get_visa_roadmap` SUCCEEDED. **프롬프트 v4.7만**(#127). Spring이 설정돼 있어야 한다. 누락 입력이 있으면 뒤에 `MISSING_INPUTS` | `roadmapId` int · `stepCount` int · `applicableFrom` date\|null · `ruleStatus` enum\|null | 아직 없음. 모르는 type이라 버린다(FE 작업 필요) |
 
 - 실서버 답변에는 추천 질문 칩(`suggestions`)이 없다. 칩은 앱이 정한다(6절).
 
@@ -48,11 +49,11 @@
 | 채팅 비자 도구 → blocks 전달 | `ai/app/chat/visa_tools.py:265-282`(`_succeeded`) |
 | 송금 확인 카드 생성 | `ai/app/chat/remittance_tools.py` `RemittanceConfirmBlock`·`confirm_block`, `RemittanceTools._quote`, `_quote_matches`(#105에서 줄이 바뀌어 이름으로 적음) |
 | 환율 진단 카드 생성·합치기 | `ai/app/chat/fx_tools.py:188-276`(모델·`summary_block`·`merge_fx_card`), `:336` |
-| 로드맵 카드(채팅 미연결) | `ai/app/visa/tools.py:257-264`, `roadmap_records`. 채팅 도구 목록 `ai/app/chat/visa_tools.py:54`에 `get_visa_roadmap` 없음 |
+| 로드맵 카드 생성(v4.7, #127) | `ai/app/visa/tools.py` `VisaRoadmapLinkBlock`·`roadmap_records`, 채팅 실행 `ai/app/chat/visa_tools.py` `VisaTools._create_roadmap`, 버전 `ai/app/api/routes/chat.py` `ROADMAP_PROMPT_VERSIONS` |
 | 프롬프트 버전별 도구 연결 | `ai/app/api/routes/chat.py:60-74`, `:227-278` |
 | Spring 중계 | hanstep-backend `src/main/java/com/hanstep/chat/service/ChatStreamService.java:316-330` |
 
-blocks를 만드는 도구는 `calculate_e74_score`, `quote_remittance`, `fx_rate_summary` 세 개다.
+blocks를 만드는 도구는 `calculate_e74_score`, `quote_remittance`, `fx_rate_summary`, `get_visa_roadmap`(v4.7)이다.
 `get_financial_analysis`, `search_visa_policies`, `get_remittance_recipients`, `get_fx_rate`, 상품 추천, 금융 정책 검색(`search_finance_policy`)은 blocks를 만들지 않는다.
 
 ## 2. 공통 규칙
@@ -76,6 +77,7 @@ blocks를 만드는 도구는 `calculate_e74_score`, `quote_remittance`, `fx_rat
   - 실제 점수와 가정 점수를 같이 물으면: `E74_SCORE_CARD` 2개(`isScenario`로 구분)
   - 송금 견적: `[REMITTANCE_CONFIRM]`. 받는 분·통화가 애매하면 텍스트로 되묻고 blocks는 null
   - 환율 질문(v4.4): `[FX_SUMMARY_CARD]`
+  - 전환 방법·준비 순서·로드맵 질문(v4.7): `[VISA_ROADMAP_LINK]` 또는 `[VISA_ROADMAP_LINK, MISSING_INPUTS]`
   - 같은 턴에 여러 종류가 섞일 수도 있다
 
 ### 2.3 어떤 설정에서 켜지나
@@ -88,11 +90,13 @@ blocks를 만드는 도구는 `calculate_e74_score`, `quote_remittance`, `fx_rat
 | v4, v4.1, v4.2, v4.3a | O | O | – | 상품 추천(v4~)·금융 정책 검색(v4.2~)이 더 붙지만 blocks 없음 |
 | v4.4 | O | O | O | 환율 진단 `fx_rate_summary`가 더 붙는다 |
 
+- v4.7(#127) = v4.6 + 비자 로드맵 규칙. v4.6의 카드가 모두 나오고 `get_visa_roadmap`이 더 붙어 `VISA_ROADMAP_LINK`(+`MISSING_INPUTS`)가 나온다. 다른 버전에는 로드맵 도구가 없다.
+
 - 버전 설정: `CHAT_PROMPT_VERSION`. AI 코드 기본값은 v4.1(`ai/app/core/config.py:136`)이다.
 - 운영은 compose 기본값 **v4.4**다(hanstep-backend `deploy/compose.prod.yml:151`, #144, 2026-11-19 머지). 서버 `deploy/.env`에는 이 값을 두지 않는다. → **운영에서는 네 종류(`E74_SCORE_CARD`, `MISSING_INPUTS`, `REMITTANCE_CONFIRM`, `FX_SUMMARY_CARD`)가 모두 나올 수 있다.**
 - 데이터 출처
   - `CHAT_LLM_MODE=anthropic` + Spring 내부 API 설정: 점수는 Spring이 계산·저장한 결과, 송금은 Spring 견적, 환율은 Spring fx-summary
-  - fake 모드이거나 Spring 설정이 없을 때: E-7-4 소스가 없어 도구가 `SPRING_NOT_CONFIGURED`로 FAILED → **점수 카드 없음**(`ai/app/api/routes/chat.py`). 송금은 fixture(LORNA REYES, 1 PHP = 22.32 KRW)로 카드가 나온다(`remittance_tools.py`)
+  - fake 모드이거나 Spring 설정이 없을 때: E-7-4·로드맵 소스가 없어 도구가 `SPRING_NOT_CONFIGURED`로 FAILED → **점수·로드맵 카드 없음**(`ai/app/api/routes/chat.py`). 송금은 fixture(LORNA REYES, 1 PHP = 22.32 KRW)로 카드가 나온다(`remittance_tools.py`)
 
 ---
 
@@ -226,12 +230,21 @@ Spring 비자 API(E-7-4 평가 `result`, 로드맵 `roadmap`)는 AI 엔진 결�
 - fake 모드(fixture 견적)는 상품 견적이 없어 `fees`·`rateSources`가 null이다. 운영(Spring)에서는 늘 있다.
 - 개인정보: 받는 분 영문 이름·은행·계좌 끝 4자리가 카드와 `blocks_json`에 들어간다(전체 계좌번호는 없음).
 
-### 3.4 `VISA_ROADMAP_LINK` — 로드맵 화면 이동 카드 (채팅에서 안 나옴)
+### 3.4 `VISA_ROADMAP_LINK` — 로드맵 화면 이동 카드 (프롬프트 v4.7)
 
-- 모델: `ai/app/visa/tools.py:257-264`, 생성 `roadmap_records`. 단위 테스트(`ai/tests/unit/test_visa_tools.py`)에서만 쓴다.
-- 채팅 비자 도구 목록이 `(search_visa_policies, calculate_e74_score)`뿐이라(`ai/app/chat/visa_tools.py:54`) chat.done에 오지 않는다.
-- 필드: `roadmapId` int(≥1, `visa_roadmaps.id`) · `stepCount` int(≥0, 단계 수. 단위: 개) · `applicableFrom` date\|null(신청 가능일, 판정할 수 없으면 null) · `ruleStatus` `DRAFT|APPROVED|RETIRED`\|null. 로드맵에 누락 입력이 있으면 뒤에 `MISSING_INPUTS`가 붙는 구조다.
-- 프론트는 이 type을 모른다(`KNOWN_BLOCK_TYPES`에 없음). 채팅에 연결하면 프론트도 함께 바꿔야 한다.
+- 만들어지는 곳: `ai/app/visa/tools.py` `VisaRoadmapLinkBlock`·`roadmap_records`. 채팅 도구 `get_visa_roadmap`은 프롬프트 v4.7에서만 붙는다(`ROADMAP_PROMPT_VERSIONS`, #127).
+- 조건: `get_visa_roadmap` SUCCEEDED. 도구는 Spring `POST /internal/v1/ai-context/users/{userId}/visa-roadmaps`를 부르고, Spring이 로드맵을 만들어 `visa_roadmaps`에 저장한다(같은 평가·체류 만료일이면 저장된 것을 그대로 준다). 기준일은 늘 오늘(KST)이다. LLM이 다른 날짜를 주면 REJECTED `INVALID_ARGUMENTS`(앱 비자 탭의 최신 로드맵이 바뀌기 때문).
+- 카드가 없는 경우: Spring 4xx·5xx·시간 초과·응답 형식 오류. 이유 코드는 `chat_tool_calls.error_code`에 남는다.
+  - FAILED `SPRING_HTTP_422`: `NO_VISA_PROFILE`·`NO_STAY_EXPIRY`(체류 만료일 없음)·`STAY_EXPIRED`
+  - FAILED `SPRING_HTTP_409`: `RULE_SET_NOT_APPROVED`·`NO_APPLICABLE_RULE_SET`
+  - REJECTED `SPRING_HTTP_4xx`: `VALIDATION_ERROR`·`PROFILE_REJECTED`·`RULE_SET_NOT_REGISTERED`
+  - FAILED `SPRING_HTTP_5xx`(502 `AI_UPSTREAM_ERROR` 포함)·`SPRING_ERROR`·`INVALID_RESPONSE`, TIMEOUT `SPRING_TIMEOUT`, Spring 설정 없음 FAILED `SPRING_NOT_CONFIGURED`
+- 필드: `roadmapId` int(≥1, `visa_roadmaps.id`) · `stepCount` int(≥0, 단계 수. 단위: 개) · `applicableFrom` date\|null(신청 가능일, 판정할 수 없으면 null) · `ruleStatus` `DRAFT|APPROVED|RETIRED`\|null.
+- 로드맵에 누락 입력이 있으면 바로 뒤에 `MISSING_INPUTS`가 붙는다. `question`은 E-7-4와 같이 사용자 언어다(ko 한국어, 그 밖 영어). 감점·제외 6문항은 채팅 로드맵 요청에 넣지 않으므로(`legalDeclaration` 없음) 보통 들어간다.
+- 결과 참조·근거: `resultRef` `{type: VISA_ROADMAP, id: roadmapId}`, sources `VISA_ROADMAP`.
+- 단계 문장(`title`·`description`)은 Spring이 저장한 로드맵 그대로다. 언어는 Spring이 로드맵 요청 `language`(#125)에 사용자 언어를 넣어 정한다(hanstep-backend #171부터. 그 전에는 한국어).
+- 프론트는 아직 이 type을 모른다(`KNOWN_BLOCK_TYPES`에 없음). 운영 기본값을 v4.7로 올리기 전에 프론트 카드가 먼저 나가야 한다.
+- 어떤 질문에 나오는지와 측정 결과: `visa_roadmap_chat_v1.md`.
 
 ### 3.5 `FX_SUMMARY_CARD` — 환율 진단 카드
 
@@ -351,7 +364,7 @@ data: {"runId":"run_4f1c2b7e9d0a4c3b8e6f5a1d2c3b4a59","assistantMessageId":11,"b
 
 운영 값 예(2026-11-19 운영 확인, #101 결과 문서 6절): 500,000 KRW → 23,587 PHP, 1 PHP = 20.926 KRW, `isMock` false.
 
-### 4.4 `VISA_ROADMAP_LINK` (채팅 미연결, 참고)
+### 4.4 `VISA_ROADMAP_LINK` (v4.7)
 
 `ai/tests/fixtures/visa_tools/roadmap_tool_response.json`으로 `roadmap_records`를 실행한 결과.
 

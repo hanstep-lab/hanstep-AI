@@ -25,6 +25,7 @@ PROMPT_VERSIONS = {
     "v4.5": "chat-v4.5",
     "v4.4d": "chat-v4.4d",
     "v4.6": "chat-v4.6",
+    "v4.7": "chat-v4.7",
 }
 PROMPT_VERSION = PROMPT_VERSIONS["v1"]  # the default
 
@@ -311,6 +312,55 @@ _SYSTEM_BY_DISPLAY: dict[str, dict[DisplayLanguage, str]] = {
     "v4.6": _display_versions(
         _with_product_card_lines(_SYSTEM["v4.5"]), extra="display_product_card"
     ),
+}
+
+
+# v4.7(#127): v4.6 그대로 + 비자 로드맵 규칙(roadmap_rules.md). 로드맵 도구 get_visa_roadmap은
+# v4.7에서만 붙는다. 부딪히는 두 줄만 v4.7에서 바꾼다. visa_rules.md·goal_rules.md 파일과
+# v4.6 이하 문구는 그대로다.
+# - 점수 규칙: '점수 올리는 법'은 로드맵으로 옮긴다. calculate_e74_score는 점수·신청 가능 여부만.
+# - 목표 규칙(SETTLEMENT): 질문 자체가 한국 장기 체류·비자 변경이면 로드맵 규칙을 따른다
+#   (첫 화면 칩 "한국에서 오래 살고 싶은데 어떻게 해요?"가 열린 조언으로 읽혀
+#   로드맵을 안 부르던 문제).
+E74_SCORE_LINE = (
+    "- For any question about the user's own E-7-4 score, eligibility or how to raise the score, "
+    "call calculate_e74_score first. Do not write any text before the tool call."
+)
+ROADMAP_E74_SCORE_LINE = (
+    "- For any question about the user's own E-7-4 score or eligibility, call calculate_e74_score "
+    "first. Do not write any text before the tool call. For how to raise the score, follow the "
+    "visa roadmap rules below."
+)
+SETTLEMENT_GOAL_LINE = (
+    "  - SETTLEMENT: suggest checking the E-7-4 score or the '비자 로드맵' (visa roadmap) menu. "
+    "Do not call calculate_e74_score unless the user asks for the score."
+)
+ROADMAP_SETTLEMENT_GOAL_LINE = (
+    "  - SETTLEMENT: suggest checking the E-7-4 score or the '비자 로드맵' (visa roadmap) menu. "
+    "Do not call calculate_e74_score unless the user asks for the score. If the question itself "
+    "is about staying in Korea long-term or changing their visa, follow the visa roadmap rules "
+    "below instead."
+)
+ROADMAP_CHANGES = (
+    (E74_SCORE_LINE, ROADMAP_E74_SCORE_LINE, "e74-score"),
+    (SETTLEMENT_GOAL_LINE, ROADMAP_SETTLEMENT_GOAL_LINE, "settlement-goal"),
+)
+_ROADMAP_RULES = (_DIR / "roadmap_rules.md").read_text(encoding="utf-8")
+
+
+def _with_roadmap_rules(base: str) -> str:
+    """바탕 글(v4.6)의 ROADMAP_CHANGES 줄을 바꾸고 끝에 로드맵 규칙을 더한다.
+
+    바꿀 줄이 바탕 글에 정확히 한 번 있지 않으면 시작할 때 실패한다.
+    """
+    text = base
+    for old, new, what in ROADMAP_CHANGES:
+        text = "\n".join(_replace_line(text, old, new, what))
+    return text.rstrip("\n") + "\n\n" + _ROADMAP_RULES
+
+
+_SYSTEM_BY_DISPLAY["v4.7"] = {
+    language: _with_roadmap_rules(text) for language, text in _SYSTEM_BY_DISPLAY["v4.6"].items()
 }
 
 

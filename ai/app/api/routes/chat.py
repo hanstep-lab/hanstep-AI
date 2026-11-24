@@ -46,6 +46,8 @@ from app.chat.visa_tools import (
     PolicySearchSource,
     ServicePolicySearch,
     SpringE74Source,
+    SpringRoadmapSource,
+    VisaRoadmapSource,
     VisaTools,
 )
 from app.core.config import Settings
@@ -57,31 +59,52 @@ router = APIRouter(prefix="/agent/chat", tags=["chat"])
 
 # 비자 도구(정책 검색·E-7-4 점수)를 설명하는 프롬프트 버전. 이 버전에서만 비자 도구를 붙인다.
 # v1·v1.1은 금융 도구만 붙어서 그 버전으로 잰 측정 조건이 그대로 남는다.
+# v4.7 = v4.6 + 로드맵 규칙(#127)이라 v4.6의 도구가 모두 붙는다(아래 집합 모두 같다).
 VISA_PROMPT_VERSIONS = frozenset(
-    {"v2", "v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.5", "v4.4d", "v4.6"}
+    {
+        "v2",
+        "v3",
+        "v3.1",
+        "v3.2",
+        "v4",
+        "v4.1",
+        "v4.2",
+        "v4.3a",
+        "v4.4",
+        "v4.5",
+        "v4.4d",
+        "v4.6",
+        "v4.7",
+    }
 )
 # 송금 조회 도구(받는 분·환율·견적)를 설명하는 프롬프트 버전. v1~v2의 도구 구성은 그대로다.
 REMITTANCE_PROMPT_VERSIONS = frozenset(
-    {"v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.5", "v4.4d", "v4.6"}
+    {"v3", "v3.1", "v3.2", "v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.5", "v4.4d", "v4.6", "v4.7"}
 )
 # 상품 추천 도구(#65)를 설명하는 프롬프트 버전. v3까지의 도구 구성은 그대로다.
 PRODUCT_PROMPT_VERSIONS = frozenset(
-    {"v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.5", "v4.4d", "v4.6"}
+    {"v4", "v4.1", "v4.2", "v4.3a", "v4.4", "v4.5", "v4.4d", "v4.6", "v4.7"}
 )
 # 금융 정책 검색 도구(#88)를 설명하는 프롬프트 버전.
 # v4.1까지의 도구 구성은 그대로다(기준선 영향 없음).
-FINANCE_POLICY_PROMPT_VERSIONS = frozenset({"v4.2", "v4.3a", "v4.4", "v4.5", "v4.4d", "v4.6"})
+FINANCE_POLICY_PROMPT_VERSIONS = frozenset(
+    {"v4.2", "v4.3a", "v4.4", "v4.5", "v4.4d", "v4.6", "v4.7"}
+)
 # 환율 진단 도구(fx_rate_summary, #91)를 설명하는 프롬프트 버전. v4.4 = v4.2 + 환율 진단 규칙이라
 # v4.4에는 v4.2의 도구가 모두 붙고 이 도구가 더 붙는다. 다른 버전의 도구 구성은 그대로다.
-FX_PROMPT_VERSIONS = frozenset({"v4.4", "v4.5", "v4.4d", "v4.6"})
+FX_PROMPT_VERSIONS = frozenset({"v4.4", "v4.5", "v4.4d", "v4.6", "v4.7"})
 # 금융상품 추천 카드(PRODUCT_RECOMMEND_CARD, #114)를 설명하는 프롬프트 버전.
 # v4.5 = v4.4 + 목표·출처·카드 규칙이라 도구는 v4.4와 같고 상품 도구가 카드를 더 낸다.
 # v4.6 = v4.5 + 답변 표시 규칙(#116)이라 카드도 같이 붙는다. 다른 버전에는 카드가 없다.
-PRODUCT_CARD_PROMPT_VERSIONS = frozenset({"v4.5", "v4.6"})
+PRODUCT_CARD_PROMPT_VERSIONS = frozenset({"v4.5", "v4.6", "v4.7"})
 # 답변 표시 규칙(#116)이 있는 프롬프트 버전. 도구가 LLM에 표시값(rateText 등)을 더 준다.
 # v4.6 = v4.5 + 표시 규칙, v4.4d = v4.4 + 표시 규칙(11/20 측정 재현용).
 # 도구 묶음은 각 바탕 버전과 같다.
-DISPLAY_PROMPT_VERSIONS = frozenset({"v4.4d", "v4.6"})
+DISPLAY_PROMPT_VERSIONS = frozenset({"v4.4d", "v4.6", "v4.7"})
+# 비자 로드맵 도구(get_visa_roadmap, #127)와 로드맵 카드(VISA_ROADMAP_LINK)를 설명하는
+# 프롬프트 버전.
+# 다른 버전의 도구 구성은 그대로다.
+ROADMAP_PROMPT_VERSIONS = frozenset({"v4.7"})
 
 
 @dataclass(frozen=True)
@@ -191,6 +214,14 @@ def e74_source(request: Request) -> E74AssessmentSource | None:
     return None
 
 
+def roadmap_source(request: Request) -> VisaRoadmapSource | None:
+    """로드맵도 Spring이 MySQL 프로필로 만들고 저장한다(#127). 설정이 없으면 None(도구가 FAILED)."""
+    settings: Settings = request.app.state.rag.settings
+    if settings.chat_llm_mode == "anthropic" and settings.spring_configured():
+        return SpringRoadmapSource(_chat_spring(request), settings.chat_tool_timeout_seconds)
+    return None
+
+
 def policy_search(request: Request) -> PolicySearchSource | None:
     """정책 검색 라우트와 같은 운영 검색. 벡터 저장소·임베딩 모델이 없으면 None(도구가 FAILED)."""
     state = request.app.state.rag
@@ -214,6 +245,7 @@ async def chat_stream(
     setup: Annotated[ChatSetup, Depends(chat_setup)],
     source: Annotated[FinanceContextSource, Depends(finance_source)],
     e74: Annotated[E74AssessmentSource | None, Depends(e74_source)],
+    roadmap: Annotated[VisaRoadmapSource | None, Depends(roadmap_source)],
     search: Annotated[PolicySearchSource | None, Depends(policy_search)],
     remittance: Annotated[RemittanceSource, Depends(remittance_source)],
     product: Annotated[ProductContextSource, Depends(product_source)],
@@ -243,6 +275,8 @@ async def chat_stream(
                 request_id=rid,
                 timeout=settings.chat_tool_timeout_seconds,
                 language=body.language,
+                roadmap=setup.config.prompt_version in ROADMAP_PROMPT_VERSIONS,
+                roadmap_source=roadmap,
             )
         )
     # 송금 조회 도구도 그 도구를 설명하는 프롬프트 버전(v3)에서만 붙인다. 송금은 실행하지 않는다.
