@@ -84,8 +84,16 @@ class ChatRunOptions:
     answer_guard: GuardMode = "replace"
 
 
-def build_messages(request: ChatStreamRequest, prompt_version: str = "v1") -> list[BaseMessage]:
-    messages: list[BaseMessage] = [SystemMessage(system_prompt(request.language, prompt_version))]
+def build_messages(
+    request: ChatStreamRequest, prompt_version: str = "v1", ph_localization: bool = True
+) -> list[BaseMessage]:
+    # 국적·첫 턴(history 없음)은 v4.8 현지화 블록에만 쓴다(#130).
+    # 스위치(CHAT_PH_LOCALIZATION)가 꺼져 있으면 국적을 넘기지 않는다.
+    nationality = request.nationality_code if ph_localization else None
+    system = system_prompt(
+        request.language, prompt_version, nationality=nationality, first_turn=not request.history
+    )
+    messages: list[BaseMessage] = [SystemMessage(system)]
     for item in request.history:
         if item.role == "USER":
             messages.append(HumanMessage(item.content))
@@ -120,7 +128,12 @@ async def run_chat(
     async def produce() -> None:
         try:
             async for item in graph.astream(
-                {"messages": build_messages(request, config.prompt_version), "tool_calls_done": 0},
+                {
+                    "messages": build_messages(
+                        request, config.prompt_version, ph_localization=config.ph_localization
+                    ),
+                    "tool_calls_done": 0,
+                },
                 stream_mode="custom",
             ):
                 await queue.put(item)

@@ -27,6 +27,9 @@ from app.chat.product_tools import RECOMMEND_SAVINGS_PRODUCTS
 from app.chat.prompts import (
     DISPLAY_CHANGES,
     NO_BOLD_LINE,
+    PH_FIRST_TURN_LINE,
+    PH_LATER_TURN_LINE,
+    PH_LOCALIZATION_VERSIONS,
     PRODUCT_CARD_CHANGES,
     PRODUCT_FACTS_LINE,
     PRODUCT_ORDER_LINE,
@@ -101,6 +104,7 @@ def test_v1_unchanged_when_judgment_is_off() -> None:
         "v4.4d": "chat-v4.4d",
         "v4.6": "chat-v4.6",
         "v4.7": "chat-v4.7",
+        "v4.8": "chat-v4.8",
     }
     v1_file = (PROMPTS / "system_v1.md").read_text(encoding="utf-8")
     assert system_prompt("en") == v1_file.replace("{language}", "en")
@@ -259,12 +263,15 @@ PROMPT_SHA256 = {
     "v4.6": "da47484349d4097eeea8c83794365fd839a397e1ce9205a049a32a12426d8c87",
     # 2026-11-23(#127): v4.6 그대로 + 비자 로드맵 규칙. v4.6은 그대로다.
     "v4.7": "1aac51a46b7bc2d66d4f4736af4aea0ccd1b9d5e9d2fe68413ee9acc98ef4883",
+    # 2026-11-24(#130): 국적이 없으면 v4.8은 v4.7과 같은 글이다(PHL+en은 PH_PROMPT_SHA256).
+    "v4.8": "1aac51a46b7bc2d66d4f4736af4aea0ccd1b9d5e9d2fe68413ee9acc98ef4883",
 }
 # 표시 규칙이 언어별로 다른 버전의 한국어(ko) 프롬프트.
 PROMPT_SHA256_KO = {
     "v4.4d": "e69b2c08fae002baeafa8aae841abae6193cf7abb8688b20d52d49587abc0903",
     "v4.6": "16329bb42ef5421b077ccce03c482d3f8f984dd0d57ad5ef43d77cad4aed8078",
     "v4.7": "b070d4f60471aa2bfe775075861ebe4f3c2c2671ccbfc9f3339856c41146faa1",
+    "v4.8": "b070d4f60471aa2bfe775075861ebe4f3c2c2671ccbfc9f3339856c41146faa1",
 }
 
 
@@ -309,7 +316,8 @@ def test_v4_4_is_v4_2_plus_fx_rules() -> None:
     # v4.5(#114)는 v4.4 본문 그대로라 환율 진단 도구도 붙는다.
     # v4.4d·v4.6(#116)은 v4.4·v4.5에 표시 규칙을 더한 버전이라 같이 붙는다.
     # v4.7(#127)은 v4.6에 로드맵 규칙을 더한 버전이라 같이 붙는다.
-    assert FX_PROMPT_VERSIONS == frozenset({"v4.4", "v4.5", "v4.4d", "v4.6", "v4.7"})
+    # v4.8(#130) = v4.7 + 현지화 블록이라 같이 붙는다.
+    assert FX_PROMPT_VERSIONS == frozenset({"v4.4", "v4.5", "v4.4d", "v4.6", "v4.7", "v4.8"})
     assert _settings().chat_prompt_version == "v4.1"
     config = LlmConfig.from_settings(_settings(chat_prompt_version="v4.4"))
     assert config.prompt_version_id == "chat-v4.4"
@@ -589,3 +597,97 @@ def test_roadmap_rules_fail_fast_when_a_line_moves() -> None:
     for old, _, what in ROADMAP_CHANGES:
         with pytest.raises(ValueError, match=f"{what} line"):
             _with_roadmap_rules(base.replace(old, "- something else"))
+
+
+# --- v4.8 필리핀 국적 현지화(#130) ---------------------------------------------------------
+
+# 블록 파일(ph_localization_en.md)의 SHA-256. 문구는 이슈 #130에 적은 그대로다.
+PH_BLOCK_SHA256 = "57c14f301ccab311e93e8e28e5a5114521cfcdfe04910ce0c2f8da15b83fd89a"
+PH_BLOCK_TEXT = (PROMPTS / "ph_localization_en.md").read_text(encoding="utf-8")
+# v4.8 + PHL + en 완성 프롬프트(첫 턴·그 밖의 턴)의 SHA-256. 그 밖의 경우는 v4.7과 같은 글이다.
+PH_PROMPT_SHA256 = {
+    "first": "ac67594b3bccfe3236b386f148addece224769b39370f3bd416e0e09ce5a01f3",
+    "later": "171c8540ac28193ff44b6bd054cfb170299037111d97c92397a11457cd528f84",
+}
+
+
+def test_ph_block_file_is_the_agreed_text() -> None:
+    # #130: 블록 문구는 이슈에 적은 그대로 쓴다(인사 줄만 코드가 채운다).
+    raw = (PROMPTS / "ph_localization_en.md").read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == PH_BLOCK_SHA256
+    assert PH_BLOCK_TEXT.startswith("Filipino user localization\n")
+    assert PH_BLOCK_TEXT.count("{GREETING_LINE}") == 1
+    for expression in ("Kumusta po!", "Salamat po!", "Maraming salamat po!", "Ingat po!"):
+        assert f'"{expression}"' in PH_BLOCK_TEXT
+    assert "Use at most two of these expressions in one answer." in PH_BLOCK_TEXT
+    assert "Never put a Filipino expression in a sentence that contains a number." in PH_BLOCK_TEXT
+
+
+@pytest.mark.parametrize(
+    ("language", "nationality"),
+    [("en", None), ("ko", "PHL"), ("vi", "PHL"), ("en", "VNM"), ("en", "phl"), ("ko", None)],
+)
+@pytest.mark.parametrize("first_turn", [True, False])
+def test_v4_8_is_v4_7_unless_ph_and_en(
+    language: str, nationality: str | None, first_turn: bool
+) -> None:
+    v47 = system_prompt(language, "v4.7")
+    assert system_prompt(language, "v4.8", nationality, first_turn) == v47
+
+
+@pytest.mark.parametrize(
+    ("first_turn", "line"), [(True, PH_FIRST_TURN_LINE), (False, PH_LATER_TURN_LINE)]
+)
+def test_v4_8_adds_ph_block_for_ph_and_en(first_turn: bool, line: str) -> None:
+    v47 = system_prompt("en", "v4.7")
+    text = system_prompt("en", "v4.8", "PHL", first_turn)
+    block = PH_BLOCK_TEXT.replace("{GREETING_LINE}", line)
+    assert text == v47.rstrip("\n") + "\n\n" + block
+    assert text.count("Filipino user localization") == 1
+    other = PH_LATER_TURN_LINE if first_turn else PH_FIRST_TURN_LINE
+    assert other not in text
+    # 기존 신원 줄은 그대로 두고 다른 이름의 신원 문장을 넣지 않는다.
+    assert "You are Shinhan Georeum" not in text
+    assert (
+        hashlib.sha256(text.encode("utf-8")).hexdigest()
+        == PH_PROMPT_SHA256["first" if first_turn else "later"]
+    )
+
+
+def test_ph_block_is_v4_8_only() -> None:
+    # v4.7 이하에는 국적을 넘겨도 블록이 붙지 않는다.
+    for version in ("v4.6", "v4.7"):
+        assert system_prompt("en", version, "PHL", True) == system_prompt("en", version)
+    assert frozenset({"v4.8"}) == PH_LOCALIZATION_VERSIONS
+
+
+def test_build_messages_passes_nationality_first_turn_and_switch() -> None:
+    body = {"runId": "r", "userId": 1, "sessionId": 1, "language": "en", "message": "hi"}
+    first = ChatStreamRequest.model_validate({**body, "nationalityCode": "PHL"})
+    later = ChatStreamRequest.model_validate(
+        {
+            **body,
+            "nationalityCode": "PHL",
+            "history": [
+                {"role": "USER", "content": "q"},
+                {"role": "ASSISTANT", "content": "a"},
+            ],
+        }
+    )
+    assert build_messages(first, "v4.8")[0].content == system_prompt("en", "v4.8", "PHL", True)
+    assert build_messages(later, "v4.8")[0].content == system_prompt("en", "v4.8", "PHL", False)
+    # CHAT_PH_LOCALIZATION=false: v4.8이어도 블록이 없다(v4.7과 같은 글).
+    assert build_messages(first, "v4.8", ph_localization=False)[0].content == system_prompt(
+        "en", "v4.7"
+    )
+    # 국적이 없으면(Spring 변경 전) v4.7과 같다.
+    assert build_messages(ChatStreamRequest.model_validate(body), "v4.8")[0].content == (
+        system_prompt("en", "v4.7")
+    )
+
+
+def test_ph_localization_setting_defaults_on_and_reaches_the_config() -> None:
+    assert _settings().chat_ph_localization is True
+    assert LlmConfig.from_settings(_settings()).ph_localization is True
+    off = LlmConfig.from_settings(_settings(chat_ph_localization=False, chat_prompt_version="v4.8"))
+    assert (off.ph_localization, off.prompt_version_id) == (False, "chat-v4.8")

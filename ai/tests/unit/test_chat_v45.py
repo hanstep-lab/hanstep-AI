@@ -208,11 +208,12 @@ def test_one_card_per_turn_last_success_wins() -> None:
 def test_card_only_in_v4_5() -> None:
     # v4.6(#116) = v4.5 + 답변 표시 규칙이라 카드도 같이 붙는다.
     # v4.7(#127) = v4.6 + 로드맵 규칙이라 상품 카드도 같이 붙는다.
-    assert frozenset({"v4.5", "v4.6", "v4.7"}) == PRODUCT_CARD_PROMPT_VERSIONS
+    assert frozenset({"v4.5", "v4.6", "v4.7", "v4.8"}) == PRODUCT_CARD_PROMPT_VERSIONS
     assert PRODUCT_CARD_PROMPT_VERSIONS <= PRODUCT_PROMPT_VERSIONS
     assert TOOL_SCHEMAS_BY_PROMPT["v4.5"] is TOOL_SCHEMAS_BY_PROMPT["v4.4"]
     assert TOOL_SCHEMAS_BY_PROMPT["v4.6"] is TOOL_SCHEMAS_BY_PROMPT["v4.5"]
     assert TOOL_SCHEMAS_BY_PROMPT["v4.7"] is TOOL_SCHEMAS_BY_PROMPT["v4.6"]
+    assert TOOL_SCHEMAS_BY_PROMPT["v4.8"] is TOOL_SCHEMAS_BY_PROMPT["v4.7"]
 
 
 def test_screen_item_keeps_stay_fit_and_rates() -> None:

@@ -136,6 +136,8 @@ TOOL_SCHEMAS_BY_PROMPT: dict[str, dict[str, Any]] = {
     "v4.6": TOOL_SCHEMA_V4_1,
     # v4.7 = v4.6 + 비자 로드맵 규칙(#127). 상품 도구 설명은 그대로다.
     "v4.7": TOOL_SCHEMA_V4_1,
+    # v4.8 = v4.7 + 필리핀 국적 현지화 블록(#130). 상품 도구 설명은 그대로다.
+    "v4.8": TOOL_SCHEMA_V4_1,
 }
 
 
