@@ -1,6 +1,8 @@
 import re
 from datetime import date
 
+from .country import find_country
+
 FIELD_NAMES = [
     "NAME_EN",
     "NATIONALITY",
@@ -9,17 +11,6 @@ FIELD_NAMES = [
     "STAY_EXPIRES_ON",
     "REGISTRATION_NO",
 ]
-
-# E-9 송출국 위주. 등록증 표기 → ISO 3166-1 alpha-3
-COUNTRY_CODES = {
-    "VIETNAM": "VNM", "VIET NAM": "VNM",
-    "PHILIPPINES": "PHL", "INDONESIA": "IDN", "THAILAND": "THA",
-    "CAMBODIA": "KHM", "NEPAL": "NPL", "MYANMAR": "MMR",
-    "SRI LANKA": "LKA", "UZBEKISTAN": "UZB", "BANGLADESH": "BGD",
-    "MONGOLIA": "MNG", "PAKISTAN": "PAK", "KYRGYZSTAN": "KGZ",
-    "TIMOR-LESTE": "TLS", "EAST TIMOR": "TLS", "LAOS": "LAO",
-    "CHINA": "CHN",
-}
 
 REG_NO = re.compile(r"(\d{6})\s*[-–—~]?\s*(\d)(\d{6})")
 # 세부 코드는 두 자리까지 (F-1-13, F-2-99). 뒤에 숫자·하이픈이 더 붙으면 잘라 쓰지 않는다
@@ -33,6 +24,9 @@ COUNTRY_KEYWORDS = ["국가", "Country"]
 STATUS_KEYWORDS = ["체류자격", "Status"]
 ISSUE_KEYWORDS = ["발급", "Issue"]
 NAME_LABEL = re.compile("|".join(NAME_KEYWORDS))
+# 국가 칸 라벨 글자. 국가명 후보에서 지운다 ('국가/지역 REPUBLIC OF ...', 'Country/Region')
+COUNTRY_LABEL = re.compile("국가|지역|Country|Region")
+COUNTRY_LOOK = 3  # 라벨 다음 몇 줄까지 국가명을 찾는지
 
 
 def _field(name, value=None, confidence=None):
@@ -74,36 +68,23 @@ def _name_en(lines):
     text, score = _next_upper_line(lines, i, COUNTRY_KEYWORDS + STATUS_KEYWORDS + ISSUE_KEYWORDS)
     return _field("NAME_EN", text, score)
 
-def _country_code(text):
-    """국가 줄 → 국가 코드.
-    정확히 일치하면 바로 쓰고, 아니면 국가 이름이 단어로 들어 있는지 찾는다.
-    예: 'REPUBLIC OF THE PHILIPPINES' → 'PHILIPPINES' → PHL
-    """
-    text = re.sub(r"\s+", " ", text).strip()
-    if text in COUNTRY_CODES:
-        return COUNTRY_CODES[text]
-    # 긴 이름부터 본다. 'VIET NAM'처럼 여러 단어인 이름이 먼저 걸리게
-    for name in sorted(COUNTRY_CODES, key=len, reverse=True):
-        if re.search(rf"\b{re.escape(name)}\b", text):
-            return COUNTRY_CODES[name]
-    return None
-
 def _nationality(lines):
     i = _find_anchor(lines, COUNTRY_KEYWORDS)
     if i is None:
         return _field("NATIONALITY")
-    # 라벨과 값이 한 줄로 붙어 나오는 경우 (예: '국가/지역 REPUBLIC OF THE PHILIPPINES')
-    label_text, label_score = lines[i]
-    code = _country_code(label_text)
-    if code:
-        return _field("NATIONALITY", code, label_score)
-    # 라벨 다음 줄에 값이 있는 경우
-    text, score = _next_upper_line(lines, i, STATUS_KEYWORDS + ISSUE_KEYWORDS)
-    if text is None:
+    # 후보: 라벨 줄 자체('국가/지역 REPUBLIC OF ...'처럼 한 줄로 읽힌 경우) + 다음 줄들
+    candidates = [lines[i]]
+    for text, score in lines[i + 1:i + 1 + COUNTRY_LOOK]:
+        if any(k in text for k in STATUS_KEYWORDS + ISSUE_KEYWORDS):
+            break  # 다음 필드로 넘어갔으면 그 값을 가져오지 않는다
+        candidates.append((text, score))
+    found = find_country([(COUNTRY_LABEL.sub(" ", t), s) for t, s in candidates])
+    # 못 찾았거나 지원 범위 밖 나라면 값 없이 보내서 사용자 확인으로 넘긴다
+    if found is None or found.code is None:
         return _field("NATIONALITY")
-    code = _country_code(text)
-    # 사전에 없는 국가는 값 없이 보내서 사용자 확인으로 넘긴다
-    return _field("NATIONALITY", code, score) if code else _field("NATIONALITY")
+    # 글자를 고치거나 비슷한 이름으로 찾았으면 사용자 확인으로 넘긴다
+    confidence = found.score if found.sure else min(found.score, SUSPECT_CONFIDENCE)
+    return _field("NATIONALITY", found.code, confidence)
 
 
 def _registration_and_birth(lines):
