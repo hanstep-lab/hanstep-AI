@@ -28,7 +28,7 @@ Spring 백엔드가 내부 API로 호출하는 AI 서버입니다. 챗봇, 정�
 | --- | --- |
 | [hanstep-frontend](https://github.com/hanstep-lab/hanstep-frontend) | 모바일 앱 (Expo / React Native) |
 | [hanstep-backend](https://github.com/hanstep-lab/hanstep-backend) | API 서버 (Spring Boot), 로컬 인프라, 운영 배포 |
-| **hanstep-AI** (여기) | AI 서버 (FastAPI), 챗봇, 계산 엔진, OCR |
+| **hanstep-AI** | AI 서버 (FastAPI), 챗봇, 계산 엔진, OCR |
 
 서비스 소개, 전체 아키텍처, 팀 소개는 [조직 프로필](https://github.com/hanstep-lab)에 있습니다.
 
